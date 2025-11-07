@@ -1,0 +1,208 @@
+<!-- drawer-component.html (V4 - Final Fix) -->
+
+<!-- 
+    核心修改：
+    1. 将 id="beat-tracker-component-wrapper" 和 class="drawer" 合并到同一个根元素上。
+    2. 这个根元素现在既是JS的查找起点，也是CSS的样式目标，从而完美融入SillyTavern的顶栏布局。
+    3. 内容面板现在是这个根元素的直接子元素。
+-->
+<div id="beat-tracker-component-wrapper" class="drawer">
+
+    <!-- 按钮部分：现在是根元素的直接子元素 -->
+    <div class="drawer-toggle" title="打开叙事流引擎控制室">
+        <div id="beat-tracker-icon" class="drawer-icon fa-solid fa-compass fa-fw interactable closedIcon" tabindex="0"></div>
+    </div>
+
+    <!-- 内容面板：现在也是根元素的直接子元素，与按钮是兄弟关系 -->
+      <div id="beat-tracker-content-panel" class="drawer-content"> 
+        <div class="drawer-header">
+            <h3><i class="fa-solid fa-rocket fa-fw"></i> 叙事流引擎 - 控制室</h3>
+             <div class="sbt-header-indicators">
+                <div id="sbt-chapter-anchor" title="这是当前章节的起始消息楼层。&#10;为保证史官能正确分析历史，请在本章结束前，不要隐藏或删除此楼层之后的消息。">
+                    <i class="fa-solid fa-anchor fa-fw"></i>
+                    <span id="sbt-chapter-anchor-index">--</span>
+                </div>
+                <div id="sbt-engine-status-indicator" title="引擎当前状态">
+                    <i id="sbt-engine-status-icon" class="fa-solid fa-coffee"></i>
+                    <span id="sbt-engine-status-text">空闲</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 标签页导航栏 -->
+        <nav id="sbt-tab-nav">
+            <button id="btn-show-monitor" class="sbt-tab-btn active" data-panel="sbt-monitor-panel"><i class="fa-solid fa-desktop fa-fw"></i> 监控面板</button>
+            <button id="btn-show-compass" class="sbt-tab-btn" data-panel="sbt-compass-panel"><i class="fa-solid fa-compass-drafting fa-fw"></i> 叙事罗盘</button>
+            <button id="btn-show-settings" class="sbt-tab-btn" data-panel="sbt-settings-panel"><i class="fa-solid fa-cog fa-fw"></i> 设置</button>
+        </nav>
+
+        <div class="sbt-panels-wrapper">
+
+            <!-- ======================= 1. 监控面板 ======================= -->
+            <div id="sbt-monitor-panel" class="sbt-tab-panel active">
+                <div class="sbt-accordion">
+                    <!-- 故事摘要 -->
+                    <div class="sbt-accordion-item">
+                        <h5 class="sbt-accordion-header"><span><i class="fa-solid fa-scroll fa-fw"></i> 故事摘要</span></h5>
+                        <div class="sbt-accordion-content">
+                            <div id="sbt-story-summary-content" style="white-space: pre-wrap;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 当前小章剧本 -->
+                    <div class="sbt-accordion-item">
+                        <h5 class="sbt-accordion-header"><span><i class="fa-solid fa-file-alt fa-fw"></i> 当前小章剧本</span></h5>
+                        <div class="sbt-accordion-content">
+                            <div id="sbt-active-script-content"></div>
+                        </div>
+                    </div>
+
+                    <!-- 建筑师的设计笔记 -->
+                    <div class="sbt-accordion-item">
+                        <h5 class="sbt-accordion-header"><span><i class="fa-solid fa-feather-pointed fa-fw"></i> 建筑师的设计笔记</span></h5>
+                        <div class="sbt-accordion-content">
+                            <div id="sbt-design-notes-content" style="white-space: pre-wrap;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 故事线网络 -->
+                    <div class="sbt-accordion-item">
+                        <h5 class="sbt-accordion-header"><span><i class="fa-solid fa-diagram-project fa-fw"></i> 故事线网络</span></h5>
+                        <div class="sbt-accordion-content">
+                            <div id="sbt-line-matrix-list"></div>
+                        </div>
+                    </div>
+                    <!-- 角色关系图谱 -->
+                    <div class="sbt-accordion-item">
+                        <h5 class="sbt-accordion-header"><span><i class="fa-solid fa-users fa-fw"></i> 角色关系图谱</span></h5>
+                        <div class="sbt-accordion-content">
+                            <div id="sbt-character-chart"></div>
+                        </div>
+                    </div>
+                </div>
+            </div> <!-- 监控面板结束 -->
+
+            <!-- ======================= 2. 叙事罗盘面板======================= -->
+            <div id="sbt-compass-panel" class="sbt-tab-panel">
+                
+                <label for="sbt-master-enable-toggle" class="sbt-toggle-switch-container">
+                    <div class="sbt-toggle-label">
+                        <span class="sbt-toggle-text">启用叙事流引擎</span>
+                        <i class="fa-solid fa-circle-info fa-fw" title="这是插件的总开关。关闭后，SBT将不会对AI的回复进行任何干预或注入，恢复为经典聊天模式。"></i>
+                    </div>
+                    <div class="sbt-toggle-switch">
+                        <input type="checkbox" id="sbt-master-enable-toggle">
+                        <span class="sbt-slider"></span>
+                    </div>
+                </label>
+                <label for="sbt-enable-focus-popup-toggle" class="sbt-toggle-switch-container">
+                    <div class="sbt-toggle-label">
+                        <span class="sbt-toggle-text">章节转换时询问焦点</span>
+                        <i class="fa-solid fa-circle-info fa-fw" title="开启后，在每个常规章节结束时，会弹窗让您输入下一章的焦点，而不是立即由AI规划。"></i>
+                    </div>
+                    <div class="sbt-toggle-switch">
+                        <input type="checkbox" id="sbt-enable-focus-popup-toggle">
+                        <span class="sbt-slider"></span>
+                    </div>
+                </label>
+                <label for="sbt-enable-conductor-toggle" class="sbt-toggle-switch-container">
+                    <div class="sbt-toggle-label">
+                        <span class="sbt-toggle-text">开启回合裁判模式</span>
+                        <i class="fa-solid fa-circle-info fa-fw" title="开启后，回合指挥官AI将根据剧本严格指导AI的每一步行动，确保剧情不偏离。关闭后，AI将获得更高的自由演绎权限，更接近经典模式。"></i>
+                    </div>
+                    <div class="sbt-toggle-switch">
+                        <input type="checkbox" id="sbt-enable-conductor-toggle">
+                        <span class="sbt-slider"></span>
+                    </div>
+                </label>
+
+                <button id="sbt-start-genesis-btn" class="sbt-primary-btn" style="margin-top: 25px; margin-bottom: 20px;">
+                    <i class="fa-solid fa-book-sparkles fa-fw"></i> 开始新的叙事篇章
+                </button>
+                
+                <div id="sbt-force-transition-btn-wrapper" style="display: none; margin-top: 25px;">
+                    <button id="sbt-force-transition-btn" class="sbt-primary-btn" style="margin-bottom: 20px;">
+                        <i class="fa-solid fa-wand-magic-sparkles fa-fw"></i> 立即进行章节转换
+                    </button>
+                    <p class="sbt-instructions-small" style="text-align: center; margin-top: -15px; margin-bottom: 25px;">
+                        将以当前聊天为终点，立刻开始史官复盘并规划下一章。
+                    </p>
+                </div>
+
+                <div class="sbt-advanced-controls" style="margin-top: 25px; padding-top: 15px; border-top: 1px dashed var(--sbt-border-color);">        
+                    <div class="sbt-danger-zone" style="margin-top: 0;">
+                        <button id="sbt-reanalyze-worldbook-btn" class="sbt-danger-btn">
+                            <i class="fa-solid fa-book-skull fa-fw"></i> 重新分析世界书
+                        </button>
+                        <p class="sbt-instructions-small">
+                            将清除此角色的<strong>静态设定缓存</strong>。当您更新了世界书后，点击此按钮，然后开始新游戏，AI将会使用最新的世界书内容。
+                        </p>
+                    </div>
+                </div>
+
+            </div> <!-- 叙事罗盘面板结束 -->
+
+            <!-- ======================= 3. 设置面板 ======================= -->
+            <div id="sbt-settings-panel" class="sbt-tab-panel">
+                <h4><i class="fa-solid fa-brain fa-fw"></i> 核心大脑 AI (后台规划)</h4>
+                <p class="sbt-instructions">
+                    用于章节总结、剧本创作等复杂任务。推荐使用能力最强的模型 (如 Gemini Pro, GPT-4)。
+                </p>
+                <div class="sbt-settings-form">
+                    <div class="sbt-form-group">
+                        <label for="sbt-api-url-input">API URL</label>
+                        <input type="text" id="sbt-api-url-input" placeholder="例如: https://.../gemini-pro:generateContent">
+                    </div>
+                    <div class="sbt-form-group">
+                        <label for="sbt-api-key-input">API Key</label>
+                        <div class="sbt-password-wrapper">
+                            <input type="password" id="sbt-api-key-input" placeholder="在此输入您的API密钥">
+                            <i id="sbt-toggle-api-key" class="fa-solid fa-eye fa-fw"></i>
+                        </div>
+                    </div>
+                    <div class="sbt-form-group">
+                        <label for="sbt-model-name-input">模型名称</label>
+                        <input type="text" id="sbt-model-name-input" placeholder="例如: gemini-pro">
+                    </div>
+                </div>
+
+                <hr style="margin: 25px 0; border-color: var(--sbt-border-color);">
+                <h4><i class="fa-solid fa-bolt fa-fw"></i> 回合裁判 AI (快速响应)</h4>
+                <p class="sbt-instructions">
+                    用于每次对话的快速指导。推荐使用响应速度最快的模型 (如 Gemini Flash, GPT-3.5-Turbo)。
+                </p>
+                <div class="sbt-settings-form">
+                    <div class="sbt-form-group">
+                        <label for="sbt-conductor-api-url-input">API URL</label>
+                        <input type="text" id="sbt-conductor-api-url-input" placeholder="例如: https://.../gemini-1.5-flash:generateContent">
+                    </div>
+                    <div class="sbt-form-group">
+                        <label for="sbt-conductor-api-key-input">API Key</label>
+                        <div class="sbt-password-wrapper">
+                            <input type="password" id="sbt-conductor-api-key-input" placeholder="可与核心大脑共用，或使用独立的密钥">
+                            <i id="sbt-toggle-conductor-api-key" class="fa-solid fa-eye fa-fw"></i>
+                        </div>
+                    </div>
+                    <div class="sbt-form-group">
+                        <label for="sbt-conductor-model-name-input">模型名称</label>
+                        <input type="text" id="sbt-conductor-model-name-input" placeholder="例如: gemini-1.5-flash">
+                    </div>
+                </div>
+
+                <div class="sbt-button-group" style="display: flex; flex-direction: column; gap: 10px; margin-top: 15px;">
+                    <button id="sbt-save-settings-btn" class="sbt-primary-btn">
+                        <i class="fa-solid fa-save fa-fw"></i> 保存并应用所有设置
+                    </button>
+                    <button id="sbt-test-api-btn" class="sbt-secondary-btn">
+                        <i class="fa-solid fa-plug-circle-check fa-fw"></i> 测试连接 (核心大脑)
+                    </button>
+                    <button id="sbt-test-conductor-api-btn" class="sbt-secondary-btn">
+                        <i class="fa-solid fa-plug-circle-check fa-fw"></i> 测试连接 (回合裁判)
+                    </button>
+                </div>
+            </div>
+
+        </div> <!-- sbt-panels-wrapper 结束 -->
+    </div> <!-- beat-tracker-content-panel 结束 -->
+
+</div>

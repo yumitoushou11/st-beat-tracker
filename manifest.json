@@ -1,0 +1,8 @@
+{
+    "display_name": "叙事流引擎",
+    "author": "yumitoushou",
+    "version": "1.0.0",
+    "js": "index.js", 
+    "css": ["style.css"],
+    "html": ["drawer-component.html"]
+}
