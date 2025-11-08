@@ -61,6 +61,7 @@ export class Chapter {
         longTermStorySummary: "故事刚刚开始。",
         lastChapterHandoff: null,
         activeChapterDesignNotes: null,
+        chapter_blueprint: null,
         agencyChecklist: {},
         chapterLifecycle: {
             startMessageIndex: null,
@@ -176,9 +177,8 @@ export class Chapter {
         const hasCharacterId = typeof data.characterId === 'string';
         const hasStaticMatrices = typeof data.staticMatrices === 'object';
         const hasDynamicChronicle = typeof data.dynamicChronicle === 'object';
-        const hasScript = data.activeChapterScript !== undefined; // 允许为 null
-
-        return hasUid && hasCharacterId && hasStaticMatrices && hasDynamicChronicle && hasScript;
+       const hasBlueprint = data.chapter_blueprint !== undefined; 
+        return hasUid && hasCharacterId && hasStaticMatrices && hasDynamicChronicle && hasBlueprint;
     }
 
 

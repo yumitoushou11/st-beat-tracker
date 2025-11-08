@@ -117,59 +117,71 @@ function renderCharacterRelationships(chapterState, container) {
         });
     }
 }
-/**
- * [V12.0] 更新整个仪表盘UI，现在传递整个 Chapter 对象
- */
+/**更新整个仪表盘UI，现在传递整个 Chapter 对象 */
 export function updateDashboard(chapterState) {
-    // 【【【 在这里添加探针 C 】】】
-    console.groupCollapsed('🕵️‍♂️ [RENDER-PROBE-C] Data Received by updateDashboard');
-    if (!chapterState) {
-        console.warn("updateDashboard 接收到的 chapterState 为 null 或 undefined!");
-    } else {
-        console.log("接收到的 chapterState 对象快照:");
-        console.dir(JSON.parse(JSON.stringify(chapterState)));
-    }
-    console.groupEnd();
-
     if (!chapterState || $('#beat-tracker-component-wrapper').length === 0) return;
 
+    // --- 1. 渲染故事摘要 (不变) ---
     const summaryContainer = $('#sbt-story-summary-content'); 
     if(summaryContainer.length > 0) {
         summaryContainer.text(chapterState.longTermStorySummary || "暂无故事摘要。");
     }
-    // 渲染当前激活的剧本
+
+    // --- 2. 【革新】渲染全新的“创作蓝图”对象 ---
     const scriptContainer = $('#sbt-active-script-content'); 
     if(scriptContainer.length > 0) {
-        // 使用 <pre> 标签来保留格式
-        scriptContainer.html(`<pre><code>${chapterState.activeChapterScript || "当前没有激活的剧本。"}</code></pre>`);
+        if (chapterState.chapter_blueprint && typeof chapterState.chapter_blueprint === 'object') {
+            // 使用 JSON.stringify 将对象格式化为带缩进的字符串，并放入 <pre><code> 标签中
+            const blueprintString = JSON.stringify(chapterState.chapter_blueprint, null, 2);
+            scriptContainer.html(`<pre><code>${blueprintString}</code></pre>`);
+        } else {
+            scriptContainer.html('<p class="sbt-instructions">当前没有激活的创作蓝图。</p>');
+        }
     }
 
-// 渲染建筑师设计笔记
-const notesContainer = $('#sbt-design-notes-content');
-if (notesContainer.length > 0) {
-    const notes = chapterState.activeChapterDesignNotes;
-    if (notes && typeof notes === 'object') {
-        const notesHtml = `
-            <strong><i class="fa-solid fa-bullseye fa-fw"></i> 核心概念与戏剧化:</strong>
-            <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.focus_dramatization || '未阐述'}</p>
-            
-            <strong><i class="fa-solid fa-bolt fa-fw"></i> 冲突与爽点设计:</strong>
-            <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.conflict_and_payoff || '未阐述'}</p>
-            
-            <strong><i class="fa-solid fa-link fa-fw"></i> 承上启下与钩子:</strong>
-            <p style="margin-top: 5px; margin-bottom: 10px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.connection_and_hook || '未阐述'}</p>
-        `;
-        notesContainer.html(notesHtml);
-    } else {
-        notesContainer.html('<p class="sbt-instructions">当前章节没有可用的设计笔记。</p>');
-    }
-}
+    // --- 3. 【革新】渲染全新的“自省式”设计笔记 ---
+    const notesContainer = $('#sbt-design-notes-content');
+    if (notesContainer.length > 0) {
+        const notes = chapterState.activeChapterDesignNotes;
+        if (notes && typeof notes === 'object') {
+            // 内部函数，用于安全地渲染报告的每个条目
+            const renderScrutinyItem = (report, key, title) => {
+                if (report && report[key]) {
+                    return `
+                        <p style="margin-top: 10px; margin-bottom: 5px;"><strong>${title}:</strong></p>
+                        <p style="margin-top: 0; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color); font-style: italic;">${report[key]}</p>
+                    `;
+                }
+                return '';
+            };
 
-    // 调用所有子渲染函数，传递完整的 chapterState
+            const report = notes.self_scrutiny_report || {};
+            const notesHtml = `
+                <strong><i class="fa-solid fa-diagram-project fa-fw"></i> 故事线编织:</strong>
+                <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.storyline_weaving || '未阐述'}</p>
+                
+                <strong><i class="fa-solid fa-link fa-fw"></i> 承上启下与钩子:</strong>
+                <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.connection_and_hook || '未阐述'}</p>
+
+                <hr style="margin: 20px 0; border-color: var(--sbt-border-color);">
+
+                <h6 style="font-size: 1.1em; margin-bottom: 15px; color: var(--sbt-primary-accent);"><i class="fa-solid fa-magnifying-glass-chart fa-fw"></i> AI自我审查报告</h6>
+                ${renderScrutinyItem(report, 'avoiding_thematic_greed', '1. 关于“主题贪婪”')}
+                ${renderScrutinyItem(report, 'avoiding_setting_driven_performance', '2. 关于“设定驱动”')}
+                ${renderScrutinyItem(report, 'avoiding_storyline_overload', '3. 关于“叙事线过载”')}
+                ${renderScrutinyItem(report, 'avoiding_premature_suspense', '4. 关于“悬念前置”')}
+            `;
+            notesContainer.html(notesHtml);
+        } else {
+            notesContainer.html('<p class="sbt-instructions">当前章节没有可用的设计笔记。</p>');
+        }
+    }
+
+    // --- 4. 渲染其他模块 (不变) ---
     renderCharacterRelationships(chapterState, $('#sbt-character-chart'));
     renderLineMatrix(chapterState.lineMatrix, $('#sbt-line-matrix-list'));
-     renderCoreMemories(chapterState.staticMatrices.characterMatrix, $('#sbt-core-memories-list'));}
-/**
+    renderCoreMemories(chapterState.staticMatrices.characterMatrix, $('#sbt-core-memories-list'));
+}/**
  * [新增] 渲染并显示角色详情的弹窗。
  * @param {string} charId - 要显示详情的角色ID。
  * @param {Chapter} chapterState - 完整的Chapter对象。

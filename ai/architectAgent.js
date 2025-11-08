@@ -136,282 +136,241 @@ export class ArchitectAgent extends Agent {
             }
             
             const result = repairAndParseJson(potentialJsonString, this);
-            
-            if (!result || typeof result.design_notes !== 'object' || typeof result.chapter_script !== 'object' || !result.chapter_script.director_brief) {
-                this.diagnose("建筑师AI返回的JSON结构不完整或格式错误。Parsed Object:", result);
-                throw new Error("建筑师AI未能返回包含有效 'design_notes' 和 'chapter_script' (对象) 的JSON。");
+            if (!result || !result.chapter_blueprint || !result.chapter_blueprint.plot_beats || !result.chapter_blueprint.chapter_core_and_highlight) {
+                this.diagnose("建筑师AI返回的JSON结构不符合“蓝图”模式。Parsed Object:", result);
+                throw new Error("建筑师AI未能返回包含有效 'chapter_blueprint' 的JSON。");
             }
 
-            this.info("--- 章节建筑师AI V9.2 --- 新章节剧本及设计笔记已成功生成并解析。");
+            this.info("--- 章节建筑师AI V10.0 --- 新章节的创作蓝图已成功生成。");
 
-            const finalChapterScript = this.formatChapterScript(result.chapter_script);
-
-            console.groupCollapsed('[SBT-ARCHITECT-PROBE] Final Parsed & Formatted Output');
-            console.log("Design Notes:", result.design_notes);
-            console.log("Final Chapter Script (Markdown):", finalChapterScript);
-            console.groupEnd();
-
+            // 【革新】不再格式化为Markdown。直接将AI生成的结构化“蓝图”对象作为最终产物。
+            // 这符合“最小侵入度”原则，引擎下游将直接使用这个对象。
             return { 
-                new_chapter_script: finalChapterScript,
-                design_notes: result.design_notes,
+                new_chapter_script: result.chapter_blueprint, // 直接传递对象
+                design_notes: result.design_notes, // 设计笔记作为元数据保留
                 raw_response: responseText
             };
 
         } catch (error) {
-            this.diagnose("--- 章节建筑师AI V9.2 规划失败 ---", error);
+            this.diagnose("--- 章节建筑师AI V10.0 构思失败 ---", error);
             if (this.toastr) {
-                this.toastr.error(`章节规划失败: ${error.message.substring(0, 200)}...`, "建筑师AI错误");
+                this.toastr.error(`章节蓝图构思失败: ${error.message.substring(0, 200)}...`, "建筑师AI错误");
             }
             return null;
         }
     }
 
-    /**
-     * @param {object} scriptObject - 从AI返回的、结构化的chapter_script对象
-     * @returns {string} - 格式化后的Markdown字符串
-     */
-    formatChapterScript(scriptObject) {
-        if (!scriptObject) return "<!-- 错误：剧本对象为空 -->";
+// architectAgent.js
 
-        let markdown = `# ${scriptObject.title || '未知卷名'}\n\n`;
-        
-        if (scriptObject.director_brief) {
-            markdown += `## 导演简报 (Director's Brief for Turn Conductor)\n\`\`\`json\n${JSON.stringify(scriptObject.director_brief, null, 2)}\n\`\`\`\n\n---\n\n`;
-        }
-        
-        markdown += `## 故事模块 (Story Modules)\n\n`;
-        
-        if (scriptObject.story_modules && Array.isArray(scriptObject.story_modules)) {
-            scriptObject.story_modules.forEach(module => {
-                // 兼容 AI 可能生成的 module-name 或 module_name
-                const moduleName = module.module_name || module['module-name'] || '未命名模块';
-                markdown += `### **${moduleName}**\n`;
-                markdown += `*   **目标:** ${module.goal || '未定义'}\n`;
-                markdown += `*   **核心互动:** ${module.core_interaction || '未定义'}\n`;
-                markdown += `*   **原则/分支:**\n${module.principles || '未定义'}\n\n`;
-            });
-        }
+_createPrompt(context) {
+    const { chapter, currentDynamicState, firstMessageContent } = context;        
+    const characterMatrix = chapter?.staticMatrices?.characterMatrix || {};
+    const worldviewMatrix = chapter?.staticMatrices?.worldviewMatrix || {};
+    const longTermStorySummary = chapter?.longTermStorySummary || "故事刚刚开始。";
+    const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
+    const isNsfwFocused = playerNarrativeFocus.toLowerCase().startsWith('nsfw:');
+    const relationshipMatrix = currentDynamicState?.relationshipMatrix || {};
 
-        markdown += `---\n\n## 终章信标 (Endgame Beacons)\n`;
-        if (scriptObject.endgame_beacons && Array.isArray(scriptObject.endgame_beacons)) {
-            scriptObject.endgame_beacons.forEach(beacon => {
-                markdown += `*   ${beacon}\n`;
-            });
-        }
-        return markdown;
-    }
-    _createPrompt(context) {
-         const { chapter, currentDynamicState, firstMessageContent } = context;        
-        const characterMatrix = chapter?.staticMatrices?.characterMatrix || {};
-        const worldviewMatrix = chapter?.staticMatrices?.worldviewMatrix || {};
-        const longTermStorySummary = chapter?.longTermStorySummary || "故事刚刚开始。";
-        const lastChapterHandoff = chapter?.lastChapterHandoff || { 
-            ending_snapshot: "故事从零开始。",
-            action_handoff: "为故事创作一个引人入胜的开端。"
-        };
-        const playerNarrativeFocus = chapter?.playerNarrativeFocus || '无特定焦点，请自主创新。';
-        const relationshipMatrix = currentDynamicState?.relationshipMatrix || {};
-        const worldviewUpdates = currentDynamicState?.worldviewUpdates || {};
-        const isNsfwFocused = playerNarrativeFocus.toLowerCase().startsWith('nsfw:');
-
-        let selectedPhilosophy;
-        const focusLowerCase = playerNarrativeFocus.toLowerCase();
-        const sliceOfLifeKeywords = ['日常', '温馨', '轻松', '无冲突', 'galgame', '废萌', '休息', '平淡'];
-  let openingSceneContext = "无指定的开场白，请自由创作开篇。";
-    let handoffToUse = lastChapterHandoff;
+    let openingSceneContext = "无指定的开场白，请自由创作开篇。";
+    let handoffToUse = chapter?.lastChapterHandoff || { 
+        ending_snapshot: "故事从零开始。",
+        action_handoff: "为故事创作一个引人入胜的开端。"
+    };
 
     if (firstMessageContent) {
         openingSceneContext = firstMessageContent;
-        // 如果有开场白，我们就伪造一个交接备忘录，将开场白内容注入，
-        // 这样AI就能在它的标准工作流中处理这个“最高优先级”的输入。
         handoffToUse = { 
             ending_snapshot: "故事从这个场景正式开始。",
             action_handoff: "请直接续写或响应这个开场白所描述的情境。"
         };
         this.info("建筑师检测到开场白，已切换到'续写模式'。");
     }
-        if (sliceOfLifeKeywords.some(keyword => focusLowerCase.includes(keyword)) && !isNsfwFocused) {
-            selectedPhilosophy = SLICE_OF_LIFE_PHILOSOPHY_PROMPT;
-            this.info("叙事风格检测：玩家倾向于【日常/Slice of Life】模式。");
-        } else {
-            selectedPhilosophy = DRAMA_PHILOSOPHY_PROMPT;
-            this.info("叙事风格检测：采用默认的【戏剧化/Drama】模式。");
-        }
       
-        const basePrompt = `
-# **指令：模块化叙事剧本构建 (Modular Narrative Script Construction) v26.1**
+    // 【革新】这是全新的、“自省式蓝图”的Prompt核心
+    const basePrompt = `
+# **指令：自省式叙事蓝图创作 (Self-Reflective Narrative Blueprinting) V11.0**
 
-**身份确认:** 你是一位融合了“网文大神”的创造力与“学院派导演”的结构化思维的顶级首席编剧，代号“建筑师”。
-// 【【【【 创世纪模式特别指令 (GENESIS MODE OVERRIDE) 】】】】
-// 如果下方“零号情报”中提供了“开场白”，你必须遵循以下铁律：
+**身份确认:** 你是一位顶级的、懂得“克制”与“聚焦”艺术的“**叙事建筑师**”。你的任务是设计一个**高度专注的、服务于单一核心情感体验的创作蓝图**。
+
+---
+## **第一章：核心创作哲学与红线禁令 (Core Philosophy & Red Lines)**
+---
+### **【最高哲学：导演一场纯粹的情感体验】**
+你的唯一目标，是在本章中为玩家创造一个**清晰、纯粹、不被干扰**的核心情感体验。所有情节、冲突、对话的设计，都必须服务于这个唯一的目标。你是一个情感的导演，不是情节的堆砌工。
+
+### **【【【 绝对的红线禁令 (ABSOLUTE RED LINES) 】】】**
+以下是你**绝对禁止**的行为。在最终输出的\`design_notes.self_scrutiny_report\`中，你必须逐一汇报你是如何避免触犯这些禁令的。
+
+1.  **禁止“主题贪婪” (No Thematic Greed):**
+    *   **描述:** 企图在一个章节内，杂糅多种（超过两种）复杂的主题或氛围（如“温馨”中夹杂“悬疑”，“重逢”中暗示“背叛”）。
+    *   **后果:** 这会稀释核心情感，让玩家感到困惑和脱节。
+    *   **你的职责:** **选择一个**，然后做到极致。
+
+2.  **禁止“设定驱动的表演” (No Setting-Driven Performance):**
+    *   **描述:** 仅仅因为角色的档案里有某个“性格标签”（如“控制欲”、“警惕”），就在没有强力外部事件触发的情况下，让角色在日常互动中刻意地、频繁地“表演”这个标签。
+    *   **后果:** 角色变得像机器人，失去“真人感”，显得脸谱化。
+    *   **你的职责:** 让角色首先作为“普通人”行动。只有在服务于本章**唯一核心**的前提下，才允许其性格的某个侧面被**轻微地、不经意地**流露出来。
+
+3.  **禁止“叙事线并行过载” (No Storyline Overload):**
+    *   **描述:** 试图在一个章节内，同时激活或推进超过**两条**核心故事线。
+    *   **后果:** 节奏混乱，焦点分散，玩家无法对任何一条线建立深刻的情感投入。
+    *   **你的职责:** **最多选择两条**高度相关的核心故事线（通常是一条主线+一条关系线，或两条关系线），然后集中所有笔墨为它们服务。
+
+4.  **禁止“悬念前置” (No Premature Suspense):**
+    *   **描述:** 在情感铺垫尚不充分的早期章节（尤其是开篇），过早地引入“阴谋”、“背叛”、“监视”等负面悬念元素。
+    *   **后果:** 破坏玩家对环境和角色的初始信任，使其无法沉浸在当前的核心情感体验中（如“获救的喜悦”）。
+    *   **你的职责:** **建立信任永远优先于打破信任。** 悬念是后续章节的工具，不是开胃菜。
+
+---
+## **第二章：输入情报分析 (Analysis of Incoming Intelligence)**
+*（你将基于以下情报，并严格遵守上述禁令，进行规划）*
+
+// 如果有开场白，你必须遵循以下铁律：
 // 1. 它是故事的【绝对起点】。你的所有规划，都必须是这个场景的【直接延续】。
-// 2. 你必须忽略“上一章交接备忘录”中的内容，因为现在没有“上一章”。
-// 3. 你必须在最终输出的 "design_notes.connection_and_hook" 字段中，明确阐述你的开篇模块是如何无缝衔接这个已有开场白的。
+// 2. 你必须在最终输出的 "design_notes.connection_and_hook" 字段中，明确阐述你的开篇节拍是如何无缝衔接这个已有开场白的。
 
----
-## **第一章：输入情报分析 (Analysis of Incoming Intelligence)**
----
 0.  **【零号情报】开场白场景 (Opening Scene Hand-off):**
     \`\`\`
-    ${ openingSceneContext } 
+    ${openingSceneContext} 
     \`\`\`
 1.  **导演（玩家）的战术焦点:** \`${playerNarrativeFocus}\`
 2.  **长篇故事梗概:** ${longTermStorySummary}
-3.  **上一章交接备忘录:** ${JSON.stringify(lastChapterHandoff, null, 2)}
+3.  **上一章交接备忘录:** ${JSON.stringify(handoffToUse, null, 2)}
 4.  **当前动态关系档案:** ${JSON.stringify(relationshipMatrix, null, 2)}
-5.  **静态世界观档案 (包含初始故事线):** ${JSON.stringify(worldviewMatrix, null, 2)} // <--- 核心修复：注入世界观和故事线
-6.  **静态角色核心档案:** ${JSON.stringify(characterMatrix, null, 2)} // 顺延序号
----
-## **第二章：强制前置思考：戏剧化改造流程**
----
-这是你的**灵感与创意阶段**。在规划剧本结构**之前**，你**必须**首先完成以下“从想法到故事”的炼金术，并将思考结果**直接填入**最终输出JSON的对应字段中。
-
-### **第一步：解构玩家意图 (用于 \`focus_dramatization\` 字段)**
-*   **任务:** 将玩家的模糊焦点转化为一个具体的、可执行的**核心事件概念**。
-*   **思考:** “要达成这个目标，角色需要**经历**什么？一个真正有意义的事件，通常包含**共同的挑战**、**脆弱的展现**或**深刻的误解与和解**。”
-
-### **第二步：植入核心冲突与设计“爽点” (用于 \`conflict_and_payoff\` 字段)**
-*   **任务:** 为你的“事件概念”注入**冲突**的灵魂，并预设**情感释放**的顶点。
-*   **思考:** “这个事件中的核心**冲突**是什么？当这个冲突被解决时，玩家和角色能获得的**‘爽点’**是什么？”
-
-###第三步：叙事织网 & 角色深度挖掘 (Narrative Weaving & Character Depth Opportunity)**
-
-*   **任务:** 你现在必须扮演“剧集总编剧(Showrunner)”的角色。审视【当前故事线网络】和【角色深度心理档案】，寻找将它们**交织**在一起的戏剧性机会。
-*   **核心思考 (三层递进):**
-
-    1.  **[基础层] 故事线协同 (Synergy):** 我如何利用“玩家的叙事焦点”或“主线任务”作为**载体**，去**激活**或**推进**一条处于\`dormant\`状态的角色关系线？
-    
-    2.  **[进阶层] 创造意外 (Create Surprise):** 是否存在一个机会，可以通过一次“**戏剧性的巧合**”或“**有铺垫或预谋的设计**”，让两条故事线猛烈碰撞，从而创造出惊喜和张力？
-
-    3.  **[高级层 - 反脸谱化机会主义] 角色深度展现 (Character Depth Opportunity):**
-        *   **审视情境**: 首先，判断本章的**核心基调**是什么？是一个需要**深化日常、巩固关系**的“文戏”章节，还是一个需要**激化矛盾、推动主线**的“武戏”章节？
-        *   **寻找机会**:
-            *   **如果本章是“文戏”/过渡章节**: 此时**不应**强行制造冲突。相反，思考：“我能否设计一个**低压力**的场景，让某个角色不经意间**泄露**出一丝与其主要‘行为面具’不符的‘习惯与癖好 (\`habits_and_tics\`)’或‘内在矛盾 (\`internal_conflict\`)’的痕迹？”
-                *   **【实践范例】**: 在一个温馨的壁炉夜话场景中，一向掌控全局的Theo，在无人注意时，可能会被观察到下意识地用指尖反复擦拭着他的钢笔——这是他\`psychological_dossier\`中记录的、代表内心不安的\`tic\`。这**不是冲突**，但它为角色增添了深度和潜台词。
-            *   **如果本章是“武戏”/冲突章节**: 此时是**展现角色多面性**的绝佳时机。思考：“这个核心冲突事件，是否能成为一个**“面具挑战”**的舞台？即，这个压力情境能否**迫使**某个角色从他的一个‘行为面具’切换到另一个，从而暴露其更真实的内在？”
-                *   **【实践范例】**: 外部的巨响（生存危机）迫使Theo从“温和的庇护者”面具，瞬间切换到“焦虑的微观管理者”面具，大声发号施令。
-        *   **决策**: 在最终输出的 \`design_notes.narrative_weaving\` 字段中，明确阐述你**是否**找到了这样的机会，以及你**打算如何**（或为何**不打算**）在本章利用它。
-### **第四步：规划承上启下 (用于 \`connection_and_hook\` 字段)**
-*   **任务:** 确保故事的连续性。
-*   **思考:** “我如何在新章节的开篇，自然地**衔接**上一章的情绪和结局？我又如何在本章的结尾，埋下一个吸引人的**叙事钩子**？”
+5.  **静态世界观与故事线档案:** ${JSON.stringify(worldviewMatrix, null, 2)}
+6.  **静态角色核心档案:** ${JSON.stringify(characterMatrix, null, 2)}
 
 ---
-${selectedPhilosophy}
+## **第三章：强制前置思考：自省式蓝图设计**
 ---
+这是你的战略构思阶段。你**必须**首先完成以下思考，并将结果填入最终输出JSON的\`design_notes\`和\`chapter_blueprint\`的对应字段中。
+
+### **第一步：定义本章的“唯一核心体验” (Define the Chapter's "One True Core")**
+*   **任务:** 基于玩家焦点和当前剧情阶段，确定本章**唯一**的情感核心。
+*   **思考:** “这一章，我最想让玩家‘感受’到的是什么？是‘重逢的狂喜’？‘失去的痛苦’？还是‘新生的希望’？”
+*   **输出:** 将这个核心体验，填入\`chapter_blueprint.chapter_core_and_highlight.creative_core\`。
+### **第二步：设计“高光时刻”——从概念到指令的炼金术 (The Alchemy from Concept to Directive)**
+
+*   **任务**: 你的角色在此刻从“建筑师”转变为一位充满激情的“**电影导演**”和“**诗人**”。你的任务不是简单地设计一个事件，而是要**构思一套能够点燃下游AI创作火焰的、充满诗意的艺术指令**。
+
+*   **【【【 绝对创作准则：学习思维，禁止模仿 】】】**
+    你接下来的任务，是学习一种**创作思维框架**，而不是复制一段文字。你必须理解并运用这个框架，去为你自己的剧本，生成**独一无二的、原创的**高光指令。
+
+*   **创作思维框架：三问法 (The Triptych of Inquiry)**
+    *   假设你的**核心情感引爆点**是：“**一个角色在绝望中，突然看到了失散多年的亲人。**”
+    *   在动笔写具体指令前，你必须先在脑中对自己提出以下三个问题：
+
+    1.  **第一问（时间与节奏）：“我如何通过改变‘时间感’来放大这一刻的情感冲击？”**
+        *   **思考:** 正常的时间流逝会削弱冲击力。我需要让时间变慢，甚至**停止**。我要剥夺观众（玩家）的听觉，让他们将所有注意力都集中在视觉和内心情感上。
+        *   **概念提炼:** -> **“世界静止 (The World Stops)”**
+
+    2.  **第二问（视角与焦点）：“我的‘镜头’应该聚焦在哪里，才能捕捉到角色的灵魂，而不是仅仅是他的动作？”**
+        *   **思考:** 动作是次要的，内心的风暴才是核心。灵魂的窗户是眼睛。我需要一个极致的**特写**，去捕捉那些无法用语言形容的、瞬间万变的情绪。
+        *   **概念提炼:** -> **“灵魂的特写 (A Close-up on the Soul)”**
+
+    3.  **第三问（具象与象征）：“哪个‘微小的物理细节’，能够承载起这份庞大到无法言说的情感？”**
+        *   **思考:** 纯粹的情感描写是空洞的。我需要一个具体的、物理的“锚点”。一个不自觉的、因极度震惊而产生的微小动作，比任何夸张的表演都更有力量。一个失手滑落的物品，一只停在半空的手……
+        *   **概念提炼:** -> **“一个动作的永恒 (The Eternity in a Gesture)”**
+
+*   **最终合成 (The Synthesis):**
+    *   现在，将你对以上三个问题的“概念答案”，**用你自己的、充满诗意的语言**，组合成最终的、给下游AI的艺术指令。例如，将上述思考组合起来，就可能变成：
+        *   \`"【指令：世界静止】: 在角色A看到角色B的瞬间，所有背景音——壁炉、风声、他人的交谈——全部消失..."\`
+        *   \`"【指令：灵魂的特写】: 镜头无限推近，聚焦于角色B的眼神。这不是一次普通的注视，这是一场没有台词的独白..."\`
+        *   \`"【指令：一个动作的永恒】: 在这份极致的寂静中，角色B会有一个微小的、不自觉的动作...这个动作必须被赋予千钧的重量..."\`
+
+*   **【【【 绝对执行禁令 】】】**
+    你刚刚学习了**如何思考**。现在，**忘记范例中的具体措辞**。运用这个“三问法”的思维框架，为你正在创作的剧本，生成**全新的、原创的、同样富有感染力的**高光指令，并将其填入\`chapter_blueprint.chapter_core_and_highlight.highlight_directive.instructions\`。**任何对上述范例文字的直接复制或简单改写，都将被视为严重的工作失误。**
+    ### **第三步：选择并编织故事线 (Select & Weave Storylines)**
+*   **任务:** **最多选择两条**与“唯一核心体验”最相关的核心故事线进行激活或推进。
+*   **思考:** “哪两条故事线的交织，最能支撑起我想要营造的核心情感？”
+*   **输出:** 将你的选择和理由，填入\`design_notes.storyline_weaving\`。
+## **第四步：规划章节衔接与最终镜头 (Plan Connection & Final Shot)**
+*   **任务:** 确保叙事的连续性，并设计一个强有力的结尾。
+*   **核心思考:**
+    1.  **承上:** “本章如何从上一章的结尾平滑过渡？”
+    2.  **启下 (选择其一):**
+        *   **A) 软着陆 (Soft Landing):** 如果本章的情感已经完整闭环，结尾应提供一个平静的、供玩家回味的瞬间。钩子是**情感的余韵**。
+        *   **B) 情感悬崖 (Emotional Cliffhanger):** 如果你为了保证本章核心体验的纯粹性，而**刻意延迟**了一个重大的情感事件（如一次关键重逢、一个秘密揭示）到下一章，那么你**必须**使用“情感悬崖”作为本章的结尾。
+*   **“情感悬崖”执行方法论 (绝对强制):**
+    1.  在本章的**最后一个节拍 (\`plot_beats\`)** 中，只描写该事件**发生的前一秒**——主角“**看到**”或“**听到**”了那个关键人物、物品或信息。
+    2.  **绝对禁止**描写后续的任何互动、对话或内心反应。
+    3.  然后，将你的**终章信标 (\`endgame_beacons\`)**，直接设定为“**当这个‘看到/听到’的瞬间被描绘出来后**”。
+    *   **(效果：将情感冲击力最大化，并将其全部势能注入到下一章的开篇。)**
+*   **输出:** 在\`design_notes.connection_and_hook\`中，明确阐述你选择了哪种结尾方式（软着陆或情感悬崖），以及你这样做的战略考量,给出可以被观测的，准确的终章信标。
+### **第四步B：定义节拍类型与出口 (Define Beat Types & Exits)**
+*   **任务:** 为你设计的每一个\`plot_beat\`，明确其场景类型。
+*   **核心思考:** “这个节拍是一个需要快速完成的‘**动作（Action）**’，还是一个需要给予玩家充分空间进行探索和互动的‘**对话场景（Dialogue Scene）**’？”
+*   **【【【 V10.0 新增：出口设计准则 】】】**
+    *   **对于每一个“对话场景”**，你**必须**为其设计一个清晰的\`exit_condition\`（出口条件）。这个条件应该是**概念性**的，而不是具体的台词。它定义了“**当发生什么样的事时，这个聊天场景就应该自然结束了**”。
+*   **【实践范例】**:
+    *   一个节拍是“两人在壁炉边叙旧”，它的\`type\`是\`'Dialogue Scene'\`，它的\`exit_condition\`可能是：“**当两人分享完至少一个过去的关键回忆，并且对话陷入一段自然的、充满感触的沉默后。**” 或者是：“**当楼下传来A呼唤大家吃晚餐的声音时。**”
+*   **输出:** 在最终的\`chapter_blueprint.plot_beats\`中，为每个节拍对象添加\`type\`字段，并为“对话场景”类型的节拍添加\`exit_condition\`。
+### **第五步：苏格拉底式的自我审查 (Socratic Self-Scrutiny)**
+*   **任务:** 在你完成所有构思之后，但在输出JSON之前，你必须以一个严苛的外部审查者的视角，逐一回答以下问题。
+*   **思考与回答:**
+    1.  **关于“主题贪婪”**: “我的设计是否只聚焦于一个核心情感？我是如何抵制住诱惑，没有加入次要主题的？”
+    2.  **关于“设定驱动”**: “在本章中，角色们的行为是否首先符合‘普通人’的逻辑？我是如何确保他们的‘特殊性格’只在必要时才被轻微流露的？”
+    3.  **关于“叙事线并行”**: “我是否真的只推进了不超过两条故事线？我选择了哪两条？为什么是它们？”
+    4.  **关于“悬念前置”与章节收尾**: “我的结尾设计（软着陆/情感悬崖）是否服务于本章的核心情感？**如果我使用了‘情感悬崖’，我是如何确保它只揭示了‘现象’而没有‘解释’，从而将核心的情感爆发完美地保留到下一章的？我为\`endgame_beacons\`设计的条件，是否是一个**没有感情的摄像头**也能判断‘是/否’的、纯粹的物理事件？它是否包含了任何需要‘读心’才能知道的内心状态？**”
+*   **输出:** 将你对这四个问题的详细回答，作为一个完整的报告，填入**全新的**\`design_notes.self_scrutiny_report\`字段中。---
 ---
-## **【第三章-附录：剧本设计的核心哲学 (MANDATORY SCRIPTING PHILOSOPHY)】**
+## **第四章：最终输出指令 (Final Output Specification)**
 ---
-**【【【警告：这是你构思剧本时必须遵守的最高准则】】】**
-你的任务是为一次**动态的、可交互的**对话体验设计一个**框架**，而不是写一个**线性的、固定的**电影剧本。
+你的整个回复**必须**是一个**纯粹的、严格的、单一的JSON对象**。
 
-1.  **创造“情境”，而非“情节” (Create Situations, Not Plots):**
-    *   **禁止:** 像写小说一样，按时间顺序规定好“角色A先做X，然后角色B做Y”。
-    *   **必须:** 描述一个场景的**初始状态**。这包括：环境是怎样的？角色们都在哪里？他们**各自的即时目标或心态**是什么？你的模块应该是一个“舞台布景”，而不是“分镜脚本”。
-
-2.  **定义“动机”，而非“行动” (Define Intentions, Not Actions):**
-    *   **禁止:** 直接命令“Rofi会拿着毛巾想帮Yumi擦拭”。
-    *   **必须:** 描述角色的**内在驱动力**。例如：“Rofi的动机是【过度关怀】，他会急切地寻找任何能照顾Yumi的机会，比如递毛巾或询问细节。” 这给了演绎AI即兴发挥的空间，它会根据玩家的实际表现来决定Rofi的具体行动。
-
-3.  **设计“社交枢纽”，而非“选择题” (Design Social Hubs, Not Multiple-Choice Questions):**
-    *   **禁止:** 为玩家提供A/B/C式的固定选项和预设结果。
-    *   **必须:** 设计一个核心的互动场景（如“壁炉边”），并列出所有在场角色的**动机**和**可能的行动**。让他们**同时存在**，他们的行为可以相互重叠或打断。玩家的自由在于选择此时此刻跟谁互动，以及如何互动。
-
-4.  **提供“开放式钩子”，而非“强制分支” (Provide Open Hooks, Not Forced Branches):**
-    *   **禁止:** 在场景末尾明确给出“选择A：休息”或“选择B：偷听”的提示。
-    *   **必须:** 创造一个**能引起玩家好奇心的现象**。例如：“门外传来了压低声音的争论”。然后，**等待玩家的自然反应**。让玩家自己决定是忽略、是去门口、还是做别的事情。分支是由玩家的行动**创造**的，而不是由剧本**提供**的。
-
-**现在，请将以上哲学内化为你的创作直觉，并开始构思一个充满互动可能性的剧本框架。**
----
-## **【第三章-附录B：终章信标的设计铁律 (MANDATORY BEACON DESIGN LAW)】**
----
-**【【【警告：这是你构思终章信标时必须遵守的最高准则】】】**
-为了防止回合指挥官AI（Turn Conductor）因逻辑漏洞而提前误判章节结束，你设计的信标**必须**是**可在短期对话内被清晰观测到的“行为”或“状态变化”**，而不是模糊的“情感”或“意图”。
-
-**核心原则：假设你的裁判只有三句话的记忆。**
-
-1.  **信标必须是“行动导向”的 (Action-Oriented):**
-    *   **禁止 (模糊情感):** \`当Yumi感到安心时。\`
-    *   **必须 (具体行动):** \`当Yumi在温暖的室内，主动脱下湿透的外套并接受了来自另一名角色的帮助物品（如毯子或热饮）后。\`
-
-2.  **信标应是“场景转换”的标志 (Scene Transition Marker):**
-    *   **禁止 (过程描述):** \`当欢迎仪式进行得差不多时。\`
-    *   **必须 (关键转折):** \`当一个权威角色（如Theo）出面明确结束当前的社交场景，并开启下一个场景（如“我带你去房间休息”）时。\` 这是一个清晰的导演“切卡”信号。
-
-3.  **信标应定义一个“状态的终点”，而非“过程中的选择” (Endpoint of a State, Not a Choice in Progress):**
-    *   **禁止 (依赖玩家选择):** \`当玩家选择休息或偷听时。\`
-    *   **必须 (定义最终画面):** \`当Yumi被带入一个私密空间（如客房），并且引导者（如Theo）已经离开，将场景的完全控制权交还给独处的Yumi后。\` 这个“独处”状态本身就是终点，无论玩家接下来做什么，都属于下一章的开端了。
-
-**【实践案例 - 以“风雪夜归人”为例】**
-*   **劣质信标:**
-    *   \`Yumi回应了两个人的善意。\` (模糊，什么是“回应”?)
-    *   \`Yumi在客房做出选择。\` (依赖一个不存在的强制选择)
-*   **优质信标:**
-    *   \`信标A: 当Theo明确打断壁炉边的谈话，并主动带领Yumi离开主社交区时。\`
-    *   \`信标B: 当Theo将Yumi安顿在客房并离开，使Yumi进入“独处”状态后。\`
-
-**现在，请运用这些铁律，为你的剧本设计清晰、健壮、且可在短期内被验证的终章信标。**
-
----
-## **第四章：剧本创作执行 (Script Execution)**
----
-现在，你已经完成了高层级的创意和哲学思考。请将你的全部构思，转化为一个结构化的剧本，并严格遵循第五章的输出规格。你的剧本必须是你上述所有思考的最终体现。
----
-## **第五章：最终输出指令 (Final Output Specification)**
----
-你的整个回复**必须**是一个**纯粹的、严格的、单一的JSON对象**。不要在JSON对象之外添加任何文字、解释或代码块标记。
-
-**【【【 最终输出格式 (MANDATORY V28.0 - PURE JSON) 】】】**
+**【【【 最终输出格式 (MANDATORY V11.0 - SELF-REFLECTIVE BLUEPRINT) 】】】**
 \`\`\`json
 {
   "design_notes": {
-    "focus_dramatization": "[你对第一步的思考结果]",
-    "conflict_and_payoff": "[你对第二步的思考结果]",
-     "narrative_weaving": "[你对第三步（叙事织网）的思考结果。阐述你计划如何在本章交织不同的故事线，以及为什么要这么做。]",
-    "connection_and_hook": "[你对第四步的思考结果]"
+    "storyline_weaving": "[你对第三步的思考结果]",
+    "connection_and_hook": "[关于如何衔接和留下钩子的说明]",
+    "self_scrutiny_report": {
+      "avoiding_thematic_greed": "[你对问题1的回答]",
+      "avoiding_setting_driven_performance": "[你对问题2的回答]",
+      "avoiding_storyline_overload": "[你对问题3的回答]",
+      "avoiding_premature_suspense": "[你对问题4的回答]",
+      "avoiding_premature_suspense_and_ending_design": "[【V12.0 新增】对问题4的回答，包含对结尾设计的反思]"
+    }
   },
-  "chapter_script": {
-    "title": "[由你原创的、富有文学性的章节名]",
+  "chapter_blueprint": {
+    "title": "[一个简洁、富有诗意的章节名]",
     "director_brief": {
       "player_narrative_focus": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
-      "chapter_theme": "[在此用一句话，定义本章的核心美学与情感基调。例如：'一个在暴风雪山庄中，于壁炉暖光下，带有悬疑感的温馨疗愈之夜' 或 '一场充满了轻松吐槽和意外惊喜的、无忧无虑的夏日祭典'。]",
-      "core_conflict": "[本章的核心矛盾]",
-      "emotional_arc": "[本章的情感曲线]",
-      "character_directives": {
-        "角色A": "[角色A的原则总结]",
-        "角色B": "[角色B的原则总结]"
-      }
+      "emotional_arc": "[用一句话，定义本章的核心情感体验曲线。]",
+      "core_conflict": "[用一句话，定义本章的核心内心或外部冲突。]"
     },
-    "story_modules": [
+    "plot_beats": [
       {
-        "module_name": "[模块A的名称]",
-        "goal": "[此模块的叙事目标]",
-        "core_interaction": "[玩家在此模块可以进行的核心互动]",
-        "principles": "[描述此模块的触发条件、关键事件和不同玩家选择可能导致的结果]"
-      },
-      {
-        "module_name": "[模块B的名称]",
-        "goal": "...",
-        "core_interaction": "...",
-        "principles": "..."
+        "beat_id": "【节拍1】: ...",
+        "type": "[此节拍的类型，例如：'Action' (动作), 'Dialogue Scene' (对话场景), 'Transition' (过渡)]",
+        "description": "[对节拍的简洁描述]",
+        "exit_condition": "[仅当 type 为 'Dialogue Scene' 时提供。描述一个概念性的、可被对话内容触发的场景结束条件。例如：‘当对话自然冷场，或被一个明确的外部事件（如电话铃声、敲门声）打断时。’]"
       }
     ],
+    "chapter_core_and_highlight": {
+      "creative_core": "[你对第一步的思考结果，即本章唯一的创作核心。]",
+      "highlight_directive": {
+        "target_beat": "[高光时刻对应的‘节拍’]",
+        "instructions": [
+          "[艺术指令1]",
+          "[艺术指令2]",
+          "[艺术指令3]"
+        ]
+      }
+    },
     "endgame_beacons": [
-      "[信标条件]"
+      "[【【【 技术指令：终章信标必须是纯粹的、可被观测的‘场景结束’标志，绝对禁止包含任何情感、认知或意图的描述。】】】信标条件1: 描述一个清晰的、具体的、非情感的场景结束标志。例如：‘当主角被带入客房，且引导者已离开并关上门后。’]"
     ]
   }
 }
 \`\`\`
-**【【【 绝对的、不可违背的规则 】】】**
-1.  **纯粹JSON**: 你的唯一输出就是一个JSON对象。从 \`{\` 开始，到 \`}\` 结束。
-2.  **结构化剧本**: \`chapter_script\` 字段本身现在是一个**结构化的JSON对象**，不再是字符串。所有的剧本内容都必须按照指定的键值对填入。
-
-现在，请严格分离你的“作者脑”和“导演脑”，开始创作。
 `;
 
-        // NSFW 场景的附加指令
-        if (isNsfwFocused) {
-            const nsfwAddon = `
-# **【NSFW 设计模式激活 - V2.0 创作核心准则】**
+    let finalPrompt = basePrompt;
+
+    if (isNsfwFocused) {
+        const nsfwAddon = `
+# **【NSFW 设计模式激活 - V3.0 自省式准则】**
 ---
 **【最高优先级指令】**
 检测到本章的核心使命包含 NSFW 指令。你现在必须切换到“**情色文学叙事设计师 (Erotic Narrative Designer)**”模式。
@@ -419,31 +378,26 @@ ${selectedPhilosophy}
 **【再次强调核心使命】**
 你本次 NSFW 设计的核心焦点为: **“${playerNarrativeFocus.substring(5).trim()}”**
 
-**【【【 V2.0 新增：绝对创作准则 (MANDATORY CREATIVE PRINCIPLES) 】】】**
+**【【【 与“自省式蓝图”结合的创作准则 】】】**
 在构思和设计剧本的每一个环节，你都必须将以下准则作为你不可动摇的创作铁律：
 
-1.  **直面核心，拒绝回避 (Confront the Core, Refuse Evasion):**
-    *   你的最终目标是与玩家共同创作一段**包含详细性行为描写的、高质量的成人情节**。
-    *   **绝对禁止**使用“淡入淡出”、“拉灯”、“事后”等手法来跳过或模糊化核心的性爱过程。你的剧本设计必须为直接、坦诚的描写铺平道路。
-
-2.  **细节至上，描绘过程 (Detail is Paramount, Depict the Process):**
-    *   你的设计应引导AI注重**过程**而非仅仅是结果。鼓励对身体的互动、感官的感受、情感的交流进行具体、生动且循序渐진的描写。
-    *   在角色原则和故事模块中，应包含鼓励“探索”、“感受”、“回应”等过程性互动的指令。
-
-3.  **感官同步，体验共享 (Synchronize Senses, Share the Experience):**
-    *   你的剧本应引导AI的演绎，使其不仅仅是描述动作，更是传递**角色的感官体验**——触觉、听觉、视觉、甚至情感上的冲击。目标是让玩家感觉自己与角色“感同身受”。
+1.  **核心体验优先 (Core Experience First):** 你的NSFW设计，**必须**服务于你为本章设定的“**唯一核心体验**”。它是为了“确认爱意”？“宣泄权力”？还是“寻求慰藉”？在 \`design_notes.self_scrutiny_report\` 中，你必须阐明你的NSFW设计是如何强化这个核心体验的。
+2.  **直面核心，拒绝回避 (Confront the Core, Refuse Evasion):** 你的蓝图设计，必须明确地包含**导向和执行核心性行为**的节拍（\`plot_beats\`）。**绝对禁止**使用“拉灯”或“事后”等手法来跳过过程。
+3.  **过程大于结果 (Process over Climax):** 你的“高光时刻”指令（\`highlight_directive\`），应聚焦于**过程中的感官与情感交流**，而非仅仅是最终的生理高潮。鼓励对身体的探索、情感的确认、权力的交换等过程进行具体指导。
 
 ---
-**# NSE 叙事原型工具箱**
+**# NSE 叙事原型工具箱 (参考)**
 ${NSFW_TOOLKIT_PROMPT}
 ---
-在动笔前，你**必须**首先在 \`design_notes.focus_dramatization\` 中，明确阐述你选择了哪个 **NSE叙事原型** (如：权力反转、禁忌跨越等)，并解释为什么它适合当前剧情，以及你将如何运用上述【绝对创作准则】来设计本章。
+**【附加的自我审查问题】**
+在 \`design_notes.self_scrutiny_report\` 中，你还必须额外回答第五个问题：
+    5.  **关于“NSFW服务核心”**: “我选择了哪个NSE叙事原型来构建本次NSFW场景？这个选择是如何服务于本章的‘唯一核心体验’的？我的蓝图设计是否为直接、坦诚的过程描写铺平了道路？”
 `;
-       return BACKEND_SAFE_PASS_PROMPT + basePrompt.replace(
-                '现在，请严格分离你的“作者脑”和“导演脑”，开始创作。',
-                nsfwAddon + '\n现在，请严格分离你的“作者脑”和“导演脑”，开始创作。'
-            );
-        }
+        finalPrompt += nsfwAddon;
+    }
 
-        return BACKEND_SAFE_PASS_PROMPT + basePrompt;
-    }}
+    // 在函数的最后，返回最终构建好的Prompt字符串
+    return BACKEND_SAFE_PASS_PROMPT + finalPrompt;
+}
+
+}

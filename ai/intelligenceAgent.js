@@ -3,13 +3,6 @@ import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 
 export class IntelligenceAgent extends Agent {
 
-    /**
-     * 创建用于分析世界信息和角色设定的提示。
-     * @private
-     * @param {Array<Object>} worldInfoEntries - 世界书条目。
-     * @param {Object} persona - 主角人设。
-     * @returns {string} - 生成的提示字符串。
-     */
   _createPrompt(worldInfoEntries, persona) {
         const safePersona = persona || { content: "无主角人设信息。" };
         const personaText = safePersona.content;
@@ -34,8 +27,8 @@ export class IntelligenceAgent extends Agent {
 
     --- 【至关重要的核心原则：区分背景与剧情】 ---
     你必须严格区分两种类型的信息：
-    1.  **背景设定 (Backstory):** 描述角色【在故事开始之前】的身份、性格、历史和固有关系。例如：“雪菜是主角的姐姐，两人关系极好。”
-    2.  **剧情梗概 (Plot Summary):** 描述角色【在故事开始之后将会发生】的事件。例如：“主角将会遇到一只叫奈芙的黑猫，并成为伙伴。”
+    1.  **背景设定 (Backstory):** 描述角色【在故事开始之前】的身份、性格、历史和固有关系。例如：“B是主角的姐姐，两人关系极好。”
+    2.  **剧情梗概 (Plot Summary):** 描述角色【在故事开始之后将会发生】的事件。例如：“主角将会遇到一只叫的A黑猫，并成为伙伴。”
 
     **你的所有输出，都必须【只基于背景设定】。绝对禁止将剧情梗概中的未来事件，当作已经发生的事实来处理。**
 
@@ -52,9 +45,9 @@ export class IntelligenceAgent extends Agent {
    3.  **【第三步：构建初始关系网络 (只基于背景)**
     - 对【每一个】角色，分析其在故事开始前与其他【所有】已知角色的固有关系。
     - **示例：**
-        - 对于主角"{{user}}"：她和“雪菜”关系极好，应设定高 \`affinity\`。她不认识“奈芙”，则不应建立关系。
-        - 对于“雪菜”：她对妹妹"{{user}}"同样是高 \`affinity\`。她也不认识“奈芙”，则不应建立关系。
-        - 对于“奈芙”：她谁都不认识，所以她的 \`relationships\` 字段应该是一个空对象。
+        - 对于主角"{{user}}"：她和“B”关系极好，应设定高 \`affinity\`。她不认识“A”，则不应建立关系。
+        - 对于“B”：她对妹妹"{{user}}"同样是高 \`affinity\`。她也不认识“A”，则不应建立关系。
+        - 对于“A”：她谁都不认识，所以她的 \`relationships\` 字段应该是一个空对象。
     - 关系是双向的，但初始态度可能不同。请分别设定。
 
 4.  **第四步：推导初始故事线网络 (Derive Initial Storylines)**
@@ -73,36 +66,36 @@ export class IntelligenceAgent extends Agent {
 /*
    {
       "characterMatrix": {
-        "theo": {
-          "name": "Theo",
-          "identity": "灰狐兽人，遗产继承者，孤独的庇护者",
+        "角色1": {
+          "name": "角色1",
+          "identity": "...",
           "isProtagonist": false,
-          "background": ["父母在一场车祸中意外去世，留下丰厚遗产和一座空旷的大宅。", "巨大的孤独感和无法控制悲剧的创伤，使他将精力投入到对邻里和朋友的过度关怀中。"],
+          "background": ["...", "..."],
           "relationships": {
-            "yumi": { "affinity": 70, "reputation": "一个需要我来引导和保护的晚辈。" }
+            "A": { "affinity": 70, "reputation": "..." }
           },
           "psychological_dossier": {
-            "core_motivation": "避免失控 (To Avoid Loss of Control)",
-            "internal_conflict": "【关爱/控制】的矛盾：他真诚地渴望通过关爱保护他人，但这渴望被其创伤扭曲为一种对秩序和环境的病态控制欲。",
+            "core_motivation": "...",
+            "internal_conflict": "...",
             "behavioral_masks": [
               {
-                "mask_name": "温和的庇护者",
-                "trigger": "在公共、稳定的社交场合。",
-                "behavior": "表现出温和、周到、有担当，主动安排一切。"
+                "mask_name": "...",
+                "trigger": "...",
+                "behavior": "..."
               },
               {
-                "mask_name": "焦虑的微观管理者",
-                "trigger": "当出现意外、计划被打乱时。",
-                "behavior": "变得焦躁、言语急促，试图通过强硬的规则和指令重建秩序。"
+                "mask_name": "...",
+                "trigger": "...",
+                "behavior": "..."
               }
             ],
             "habits_and_tics": [
-              "在思考或感到不安时，会下意识地用指尖反复擦拭一个光滑的物体（如钢笔、桌面）。"
+              "..."
             ],
             "evolutionary_trajectory": {
-              "current_arc": "学习信任他人并放弃部分控制权。",
-              "positive_future": "成为一个真正的、懂得放手的伙伴，能接受他人的帮助和爱。",
-              "negative_future": "因控制欲的不断加强而变得孤立，最终众叛亲离。"
+              "current_arc": "...",
+              "positive_future": "...",
+              "negative_future": "..."
             }
           }
         }
@@ -114,10 +107,10 @@ export class IntelligenceAgent extends Agent {
   },
   "lineMatrix": {
     "main_quest_01": {
-      "title": "治愈姐姐",
+      "title": "...",
       "type": "Main Quest",
       "status": "active",
-      "summary": "为了让姐姐恢复健康，{{user}}愿意付出一切努力。"
+      "summary": "..."
     }
   }
 }

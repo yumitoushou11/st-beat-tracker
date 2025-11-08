@@ -145,18 +145,23 @@ onPromptReady = async (eventData) => {
     
     this.isConductorActive = true;
     this.info("✅ 同步检查通过并成功上锁，即将执行分离式注入...");
-
+const instructionPlaceholder = {
+        role: 'system',
+        content: "【SBT 引擎正在编译回合指令...】",
+        is_SBT_script: true,
+        is_SBT_turn_instruction: true // 1. 回合指令
+    };
     const scriptPlaceholder = { 
         role: 'system', 
         content: "【SBT 引擎正在编译本章剧本...】",
         is_SBT_script: true,
-        is_SBT_chapter_script: true // 添加一个更具体的标识
+        is_SBT_chapter_script: true // 2. 章节剧本
     };
-    const instructionPlaceholder = {
+    const rulesPlaceholder = {
         role: 'system',
-        content: "【SBT 引擎正在编译回合指令...】",
+        content: "【SBT 引擎正在编译通用法则...】",
         is_SBT_script: true,
-        is_SBT_turn_instruction: true // 添加一个更具体的标识
+        is_SBT_core_rules: true // 3. 通用法则
     };
 
     const finalChatContext = eventData.chat;
@@ -165,9 +170,9 @@ onPromptReady = async (eventData) => {
             finalChatContext.splice(i, 1);
         }
     }
-    finalChatContext.unshift(instructionPlaceholder);
+   finalChatContext.unshift(rulesPlaceholder);
     finalChatContext.unshift(scriptPlaceholder);
-    
+    finalChatContext.unshift(instructionPlaceholder);
     this.info("同步占位完成。即将进入异步处理阶段...");
 
     try {
@@ -217,7 +222,7 @@ onPromptReady = async (eventData) => {
             let historicalContext = '';
             if (lastAiMsg) {
                 const historyStartIndex = lastUserMsgIndex - 1;
-                const historyDepth = 16; // 可配置的历史深度
+                const historyDepth = 10; // 可配置的历史深度
                 const history = [];
                 let count = 0;
                 for (let i = historyStartIndex - 1; i >= 0 && count < historyDepth; i--) {
@@ -237,7 +242,7 @@ onPromptReady = async (eventData) => {
 
             const conductorContext = { 
                 lastExchange: lastExchange, 
-                chapter: this.currentChapter 
+                    chapterBlueprint: this.currentChapter.chapter_blueprint 
             };
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
 
@@ -249,26 +254,27 @@ onPromptReady = async (eventData) => {
                 this.pendingTransitionPayload = { ...conductorDecision.postTurnAction };
             }
 
-            if (this.currentChapter.activeChapterScript) {
-                const scriptSystemPrompt = `# **【第四部分：本章动态剧本 (Chapter Script)】**\n---\n${this.currentChapter.activeChapterScript}`;
-                scriptPlaceholder.content = scriptSystemPrompt;
+if (this.currentChapter.chapter_blueprint) {
+    const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
+    instructionPlaceholder.content = `# **【最高优先级：本回合导演微指令 (Turn Instruction)】**\n---\n${formattedInstruction}`;
+    
+    // 【适配】将完整的蓝图对象字符串化后，作为参考资料注入
+    const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
+    scriptPlaceholder.content = `# **【参考资料1：本章创作蓝图 (Chapter Blueprint)】**\n---\n\`\`\`json\n${blueprintAsString}\n\`\`\``;
 
-                const regularSystemPrompt = this._buildRegularSystemPrompt();
-                const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
-const finalInstructionPrompt = `${regularSystemPrompt}\n\n---\n# **【第五部分：导演微指令 (Turn Instruction)】**\n${formattedInstruction}`;
-instructionPlaceholder.content = finalInstructionPrompt;                instructionPlaceholder.content = finalInstructionPrompt;
-                
-                this.info("✅ 异步处理完成，已通过引用分离式更新剧本和指令，注入成功。");
-            } else {
-                 throw new Error("在 onPromptReady 中，currentChapter.activeChapterScript 为空或无效。");
-            }
-
+    const regularSystemPrompt = this._buildRegularSystemPrompt();
+    rulesPlaceholder.content = `# **【参考资料2：通用核心法则与关系指南 (Core Rules & Relationship Guide)】**\n---\n${regularSystemPrompt}`;
+    
+    this.info("✅ 异步处理完成，已通过优化的三层结构更新指令，注入成功。");
+} else {
+    throw new Error("在 onPromptReady 中，currentChapter.chapter_blueprint 为空或无效。");
+}
         } else {
             this.info("裁判模式已关闭。将注入通用剧本和规则，给予AI更高自由度...");
             
             const regularSystemPrompt = this._buildRegularSystemPrompt(); // 包含核心法则和关系指南
-            const fullChapterScript = this.currentChapter.activeChapterScript;
-            
+   const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
+   
             const classicPrompt = [
                 regularSystemPrompt,
                 `# **【第四部分：本章动态剧本 (参考)】**`,
@@ -277,11 +283,10 @@ instructionPlaceholder.content = finalInstructionPrompt;                instruct
                 fullChapterScript
             ].join('\n\n');
 
-            scriptPlaceholder.content = classicPrompt;
-            instructionPlaceholder.content = "【回合裁判已禁用。请根据剧本自由演绎。】";
-            
-            this.info("✅ 经典模式注入成功。");
-        }
+    scriptPlaceholder.content = classicPrompt;
+    instructionPlaceholder.content = "【回合裁判已禁用。请根据创作蓝图自由演绎。】";
+    this.info("✅ 经典模式注入成功。");
+}
 
     } catch (error) {
         this.diagnose("在 onPromptReady 异步流程中发生严重错误:", error);
@@ -357,12 +362,14 @@ _formatMicroInstruction(instruction) {
         return "无特殊指令，请按剧本自由演绎。";
     }
 
-    // 从对象中解构出我们期望的三个键
-    const { plot_beat, performance_suggestion, narrative_hold } = instruction;
+    const { plot_beat, performance_suggestion, narrative_hold, alternative_suggestion,scope_limit} = instruction;
 
-    // 构建最终的Markdown字符串
     let formattedString = "# 🎬 核心情节节点\n";
     formattedString += `*   ${plot_beat || '未定义核心情节。'}\n\n`;
+  if (scope_limit && scope_limit.toLowerCase() !== '无') {
+        formattedString += "# 🛑 **本回合边界 (Scope Limit)**\n";
+        formattedString += `*   **【绝对禁令】:** 你的演绎**必须**在本回合描述的情节节点完成后立即停止。${scope_limit}\n\n`;
+    }
 
     formattedString += "# 🎨 演绎建议\n";
     if (Array.isArray(performance_suggestion) && performance_suggestion.length > 0) {
@@ -374,6 +381,10 @@ _formatMicroInstruction(instruction) {
 
     formattedString += "# 🤫 叙事保留\n";
     formattedString += `*   ${narrative_hold || '无'}\n`;
+    if (alternative_suggestion && alternative_suggestion.trim() !== '') {
+        formattedString += `\n# ✍️ 创意参考 (高级形容词/比喻库)\n`;
+        formattedString += `*   ${alternative_suggestion}\n`;
+    }
 
     return formattedString.trim();
 }
@@ -495,7 +506,11 @@ _syncUiWithRetry() {
     this._setStatus(ENGINE_STATUS.BUSY_GENESIS);
     this.info(`--- 创世纪流程启动 ---`);
     console.group(`BRIDGE-PROBE [GENESIS-FLOW-REFACTORED]`);
-
+   const loadingToast = this.toastr.info(
+            "正在初始化...",
+            "创世纪...",
+            { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
+        );
     try {
         const context = this.deps.applicationFunctionManager.getContext();
         const activeCharId = context?.characterId;
@@ -504,7 +519,7 @@ _syncUiWithRetry() {
         this.info("GENESIS: 已为新篇章创建 Chapter 实例。");
         this.diagnose("GENESIS: 正在检查或分析静态数据...");
             let analysisResult = staticDataManager.loadStaticData(activeCharId);
-            
+              loadingToast.find('.toast-message').text("正在分析世界观与角色设定...");
             if (!analysisResult) {
                 this.info("GENESIS: 未找到缓存，正在实时分析世界书...");
                 const persona = window.personas?.[window.main_persona];
@@ -539,6 +554,7 @@ _syncUiWithRetry() {
             }
                     this.info("GENESIS: 静态数据与初始故事线已准备就绪。");
         this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
+        loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
         const popupResult = await this.deps.showNarrativeFocusPopup(''); 
         let initialChapterFocus = "由AI自主创新。";
         if (popupResult.nsfw) {
@@ -549,14 +565,15 @@ _syncUiWithRetry() {
         this.currentChapter.playerNarrativeFocus = initialChapterFocus;
         this.info(`GENESIS: 玩家设定的开篇小章焦点为: "${initialChapterFocus}"`);
         this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-                const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);         if (architectResult && architectResult.new_chapter_script) {
-            this.currentChapter.activeChapterScript = architectResult.new_chapter_script;
-            this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
-            this.info("GENESIS: 建筑师成功生成开篇小章剧本及设计笔记。");
-        } else {
-            throw new Error("建筑师未能生成有效的开篇小章剧本。");
-        }
-
+        loadingToast.find('.toast-message').text("建筑师正在构思开篇剧本...");
+     const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);    
+       if (architectResult && architectResult.new_chapter_script) { // new_chapter_script 现在是蓝图对象
+    this.currentChapter.chapter_blueprint = architectResult.new_chapter_script; // 【适配】
+    this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
+    this.info("GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。");
+} else {
+    throw new Error("建筑师未能生成有效的开篇创作蓝图。");
+}
     } catch (error) {
         this.diagnose("创世纪流程中发生严重错误:", error);
         this.toastr.error(`创世纪失败: ${error.message}`, "引擎严重错误");
@@ -566,6 +583,7 @@ _syncUiWithRetry() {
     } finally {
         this._setStatus(ENGINE_STATUS.IDLE);
         console.groupEnd();
+          if (loadingToast) this.toastr.clear(loadingToast);
     }
 }
     onCommitState = async (messageIndex) => {
@@ -625,7 +643,6 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
         "章节转换中...",
         { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
     );
-
     this.info(`--- 章节转换流程启动 (健壮模式 V2 - 状态优化) ---`);
     console.group(`BRIDGE-PROBE [CHAPTER-TRANSITION-OPTIMIZED]: ${eventUid}`);
 
@@ -654,6 +671,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             this.info("史官分析结果和玩家焦点已从临时存储中恢复。");
         } else {
             loadingToast.find('.toast-message').text("史官正在复盘...");
+            loadingToast.find('.toast-message').text("史官正在复盘本章历史...");
             reviewResult = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex);
             this.LEADER.pendingTransition = {
                 historianReviewResult: reviewResult,
@@ -664,7 +682,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             this.info("史官复盘完成，中间结果已暂存。");
 
             loadingToast.find('.toast-message').text("等待导演指示...");
-            if (localStorage.getItem('sbt-focus-popup-enabled') === 'true') {
+            if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
                 this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
                 const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
                 if (popupResult.nsfw) {
@@ -735,10 +753,10 @@ if (reviewResult) {
             throw new Error("建筑师未能生成新剧本。中间进度已保存，请点击按钮重试。");
         }
 
-        loadingToast.find('.toast-message').text("正在固化记忆...");
+        loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
         const finalChapterState = workingChapter;
-        finalChapterState.activeChapterScript = architectResult.new_chapter_script;
-        finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
+        finalChapterState.chapter_blueprint = architectResult.new_chapter_script; // 【适配】
+finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
         finalChapterState.checksum = simpleHash(JSON.stringify(finalChapterState) + Date.now());
 
         const targetPiece = this.USER.getContext().chat[endIndex];
@@ -761,7 +779,7 @@ if (reviewResult) {
         }
     } catch (error) {
         this.diagnose("章节转换流程中发生严重错误:", error);
-        this.toastr.error(`${error.message}`, "章节规划失败", { timeOut: 15000 });
+        this.toastr.error(`${error.message}`, "章节规划失败", { timeOut: 5000 });
     } finally {
         this._setStatus(ENGINE_STATUS.IDLE);
         if (loadingToast) this.toastr.clear(loadingToast);
@@ -827,7 +845,7 @@ async startGenesisProcess() {
     const hasExistingFirstMessage = chat.length > 0 && chat[0] && !chat[0].is_user;
   const firstMessageContent = hasExistingFirstMessage ? chat[0].mes : null;
    await this._runGenesisFlow(firstMessageContent);
-    if (!this.currentChapter || !this.currentChapter.activeChapterScript) {
+    if (!this.currentChapter || !this.currentChapter.chapter_blueprint) {
         this.toastr.error("创世纪流程未能成功生成剧本，请检查后台AI设置或查看控制台。", "创世纪失败");
         return;
     }
@@ -869,7 +887,9 @@ async startGenesisProcess() {
 ---
 # **【第一卷 框架式互动规则】**
 ---
-${this.currentChapter.activeChapterScript}
+\`\`\`json
+${JSON.stringify(this.currentChapter.chapter_blueprint, null, 2)}
+\`\`\`
 `;
 
             const openingNarration = await this.mainLlmService.callLLM([{ role: 'user', content: openingPrompt }]);

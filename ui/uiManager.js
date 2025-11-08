@@ -107,7 +107,7 @@ async function showNarrativeFocusPopup(previousFocus = '') {
     
     const result = await popup.show({
         title: '导演，请指示',
-        message: '上一章节已结束。在“建筑师”开始规划新章节前，您想为接下来的剧情提供什么样的灵感或焦点？',
+        message: '在“建筑师”开始规划新章节前，您想为接下来的剧情提供什么样的灵感或焦点？',
         placeholder: '剧情？节奏？氛围？角色发展？\n或者，留空让AI自由发挥...',
         initialValue: previousFocus === defaultChoice ? '' : previousFocus,
         okText: '以此为焦点，开始规划',
@@ -273,7 +273,7 @@ $('#extensions-settings-button').after(html);
             deps.toastr.info(`叙事流引擎已 ${isChecked ? '开启' : '关闭'}`, "引擎状态切换");
         });
     const $toggle = $('#sbt-enable-focus-popup-toggle');
-    const isFocusPopupEnabled = localStorage.getItem('sbt-focus-popup-enabled') === 'false';
+   const isFocusPopupEnabled = localStorage.getItem('sbt-focus-popup-enabled') !== 'false';
     $toggle.prop('checked', isFocusPopupEnabled);
     $wrapper.on('change', '#sbt-enable-focus-popup-toggle', function() {
         const isChecked = $(this).is(':checked');

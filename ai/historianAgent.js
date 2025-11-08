@@ -80,9 +80,7 @@ if (!result || !Array.isArray(result.new_events) || typeof result.new_line_matri
     const dynamicChronicleLog = chapter?.dynamicChronicle?.log || [];
     const longTermStorySummary = chapter?.longTermStorySummary || "故事刚刚开始。";
     const existingLineMatrix = chapter?.lineMatrix || {};
-     const sagaBlueprint = chapter?.sagaScript?.saga_blueprint || { title: "大章剧本丢失", theme: "未知", plot_nodes: [] };
-        const activeChapterScript = chapter?.activeChapterScript || "<!-- 小章剧本丢失 -->";
-    const baseInstructions = `
+    const activeChapterBlueprint = chapter?.chapter_blueprint || "<!-- 小章蓝图丢失 -->";     const baseInstructions = `
 # 指令：首席史官的叙事审查与编年史撰写 V2.0
 
 你是一位拥有上帝视角的顶级叙事评论家和历史学家，代号“首席史官”。一个故事章节刚刚结束。你的神圣职责是审查本章发生的所有事件，并以严谨、公正、具有大局观的视角，将其作为【不可变的事件】记录到《动态编年史》中。
@@ -94,38 +92,25 @@ if (!result || !Array.isArray(result.new_events) || typeof result.new_line_matri
     <chapter_transcript>
     ${chapterTranscript}
     </chapter_transcript>
-2.  **宏观大章蓝图 (战略参考):**
-    <saga_blueprint>
-    ${JSON.stringify(sagaBlueprint, null, 2)}
-    </saga_blueprint>
-    
-3.  **本章动态剧本 (战术参考):**
+2.  **本章动态剧本 (战术参考):**
     <active_chapter_script>
-    ${activeChapterScript}
+    ${activeChapterBlueprint}
     </active_chapter_script>
-
-4.  **宏观大章蓝图 (战略参考):**
-    <saga_blueprint>
-    ${JSON.stringify(sagaBlueprint, null, 2)}
-    </saga_blueprint>
-
-5.  **《动态编年史》完整历史日志 (已有历史):**
+3.  **《动态编年史》完整历史日志 (已有历史):**
     <dynamic_chronicle_log>
     ${JSON.stringify(dynamicChronicleLog, null, 2)}
     </dynamic_chronicle_log>
-
-6.  **角色核心档案 (人物本性参考):**
+4.  **角色核心档案 (人物本性参考):**
     <static_character_matrix>
     ${JSON.stringify(staticCharacterMatrix, null, 2)}
     </static_character_matrix>
-
-7.  **故事长线摘要 (宏观节奏参考):**
+5.  **故事长线摘要 (宏观节奏参考):**
     *   ${longTermStorySummary}
-8.  **当前故事线网络 (已有故事线):**
+6.  **当前故事线网络 (已有故事线):**
     <line_matrix>
     ${JSON.stringify(existingLineMatrix, null, 2)}
     </line_matrix>
-9.  **当前动态关系档案 (裁决基准):**
+7.  **当前动态关系档案 (裁决基准):**
     <current_dynamic_relationships>
     ${JSON.stringify(currentDynamicState?.relationshipMatrix || {}, null, 2)}
     </current_dynamic_relationships>
@@ -246,29 +231,29 @@ if (!result || !Array.isArray(result.new_events) || typeof result.new_line_matri
       "event_type": "RELATIONSHIP_UPDATE",
       "payload": {
         "character_a": "{{user}}",
-        "character_b": "雪菜",
+        "character_b": "王美丽",
         "affinity_change": "+2",
         "new_affinity": 100
       },
-      "reasoning": "基于四步评估法，yumi的守护之情在危机中被锤炼至顶点，达到情感饱和。"
+      "reasoning": "基于四步评估法，刘的守护之情在危机中被锤炼至顶点，达到情感饱和。"
     }
   ],
   "new_line_matrix": {
     "main_quest_01": {
-      "title": "黑猫的契约与诅咒之谜",
+      "title": "...",
       "type": "Main Quest",
       "status": "active",
-      "summary": "为了拯救姐姐雪菜，{{user}}与神秘的黑猫奈芙结下契约，开始探索诅咒的真相。"
+      "summary": "为了让姐姐恢复健康，{{user}}愿意付出一切努力。"
     },
   "dossier_updates": {
-    "theo": {
+    "王美丽": {
       "psychological_dossier": {
-        "current_arc": "在Yumi的挑战下，开始意识到自己无法控制一切，从‘完全掌控’阶段，初步进入‘寻求合作’的试探阶段。",
+        "current_arc": "...",
         "behavioral_masks": [
           {
-            "mask_name": "示弱的和解者",
-            "trigger": "当直接控制失败，需要重新争取人心时。",
-            "behavior": "主动道歉，承认自己的僵硬，试图通过展现宽容来重塑权威。"
+            "mask_name": "...",
+            "trigger": "...",
+            "behavior": "..."
           }
         ]
       }
