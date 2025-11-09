@@ -42,40 +42,37 @@ export class LLMApiService {
         
         console.info("[LLMApiService] 配置已更新。当前URL:", this.config.api_url ? "已设置" : "空");
     }
-    /**
-     *  测试与后端语言模型API的连接和认证。
-     * 此方法会发送一个极简的、确定性的请求，并验证响应。
-     * 它会复用 callLLM 的核心逻辑，以确保测试环境与实际运行环境一致（包括代理设置）。
-     * @returns {Promise<string>} 如果成功，返回一个包含模型回复的成功消息。
-     * @throws {Error} 如果连接失败、认证失败或模型返回非预期内容，则抛出错误。
-     */
-    async testConnection() {
-        if (!this.config.api_url || !this.config.api_key) {
-            throw new Error("API URL 和 API Key 不能为空。请先在设置中填写。");
-        }
-        
-        console.info(`[LLMApiService] 正在使用模型 [${this.config.model_name}] 测试连接至 [${this.config.api_url}]...`);
-
-        const testPrompt = "Hello! Please reply with only one word: 'Success'.";
-        
-        try {
-            const responseText = await this.callLLM(
-                [{ role: 'user', content: testPrompt }],
-                null 
-            );
-            
-            if (responseText && responseText.toLowerCase().includes('success')) {
-                return `连接成功！模型返回: "${responseText}"`;
-            } else {
-                throw new Error(`连接看似成功，但模型返回了非预期的内容: "${responseText || '空内容'}"`);
-            }
-
-        } catch (error) {
-            console.error("[LLMApiService] 连接测试失败", error);
-            throw new Error(`连接测试失败: ${error.message}`);
-        }
+async testConnection() {
+    if (!this.config.api_url || !this.config.api_key) {
+        throw new Error("API URL 和 API Key 不能为空。请先在设置中填写。");
     }
 
+    console.info(`[LLMApiService] 正在使用模型 [${this.config.model_name}] 测试连接...`);
+
+    const testMessages = [{ role: 'user', content: "Hello! Please reply with only one word: 'Success'." }];
+
+    try {
+        const responseText = await this.#executeApiCall(testMessages, null);
+        
+        if (responseText && responseText.toLowerCase().includes('success')) {
+            return `连接成功！模型返回: "${responseText}"`;
+        } else {
+            throw new Error(`连接看似成功，但模型返回了非预期的内容: "${responseText || '空内容'}"`);
+        }
+
+    } catch (error) {
+        console.error("[LLMApiService] 连接测试失败", error);
+        let detail = error.message;
+        if (detail.includes('401')) {
+            detail = '认证失败 (401)。请检查你的 API Key 是否正确。';
+        } else if (detail.includes('404')) {
+            detail = '未找到端点 (404)。请检查你的 API URL 是否正确，特别是对于非官方API，URL需要是完整的。';
+        } else if (detail.includes('Failed to fetch')) {
+            detail = '网络请求失败。请检查你的网络连接、代理设置，或确认API地址是否可以访问。';
+        }
+        throw new Error(`连接测试失败: ${detail}`);
+    }
+}
     async callLLM(prompt, streamCallback = null) {
         if (!prompt) throw new Error("输入内容不能为空");
         if (!this.config.api_url || !this.config.api_key || !this.config.model_name) {
