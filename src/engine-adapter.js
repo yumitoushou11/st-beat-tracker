@@ -29,16 +29,22 @@ const createProxyWithUserSetting = (target, allowEmpty = false, userObject, edit
 
 
 // 2. 构建并导出【EDITOR】对象
-const { toastr, callGenericPopup, generateRaw } = applicationFunctionManager;
-
+const { callGenericPopup, generateRaw } = applicationFunctionManager;
 export const EDITOR = {
-    info: (message, detail = '') => toastr.info(detail, message),
-    success: (message, detail = '') => toastr.success(detail, message),
-    warning: (message, detail = '') => toastr.warning(detail, message),
+    info: (message, detail = '', options = {}) => toastr.info(message, detail, options),
+    success: (message, detail = '', options = {}) => toastr.success(message, detail, options),
+    warning: (message, detail = '', options = {}) => toastr.warning(message, detail, options),
     error: (message, detail = '', error) => {
-        console.error('[EngineAdapter-Error]', message, detail, error);
-        toastr.error(`${detail}<br>${error?.message || ''}`, message);
+    console.error('[EngineAdapter-Error]', message, detail, error);
+        const finalMessage = `${detail}<br>${error?.message || ''}`;
+    toastr.error(finalMessage, message, { escapeHtml: false });
     },
+    clear: (toast) => {
+        if (toastr && typeof toastr.clear === 'function' && toast) {
+            toastr.clear(toast);
+        }
+    },
+
     generateRaw: generateRaw,
     callGenericPopup: callGenericPopup,
 };
