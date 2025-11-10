@@ -51,7 +51,14 @@ export class Chapter {
                 }
                 */
             },
-            worldviewMatrix: {}
+            worldviewMatrix: {
+                locations: {}, // 始终保留，确保向后兼容
+                factions_and_organizations: {}, // 新增：势力与组织
+                key_concepts_and_rules: {},     // 新增：核心概念与规则
+                historical_events: {},          // 新增：历史事件
+                items_and_artifacts: {},        // 新增：重要物品与神器
+                creatures_and_races: {}         // 新增：生物与种族
+            }
         },
         lineMatrix: {},
         dynamicChronicle: {
