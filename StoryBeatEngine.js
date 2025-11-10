@@ -673,6 +673,19 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             loadingToast.find('.toast-message').text("史官正在复盘...");
             loadingToast.find('.toast-message').text("史官正在复盘本章历史...");
             reviewResult = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex);
+            if (!reviewResult) {
+                this.toastr.error(
+                    "史官在复盘本章历史时遇到严重错误（很可能是网络连接问题），章节转换已中止。<br><small>请检查您的网络和API设置后，前往“叙事罗盘”面板手动点击按钮重试。</small>", 
+                    "章节转换失败", 
+                    { timeOut: 15000, escapeHtml: false }
+                );
+                this.LEADER.pendingTransition = null;
+                this.USER.saveChat();
+                this._setStatus(ENGINE_STATUS.IDLE);
+                if (loadingToast) this.toastr.clear(loadingToast);
+                console.groupEnd();
+                return; 
+            }
             this.LEADER.pendingTransition = {
                 historianReviewResult: reviewResult,
                 playerNarrativeFocus: null,
