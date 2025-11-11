@@ -43,10 +43,13 @@ export class HistorianAgent extends Agent {
         }
         
         const result = repairAndParseJson(potentialJsonString, this); 
-if (!result || !Array.isArray(result.new_events) || typeof result.new_line_matrix !== 'object' || typeof result.dossier_updates !== 'object') {
-    this.diagnose("史官AI返回的JSON结构不完整。Raw Response:", responseText);
-    // 更新错误信息以反映新要求
-    throw new Error("史官AI未能返回包含 'new_events' (数组), 'new_line_matrix' (对象) 和 'dossier_updates' (对象) 的有效JSON。");
+if (!result || !Array.isArray(result.new_events) || typeof result.new_line_matrix !== 'object') {
+    this.diagnose("史官AI返回的JSON结构不完整（缺少核心字段）。Raw Response:", responseText);
+    throw new Error("史官AI未能返回包含 'new_events' (数组) 和 'new_line_matrix' (对象) 的有效JSON。");
+}
+if (result.dossier_updates === undefined) {
+    result.dossier_updates = {};
+    this.info("史官AI本次未返回 dossier_updates，已自动填充为空对象。");
 }
 
     if (!result || !Array.isArray(result.new_events) || typeof result.new_line_matrix !== 'object') {

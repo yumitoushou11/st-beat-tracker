@@ -247,11 +247,11 @@ const instructionPlaceholder = {
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
 
             this.diagnose('[PROBE][CONDUCTOR-DECISION] 收到回合指挥官的完整决策:', JSON.parse(JSON.stringify(conductorDecision)));
-
-            if (conductorDecision.postTurnAction?.type === 'TRIGGER_TRANSITION') {
-                this.info("PROBE [PENDING-TRANSITION]: 回合指挥官已发出【章节转换】的后台密令。");
+            if (conductorDecision.decision === 'TRIGGER_TRANSITION' || conductorDecision.decision === 'TRIGGER_EMERGENCY_TRANSITION') {
+                const reason = conductorDecision.decision === 'TRIGGER_EMERGENCY_TRANSITION' ? "【紧急熔断】" : "【常规】";
+                this.info(`PROBE [PENDING-TRANSITION]: 回合指挥官已发出${reason}章节转换的后台密令。`);
                 this.isTransitionPending = true;
-                this.pendingTransitionPayload = { ...conductorDecision.postTurnAction };
+                this.pendingTransitionPayload = { decision: conductorDecision.decision }; 
             }
 
 if (this.currentChapter.chapter_blueprint) {
@@ -361,30 +361,17 @@ _formatMicroInstruction(instruction) {
     if (!instruction || typeof instruction !== 'object') {
         return "无特殊指令，请按剧本自由演绎。";
     }
-
-    const { plot_beat, performance_suggestion, narrative_hold, alternative_suggestion,scope_limit} = instruction;
-
-    let formattedString = "# 🎬 核心情节节点\n";
-    formattedString += `*   ${plot_beat || '未定义核心情节。'}\n\n`;
-  if (scope_limit && scope_limit.toLowerCase() !== '无') {
-        formattedString += "# 🛑 **本回合边界 (Scope Limit)**\n";
-        formattedString += `*   **【绝对禁令】:** 你的演绎**必须**在本回合描述的情节节点完成后立即停止。${scope_limit}\n\n`;
+    const { narrative_goal, scope_limit, narrative_hold, corrective_action } = instruction;
+    // 如果是校准指令，优先显示
+    if (corrective_action && corrective_action.toLowerCase() !== '无 (none)') {
+        return `# 🚨 **【校准指令】**\n---\n*   ${corrective_action}`;
     }
 
-    formattedString += "# 🎨 演绎建议\n";
-    if (Array.isArray(performance_suggestion) && performance_suggestion.length > 0) {
-        performance_suggestion.forEach(item => formattedString += `*   ${item}\n`);
-    } else {
-        formattedString += "*   无特别建议。\n";
-    }
-    formattedString += `\n`;
-
-    formattedString += "# 🤫 叙事保留\n";
-    formattedString += `*   ${narrative_hold || '无'}\n`;
-    if (alternative_suggestion && alternative_suggestion.trim() !== '') {
-        formattedString += `\n# ✍️ 创意参考 (高级形容词/比喻库)\n`;
-        formattedString += `*   ${alternative_suggestion}\n`;
-    }
+    // 否则，构建常规的导演指令
+    let formattedString = "# 🎬 **【本回合导演微指令】**\n---\n";
+    formattedString += `*   **战术目标 (Goal):** ${narrative_goal || '自由演绎。'}\n`;
+    formattedString += `*   **演绎边界 (Scope Limit):** ${scope_limit || '无特殊限制。'}\n`;
+    formattedString += `*   **信息壁垒 (Hold):** ${narrative_hold || '无。'}`;
 
     return formattedString.trim();
 }

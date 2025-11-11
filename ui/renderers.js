@@ -162,6 +162,8 @@ export function updateDashboard(chapterState) {
                 
                 <strong><i class="fa-solid fa-link fa-fw"></i> 承上启下与钩子:</strong>
                 <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.connection_and_hook || '未阐述'}</p>
+                <strong><i class="fa-solid fa-link fa-fw"></i> 导演高光设计思路:</strong>
+                <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.highlight_design_rationale || '未阐述'}</p>
 
                 <hr style="margin: 20px 0; border-color: var(--sbt-border-color);">
 
