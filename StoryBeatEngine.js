@@ -37,6 +37,7 @@ export class StoryBeatEngine {
     this.uiSyncRetryCount = 0; // 记录重试次数
     this.status = ENGINE_STATUS.IDLE;
         this.isConductorActive = false; 
+        this.lastExecutionTimestamp = 0; 
         this.intelligenceAgent = null;
         this.architectAgent = null; 
         this.historianAgent = null;
@@ -121,6 +122,9 @@ export class StoryBeatEngine {
         this.info("叙事流引擎已准备就绪。");
     }
 onPromptReady = async (eventData) => {
+        const WATCHDOG_DELAY = 500; // 看门狗延迟，单位：毫秒 (1秒)
+    const now = Date.now();
+
        const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
     if (!isEngineEnabled) {
         // 我们只在控制台打印信息，避免打扰用户。
@@ -130,7 +134,12 @@ onPromptReady = async (eventData) => {
     this.diagnose(`PROBE [PROMPT-READY-ENTRY]: onPromptReady 事件触发。当前锁状态: ${this.isConductorActive}`);
     
     if (this.isConductorActive) {
-        this.info(`[Guard-Lock] 流程中止：上一个回合的异步处理尚未完成，已拦截重复触发。`);
+        this.info(`[Guard-Lock] 流程中止：注入处理正在进行中。`);
+        return;
+    }
+
+    if (now - this.lastExecutionTimestamp < WATCHDOG_DELAY) {
+        this.info(`[Guard-Watchdog] 流程中止：距离上次成功注入不足 ${WATCHDOG_DELAY / 1000} 秒，已拦截重复触发。`);
         return;
     }
     if (typeof eventData !== 'object' || eventData === null || eventData.dryRun) {
@@ -266,6 +275,7 @@ if (this.currentChapter.chapter_blueprint) {
     rulesPlaceholder.content = `# **【参考资料2：通用核心法则与关系指南 (Core Rules & Relationship Guide)】**\n---\n${regularSystemPrompt}`;
     
     this.info("✅ 异步处理完成，已通过优化的三层结构更新指令，注入成功。");
+
 } else {
     throw new Error("在 onPromptReady 中，currentChapter.chapter_blueprint 为空或无效。");
 }
@@ -287,16 +297,16 @@ if (this.currentChapter.chapter_blueprint) {
     instructionPlaceholder.content = "【回合裁判已禁用。请根据创作蓝图自由演绎。】";
     this.info("✅ 经典模式注入成功。");
 }
-
+    this.lastExecutionTimestamp = Date.now();
+        this.info("[Watchdog] 成功注入，已更新执行时间戳。");
     } catch (error) {
         this.diagnose("在 onPromptReady 异步流程中发生严重错误:", error);
         // 出错时，将两个占位符都更新为错误信息，避免注入不完整
         scriptPlaceholder.content = "【SBT 引擎在处理剧本时发生错误。】";
         instructionPlaceholder.content = "【SBT 引擎在处理指令时发生错误，本次将使用常规Prompt。】";
     } finally {
-        this.info("[Lock] 异步流程执行完毕，释放会话锁。");
-        // isConductorActive 的解锁逻辑移至 onCommitState，保持不变
-    }
+        this.isConductorActive = false;
+        this.info("[Lock] Prompt注入流程执行完毕，会话锁已立即释放。");    }
 };
     _buildRegularSystemPrompt() {
         const relationshipGuide = this._buildRelationshipGuide();
@@ -780,11 +790,7 @@ finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
     } catch (error) {
         this.diagnose("章节转换流程中发生严重错误:", error);
         this.toastr.error(`${error.message}`, "章节规划失败", { timeOut: 5000 });
-    } finally {
-        this._setStatus(ENGINE_STATUS.IDLE);
-        if (loadingToast) this.toastr.clear(loadingToast);
-        console.groupEnd();
-    }
+    } 
 }
     async _runStrategicReview(chapterContext, startIndex, endIndex) {
         console.group("BRIDGE-PROBE [STRATEGIC-REVIEW]: 史官复盘");
