@@ -122,7 +122,7 @@ export class StoryBeatEngine {
         this.info("叙事流引擎已准备就绪。");
     }
 onPromptReady = async (eventData) => {
-        const WATCHDOG_DELAY = 500; // 看门狗延迟，单位：毫秒 (1秒)
+        const WATCHDOG_DELAY = 1000; // 看门狗延迟，单位：毫秒 (1秒)
     const now = Date.now();
 
        const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
@@ -290,7 +290,7 @@ if (this.currentChapter.chapter_blueprint) {
                 `# **【第四部分：本章动态剧本 (参考)】**`,
                 `---`,
                 `你当前正在执行以下剧本。请在理解其核心设定的前提下，进行更具创造性的自由演绎。`,
-                fullChapterScript
+                `\`\`\`json\n${blueprintAsString}\n\`\`\``
             ].join('\n\n');
 
     scriptPlaceholder.content = classicPrompt;
@@ -790,7 +790,13 @@ finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
     } catch (error) {
         this.diagnose("章节转换流程中发生严重错误:", error);
         this.toastr.error(`${error.message}`, "章节规划失败", { timeOut: 5000 });
-    } 
+      } finally {
+        this._setStatus(ENGINE_STATUS.IDLE); 
+        if (loadingToast) {
+            this.toastr.clear(loadingToast);
+        }
+        console.groupEnd(); 
+    }
 }
     async _runStrategicReview(chapterContext, startIndex, endIndex) {
         console.group("BRIDGE-PROBE [STRATEGIC-REVIEW]: 史官复盘");
