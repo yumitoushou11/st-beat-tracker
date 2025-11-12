@@ -28,63 +28,56 @@ export class Chapter {
      * @returns {object} 一个全新的、初始化的章节状态对象。
      */
     static getInitialState() {
-    return {
-        uid: null,
-        characterId: null,
-        staticMatrices: {
-            characterMatrix: {
-                /* 
-                // 这是一个角色档案的结构示例，实际初始时为空对象 {}
-                "example_char_id": {
-                    "name": "",
-                    "identity": "",
-                    "isProtagonist": false,
-                    "background": [],
-                    "relationships": {},
-                    "psychological_dossier": {
-                        "core_motivation": "",
-                        "internal_conflict": "",
-                        "behavioral_masks": [],
-                        "habits_and_tics": [],
-                        "evolutionary_trajectory": {}
-                    }
+        return {
+            uid: null,
+            characterId: null, // 故事关联的角色ID
+            staticMatrices: {
+                characters: {},       // 书架: 所有角色 (char_*)
+                worldview: {
+                    locations: {},    // 书架: 所有地点 (loc_*)
+                    items: {},        // 书架: 所有物品 (item_*)
+                    factions: {},     // 书架: 所有势力 (faction_*)
+                    concepts: {},     // 书架: 所有概念 (concept_*)
+                    events: {},       // 书架: 所有历史事件 (event_*)
+                    races: {},        // 书架: 所有生物/种族 (race_*)
+                },
+                storylines: {
+                    main_quests: {},      // 书架: 所有主线任务 (quest_*)
+                    side_quests: {},      // 书架: 所有支线任务 (quest_*)
+                    relationship_arcs: {},// 书架: 所有关系弧光 (arc_*)
+                    personal_arcs: {}     // 书架: 所有个人弧光 (arc_*)
                 }
-                */
             },
-            worldviewMatrix: {
-                locations: {}, // 始终保留，确保向后兼容
-                factions_and_organizations: {}, // 新增：势力与组织
-                key_concepts_and_rules: {},     // 新增：核心概念与规则
-                historical_events: {},          // 新增：历史事件
-                items_and_artifacts: {},        // 新增：重要物品与神器
-                creatures_and_races: {}         // 新增：生物与种族
-            }
-        },
-        lineMatrix: {},
-        dynamicChronicle: {
-            version: "1.0",
-            log: []
-        },
-        longTermStorySummary: "故事刚刚开始。",
-        lastChapterHandoff: null,
-        activeChapterDesignNotes: null,
-        chapter_blueprint: null,
-        agencyChecklist: {},
-        chapterLifecycle: {
-            startMessageIndex: null,
-            endMessageIndex: null,
-        },
-        lastProcessedEventUid: null,
-        playerNarrativeFocus: "",
-        isPendingFirstCommit: false,
-        checksum: null,
-    };
-}
-
-    /**
-     * 此方法读取整个事件日志，并计算出当前世界的最新动态状态。
-     * @returns {object} 包含计算后的最新动态状态的对象。
-     */
+            dynamicState: {
+                characters: {},
+                worldview: {
+                    locations: {},
+                    items: {},
+                    factions: {},
+                    concepts: {},
+                    events: {},
+                    races: {}
+                },
+                storylines: {
+                    main_quests: {},
+                    side_quests: {},
+                    relationship_arcs: {},
+                    personal_arcs: {}
+                }
+            },
+            meta: {
+                longTermStorySummary: "故事刚刚开始。",
+                lastChapterHandoff: null
+            },
+            
+            playerNarrativeFocus: "由AI自主创新。",
+            activeChapterDesignNotes: null,
+            chapter_blueprint: null,
+            lastProcessedEventUid: null,
+            checksum: null,
+        };
+    }
+//暂时废弃111111111111111111111111111111111111111111
        calculateCurrentDynamicState() {
         const currentState = {
             relationshipMatrix: {},
@@ -174,7 +167,8 @@ export class Chapter {
             }
         }
     }
-    return currentState;
+  console.warn("[DEPRECATED] `calculateCurrentDynamicState` is no longer the source of truth. Please access `dynamicState` directly.");
+        return {}; 
 }
     static isValidStructure(data) {
         if (!data) {

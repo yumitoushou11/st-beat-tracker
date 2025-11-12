@@ -164,9 +164,8 @@ export class ArchitectAgent extends Agent {
 
 _createPrompt(context) {
     const { chapter, currentDynamicState, firstMessageContent } = context;        
-    const characterMatrix = chapter?.staticMatrices?.characterMatrix || {};
-    const worldviewMatrix = chapter?.staticMatrices?.worldviewMatrix || {};
-    const longTermStorySummary = chapter?.longTermStorySummary || "故事刚刚开始。";
+    const characterMatrix = chapter?.staticMatrices?.characters || {};
+    const worldviewMatrix = chapter?.staticMatrices?.worldview || {};    const longTermStorySummary = chapter?.longTermStorySummary || "故事刚刚开始。";
     const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
     const isNsfwFocused = playerNarrativeFocus.toLowerCase().startsWith('nsfw:');
     const relationshipMatrix = currentDynamicState?.relationshipMatrix || {};

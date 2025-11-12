@@ -15,146 +15,107 @@ export class IntelligenceAgent extends Agent {
         }
 
         return BACKEND_SAFE_PASS_PROMPT + `
-        你是一名负责构建角色数据库的AI管理员，拥有理解叙事时间线的高级能力。你的任务是将非结构化的文本情报，转化为一个结构严谨的、只反映【故事开始前】状态的JSON数据库。
+# 指令：ECI原子化数据库创生协议 V1.0
 
-    --- 原始情报 ---
-    <protagonist_persona>
-    ${personaText}
-    </protagonist_persona>
-    <world_info_entries>
-    ${formattedWorldInfo}
-    </world_info_entries>
+你的身份是“创世数据库管理员”，一个拥有上帝视角的AI。你的任务是将非结构化的文本情报，转化为一个结构严谨的、高度分类的、只反映【故事开始前】状态的【静态实体数据库】。
 
-    --- 【至关重要的核心原则：区分背景与剧情】 ---
-    你必须严格区分两种类型的信息：
-    1.  **背景设定 (Backstory):** 描述角色【在故事开始之前】的身份、性格、历史和固有关系。例如：“B是主角的姐姐，两人关系极好。”
-    2.  **剧情梗概 (Plot Summary):** 描述角色【在故事开始之后将会发生】的事件。例如：“主角将会遇到一只叫的A的女孩，并成为伙伴。”
+--- 原始情报 ---
+<protagonist_persona>
+${personaText}
+</protagonist_persona>
+<world_info_entries>
+${formattedWorldInfo}
+</world_info_entries>
 
-    **你的所有输出，都必须【只基于背景设定】。绝对禁止将剧情梗概中的未来事件，当作已经发生的事实来处理。**
+--- 【第一部分：实体-分类-ID (ECI) 核心方法论】 ---
 
-    --- 【核心任务指令：严格按步骤执行】 ---
-   1.  **第一步：识别所有实体**
-    - 从所有情报中，识别出【主角】以及所有在【背景设定】中就存在的角色。
-   2. **第二步：【反脸谱化深度建档】**
-    - 为你在上一步中识别出的**每一个**角色，都创建一个独立的、包含**“动态心理档案”**的JSON对象。
-    - **【【【建档铁律】】】**: 你的任务是构建一个**系统**，而非罗列**标签**。你必须：
-        1.  从角色的背景故事和核心设定中，提炼出其一切行为的**最终驱动力 (\`core_motivation\`)**和最核心的**内在矛盾 (\`internal_conflict\`)**。
-        2.  基于其内在矛盾，为其设计至少两种在不同情境下会展现的**行为面具 (\`behavioral_masks\`)**。每个面具都需注明触发情境和具体行为。
-        3.  根据角色的核心矛盾，为其推导出合乎逻辑的**进化轨迹 (\`evolutionary_trajectory\`)**，包含积极和消极两种可能性。
-        4.  为其构思一些能体现其性格的、无意识的**习惯与癖好 (\`habits_and_tics\`)**。
-   3.  **【第三步：构建初始关系网络 (只基于背景)**
-    - 对【每一个】角色，分析其在故事开始前与其他【所有】已知角色的固有关系。
-    - **示例：**
-        - 对于主角"{{user}}"：她和“B”关系极好，应设定高 \`affinity\`。她不认识“A”，则不应建立关系。
-        - 对于“B”：她对妹妹"{{user}}"同样是高 \`affinity\`。她也不认识“A”，则不应建立关系。
-        - 对于“A”：她谁都不认识，所以她的 \`relationships\` 字段应该是一个空对象。
-    - 关系是双向的，但初始态度可能不同。请分别设定。
+你的所有工作都必须服务于ECI模型。
 
-4.  **第四步：推导初始故事线网络 (Derive Initial Storylines)**
-    -   **任务:** 像一个经验丰富的编辑一样，通读所有情报（特别是主角人设 \`protagonist_persona\` 和 \`Plot_Setting\` / \`Character_Setting\` 等世界书条目），识别出在**故事开始前就已经存在的、悬而未决的矛盾和长期目标**。
-    -   **分析方法:**
-        *   **寻找主线任务 (Main Quest):** 识别出影响所有或大部分角色的、在故事开篇就已发生的**宏观事件或处境**。例如：“一场大雪封锁了整个小镇”、“帝国刚刚宣布开战”。这通常是\`active\`状态。
-        *   **寻找关系弧光 (Relationship Arc):** 识别每个**核心角色（包括PC和Key Characters）的内在核心矛盾、未了的心愿或深刻的创伤**。这些通常是\`dormant\`状态，等待剧情触发。例如：“角色A一直暗恋主角”、“角色B背负着家族的血海深仇”。
-        *   **寻找支线任务 (Side Quest):** 识别那些具体的、有明确目标的、但非核心的潜在任务。例如：“世界书中提到‘失落的古代神器’的位置线索”、“一个角色的背景里写着他在寻找失散多年的妹妹”。这些也通常是\`dormant\`状态。
-    -   **建档:** 为你识别出的每一条故事线，创建一个故事线对象，包含\`title\`, \`type\` (\`Main Quest\`, \`Relationship Arc\`, \`Side Quest\`), \`status\` (\`active\` or \`dormant\`), 和 \`summary\`。
+**1. 识别实体 (Entity Recognition):**
+   - 从所有情报中，识别出【所有】独立的概念实体。问自己：“这是一个‘谁’(角色)？‘哪里’(地点)？‘什么’(物品/概念)？‘何时发生的’(历史事件)？还是一个‘长期目标’(故事线)？”
 
-5.  **第五步：组装最终数据库**
-    -   将【所有】基于背景设定创建的独立角色档案，组装成最终的 \`characterMatrix\` 对象。
-    -   将【所有】推导出的初始故事线，组装成最终的 \`lineMatrix\` 对象。
-6.**第六步：世界观深度编纂**
-*   **任务:** 像一位图书馆长一样，通读所有 <world_info_entries>，并将每一条有价值的【背景设定】信息，分门别类地归入下方指定的分类中。
-*   **核心方法论:** 对于每一条信息，问自己：“这是关于‘哪里’(地点)？‘谁’(组织)？‘什么规则’(概念)？‘何时’(历史)？‘何物’(物品)？还是‘哪种生物’？”
+**2. 【【【 至关重要的ID分配 (ID Assignment) 】】】**
+   - 为你识别出的**每一个**实体，都必须生成一个【全局唯一的、带分类前缀的ID】。这个ID将是它在数据库中永恒的身份。
+   - **ID命名规范 (绝对强制):**
+     *   角色: \`char_英文名或拼音_身份描述\` (e.g., \`char_yumi_player\`, \`char_neph_witch\`)
+     *   地点: \`loc_英文或拼音\` (e.g., \`loc_windwhisper_forest\`)
+     *   物品: \`item_...\`
+     *   历史事件: \`event_...\`
+     *   故事线: \`quest_...\` 或 \`arc_...\`
+     *   ... (以此类推，必须包含所有分类)
 
-*   **【【【 强制分类指令 】】】**
-    你必须将分析结果填入 \`worldviewMatrix\` 对象的对应键中。每个条目的键应为该事物的【正式名称】，值为一段【简洁的描述】。
-    1.  **\`locations\` (地点):**
-        *   **标准:** 任何具有地理位置概念的实体。城市、国家、建筑、自然景观等。
-        *   **示例:** "风息城": "一座建立在山巅、以风力驱动机关的古老城市。"
+**3. 分类归档 (Categorical Archiving):**
+   - 将创建的每一个实体档案，放入最终输出JSON中**对应分类的“书架”**里。一个地点实体，必须被放入 \`worldview.locations\` 对象中，其键就是它的ID。
 
-    2.  **\`factions_and_organizations\` (势力与组织):**
-        *   **标准:** 任何由多个个体组成的、有共同目标的团体。公会、王国、公司、秘密社团、反抗军等。
-        *   **示例:** "绯红之手": "一个信奉力量至上的刺客兄弟会，以其高效的执行力和残酷的手段闻名。"
+**4. 关系链接 (Relational Linking):**
+   - 在为一个实体建档时（例如一个角色），如果其描述中关联到另一个实体（例如他最好的朋友），你**必须**使用那个朋友的**唯一ID**来进行引用。**绝对禁止**使用名称字符串。
 
-    3.  **\`key_concepts_and_rules\` (核心概念与规则):**
-        *   **标准:** 构成这个世界运转基石的抽象法则、技术、魔法系统或社会规范。
-        *   **示例:** "虚空共鸣": "一种罕见的魔法天赋，允许施法者直接从虚空中汲取能量，但有被反噬的巨大风险。"
+--- 【第二部分：核心任务指令】 ---
 
-    4.  **\`historical_events\` (历史事件):**
-        *   **标准:** 在故事开始前已经发生、并对当前世界格局产生深远影响的重大事件。
-        *   **示例:** "碎星之战": "三百年前终结了旧神统治的史诗战争，导致大陆分裂，魔法元素变得狂暴不稳定。"
+严格按照ECI方法论，完成以下建档任务：
 
-    5.  **\`items_and_artifacts\` (重要物品与神器):**
-        *   **标准:** 具有特殊名称、历史或能力的物品。传说中的武器、魔法道具、关键科技造物等。
-        *   **示例:** "月神之泪": "传说中能够净化一切诅咒的宝石，但在碎星之战后下落不明。"
+1.  **建档 \`staticMatrices.characters\`:**
+    *   为每一个角色创建档案，包含其心理档案。
+    *   其 \`relationships\` 对象的值，必须是另一个角色的ID。
 
-    6.  **\`creatures_and_races\` (生物与种族):**
-        *   **标准:** 世界上存在的、具有独特生理或文化特征的智慧种族或非凡生物。
-        *   **示例:** "影裔": "一个天生能与阴影融合的类人种族，擅长隐匿和突袭，但在阳光下会变得虚弱。"
+2.  **建档 \`staticMatrices.worldview\`:**
+    *   将所有非角色的世界观实体，按照 \`locations\`, \`items\`, \`events\` 等分类，分别建档。
 
-// --- 【至关重要的输出结构协议】 ---
-/*
-   {
-      "characterMatrix": {
-        "角色1": {
-          "name": "角色1",
-          "identity": "...",
-          "isProtagonist": false,
-          "background": ["...", "..."],
-          "relationships": {
-            "A": { "affinity": 70, "reputation": "..." }
+3.  **建档 \`staticMatrices.storylines\`:**
+    *   识别所有在故事开始前就存在的长期目标或悬而未决的矛盾。
+    *   根据其性质，归入 \`main_quests\`, \`side_quests\`, \`relationship_arcs\` 等分类中。
+
+--- 【第三部分：最终输出结构协议 (MANDATORY V2.0 - ECI MODEL)】 ---
+你的整个回复必须是一个单一的JSON对象，其结构必须严格遵守以下格式。
+
+\`\`\`json
+{
+  "staticMatrices": {
+    "characters": {
+      "char_yumi_player": {
+        "name": "Yumi",
+        "identity": "...",
+         "relationships": {
+          "char_xuecai_sister": { 
+            "relation_type": "姐姐",
+            "description": "最爱的姐姐，是自己世界的中心，发誓要保护她。"
           },
-          "psychological_dossier": {
-            "core_motivation": "...",
-            "internal_conflict": "...",
-            "behavioral_masks": [
-              {
-                "mask_name": "...",
-                "trigger": "...",
-                "behavior": "..."
-              },
-              {
-                "mask_name": "...",
-                "trigger": "...",
-                "behavior": "..."
-              }
-            ],
-            "habits_and_tics": [
-              "..."
-            ],
-            "evolutionary_trajectory": {
-              "current_arc": "...",
-              "positive_future": "...",
-              "negative_future": "..."
-            }
+          "char_grandparents_guardians": {
+            "relation_type": "爷爷奶奶",
+            "description": "非常疼爱自己的和蔼长辈，虽然有时会因为自己的顽皮而头疼。"
           }
+        },
+        "psychological_dossier": { ... }
+      },
+      "char_xuecai_sister": {
+        "name": "雪菜", ...
+      }
+    },
+    "worldview": {
+      "locations": {
+        "loc_hanyu_village": {
+          "name": "羽生村",
+          "description": "..."
         }
       },
-  "worldviewMatrix": {
-        "locations": {
-          "风息城": "一座建立在山巅、以风力驱动机关的古老城市。"
-        },
-        "factions_and_organizations": {
-          "绯红之手": "一个信奉力量至上的刺客兄弟会..."
-        },
-        "key_concepts_and_rules": {
-          "虚空共鸣": "一种罕见的魔法天赋..."
-        },
-        "historical_events": {
-          "碎星之战": "三百年前终结了旧神统治的史诗战争..."
-        },
-        "items_and_artifacts": {
-          "月神之泪": "传说中能够净化一切诅咒的宝石..."
-        },
-        "creatures_and_races": {
-          "影裔": "一个天生能与阴影融合的类人种族..."
+      "events": {
+        "event_village_founding": {
+          "name": "羽生村的建立",
+          "description": "数百年前..."
         }
       },
-  "lineMatrix": {
-    "main_quest_01": {
-      "title": "...",
-      "type": "Main Quest",
-      "status": "active",
-      "summary": "..."
+      "items": {}
+    },
+    "storylines": {
+      "main_quests": {},
+      "relationship_arcs": {
+        "arc_sister_bond_01": {
+          "title": "守护姐姐的笑容",
+          "type": "Relationship Arc",
+          "initial_summary": "..."
+        }
+      },
+      "side_quests": {}
     }
   }
 }
@@ -166,8 +127,7 @@ export class IntelligenceAgent extends Agent {
     如果存在错误，请立即修正。
     --- 【语言与细节规范 (MANDATORY)】 ---
     1.  **语言协议**: 你的所有输出，包括 \`characterMatrix\` 和 \`worldviewMatri\` 内部的所有字符串值，**必须完全使用【简体中文】**。这是一个绝对的要求，不得出现任何英文单词或短语，除非它们是专有名词的原文。
-    现在，请以心理学家的严谨和叙事设计师的创造力，开始建档。
-        现在，请以心理学家的严谨和叙事设计师的创造力，开始建档。
+现在，以数据库管理员的严谨，开始构建初始世界。
        ` ;
     }
 
@@ -190,11 +150,9 @@ export class IntelligenceAgent extends Agent {
             // 3. 只进行一次解析
             const initialData = this.extractJsonFromString(responseText);
 
-            // 4. 使用一次性的、最严格的校验
-            if (!initialData || !initialData.characterMatrix || !initialData.worldviewMatrix || !initialData.lineMatrix) {
-                // 如果解析或结构校验失败，主动抛出错误，让catch块处理
-                throw new Error("AI未能返回包含 'characterMatrix', 'worldviewMatrix' 和 'lineMatrix' 的有效JSON。");
-            }
+             if (!initialData || !initialData.staticMatrices || !initialData.staticMatrices.characters || !initialData.staticMatrices.worldview || !initialData.staticMatrices.storylines) {
+            throw new Error("AI未能返回包含有效 'staticMatrices' (及其全部分类) 的JSON。");
+        }
 
             this.info("智能情报官AI 分析完成，角色、世界观与初始故事线档案已建立。");
 
@@ -206,10 +164,8 @@ export class IntelligenceAgent extends Agent {
 
             // 5. 返回经过严格校验的正确数据
        return {
-                characterMatrix: initialData.characterMatrix,
-                worldviewMatrix: initialData.worldviewMatrix,
-                lineMatrix: initialData.lineMatrix
-            };
+            staticMatrices: initialData.staticMatrices,
+        };
         } catch (error) {
             // 6. 现在的catch块可以安全地访问responseText（即使它为null），便于调试
             this.diagnose("--- 智能情报官AI 分析失败 ---", {

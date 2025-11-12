@@ -16,33 +16,37 @@ export function extractJsonFromString(text) {
     }
 
     let jsonString = null;
+    // 策略一：优先寻找Markdown代码块 (```json ... ```)
     const codeBlockMatch = text.match(/```json\s*([\s\S]*?)\s*```/);
     
     if (codeBlockMatch && codeBlockMatch.length > 1) {
         jsonString = codeBlockMatch[1].trim(); 
-        info("[JSON Extractor] Found and extracted JSON from a code block.");
+        info("[JSON Extractor] V2: Found and extracted JSON from a precise markdown code block.");
     } else {
+        // 策略二：如果找不到代码块，则回退到基于括号匹配的“最大化”提取。
+        info("[JSON Extractor] V2: No markdown code block found. Falling back to brace matching.");
         const firstBrace = text.indexOf('{');
         const lastBrace = text.lastIndexOf('}');
 
         if (firstBrace !== -1 && lastBrace > firstBrace) {
             jsonString = text.substring(firstBrace, lastBrace + 1);
-            info("[JSON Extractor] No code block found. Falling back to brace matching.");
         }
     }
 
     if (!jsonString) {
-        diagnose("[JSON Extractor] Could not find any potential JSON content in the string.");
+        diagnose("[JSON Extractor] V2: Could not find any potential JSON content in the string.");
         return null;
     }
 
     try {
-        return JSON.parse(jsonString);
+        const cleanedJsonString = jsonString.replace(/,\s*([}\]])/g, "$1");
+        return JSON.parse(cleanedJsonString);
     } catch (error) {
-        diagnose("[JSON Extractor] Failed to parse the extracted string.", {
-            error: error.message,
-            extractedString: jsonString
+        diagnose("[JSON Extractor] V2: Failed to parse the extracted string.", {
+            originalError: error.message,
+            jsonStringToParse: jsonString
         });
-        return null;
+        
+        throw new Error(`Failed to parse JSON. Reason: ${error.message}. Raw extracted content: "${jsonString.substring(0, 200)}..."`);
     }
 }

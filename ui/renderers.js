@@ -179,10 +179,14 @@ export function updateDashboard(chapterState) {
         }
     }
 
-    // --- 4. 渲染其他模块 (不变) ---
-    renderCharacterRelationships(chapterState, $('#sbt-character-chart'));
-    renderLineMatrix(chapterState.lineMatrix, $('#sbt-line-matrix-list'));
-    renderCoreMemories(chapterState.staticMatrices.characterMatrix, $('#sbt-core-memories-list'));
+    // --- 4. 渲染其他模块 ---
+    const allStorylines = {
+    ...(chapterState.staticMatrices.storylines.main_quests || {}),
+    ...(chapterState.staticMatrices.storylines.side_quests || {}),
+    ...(chapterState.staticMatrices.storylines.relationship_arcs || {}),
+    ...(chapterState.staticMatrices.storylines.personal_arcs || {})
+};
+renderLineMatrix(allStorylines, $('#sbt-line-matrix-list'));
 }/**
  * [新增] 渲染并显示角色详情的弹窗。
  * @param {string} charId - 要显示详情的角色ID。

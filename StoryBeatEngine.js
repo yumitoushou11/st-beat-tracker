@@ -132,7 +132,9 @@ onPromptReady = async (eventData) => {
         return;
     }
     this.diagnose(`PROBE [PROMPT-READY-ENTRY]: onPromptReady 事件触发。当前锁状态: ${this.isConductorActive}`);
-    
+    if (this.currentChapter) {
+    console.log('%c[SBE DEBUG] Chapter State Snapshot (Before Turn):', 'color: #7f00ff; font-weight: bold;', JSON.parse(JSON.stringify(this.currentChapter)));
+}
     if (this.isConductorActive) {
         this.info(`[Guard-Lock] 流程中止：注入处理正在进行中。`);
         return;
@@ -453,10 +455,10 @@ _syncUiWithRetry() {
     _buildRelationshipGuide() {
         let guide = AFFINITY_BEHAVIOR_MATRIX_PROMPT;
         
-        const dynamicState = this.currentChapter.calculateCurrentDynamicState();
-        const protagonistKey = Object.keys(this.currentChapter.staticMatrices.characterMatrix).find(
-            key => this.currentChapter.staticMatrices.characterMatrix[key].isProtagonist
-        ) || '{{user}}';
+ const characterMatrix = this.currentChapter.staticMatrices.characters || {};
+    const protagonistKey = Object.keys(characterMatrix).find(
+        key => characterMatrix[key].isProtagonist
+    ) || '{{user}}';
         
         const protagonistRelations = dynamicState.relationshipMatrix[protagonistKey] || {};
 
@@ -515,26 +517,30 @@ _syncUiWithRetry() {
         this.currentChapter = new Chapter({ characterId: activeCharId });
         this.info("GENESIS: 已为新篇章创建 Chapter 实例。");
         this.diagnose("GENESIS: 正在检查或分析静态数据...");
-            let analysisResult = staticDataManager.loadStaticData(activeCharId);
-              loadingToast.find('.toast-message').text("正在分析世界观与角色设定...");
+         let analysisResult = staticDataManager.loadStaticData(activeCharId);
+            
+            loadingToast.find('.toast-message').text("正在分析世界观与角色设定...");
             if (!analysisResult) {
-                this.info("GENESIS: 未找到缓存，正在实时分析世界书...");
+                this.info("GENESIS: 未找到缓存，正在实时分析世界书 (ECI模型)...");
                 const persona = window.personas?.[window.main_persona];
                 const worldInfoEntries = await this.deps.getCharacterBoundWorldbookEntries(context);
-                
-                // 2. 从AI获取包含三个顶级键的完整分析结果
-                analysisResult = await this.intelligenceAgent.execute({ worldInfoEntries, persona });
+                const agentOutput = await this.intelligenceAgent.execute({ worldInfoEntries, persona });
 
-                if (analysisResult) {
-                    // 3. 将完整的分析结果（包含三个键）存入缓存
+                if (agentOutput && agentOutput.staticMatrices) {
+                    analysisResult = agentOutput.staticMatrices; // 直接获取核心对象
                     staticDataManager.saveStaticData(activeCharId, analysisResult);
                 } else {
-                    throw new Error("IntelligenceAgent未能返回有效数据。");
+                    throw new Error("IntelligenceAgent未能返回有效的 staticMatrices 数据。");
                 }
             } else {
-                this.info("GENESIS: 已从缓存加载分析结果。");
+                this.info("GENESIS: 已从缓存加载ECI静态数据。");
             }
-            
+                        if (analysisResult) {
+                 this.currentChapter.staticMatrices = deepmerge({}, analysisResult);
+                this.info("GENESIS: ECI静态数据库已成功注入当前Chapter实例。");
+            } else {
+                this.warn("加载的静态数据或缓存为空，将使用空的 staticMatrices。");
+            } 
             // 4. 无论数据来源是缓存还是AI，都使用这套分发逻辑
             if (analysisResult && analysisResult.characterMatrix && analysisResult.worldviewMatrix && analysisResult.lineMatrix) {
                 this.currentChapter.staticMatrices = {
