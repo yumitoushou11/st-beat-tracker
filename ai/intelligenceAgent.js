@@ -57,7 +57,10 @@ ${formattedWorldInfo}
 1.  **建档 \`staticMatrices.characters\`:**
     *   为每一个角色创建档案，包含其心理档案。
     *   其 \`relationships\` 对象的值，必须是另一个角色的ID。
-
+    *   【叙事逻辑铁律：禁止量化主角】
+         *   在为主角（ID通常为 \`char_user_player\` 或类似）创建档案时，其 \`relationships\` 对象中**绝对不能包含任何\`affinity\`（好感度）字段**。
+         *   你可以使用一个 \`description\` 字段来描述主角对其他角色的**初始认知或背景关系**（例如：“这是我体弱多病的姐姐”）。
+         *   对于**所有非主角角色 (NPC)**，其 \`relationships\` 对象中则**必须包含**对其他角色的初始 \`affinity\` 值。
 2.  **建档 \`staticMatrices.worldview\`:**
     *   将所有非角色的世界观实体，按照 \`locations\`, \`items\`, \`events\` 等分类，分别建档。
 
@@ -75,22 +78,24 @@ ${formattedWorldInfo}
       "char_yumi_player": {
         "name": "Yumi",
         "identity": "...",
-         "relationships": {
+          "relationships": {
           "char_xuecai_sister": { 
             "relation_type": "姐姐",
-            "description": "最爱的姐姐，是自己世界的中心，发誓要保护她。"
-          },
-          "char_grandparents_guardians": {
-            "relation_type": "爷爷奶奶",
-            "description": "非常疼爱自己的和蔼长辈，虽然有时会因为自己的顽皮而头疼。"
+            //主角对外关系没有 affinity，只有描述
+            "description": "最爱的姐姐，是自己世界的中心，发誓要保护她。" 
           }
         },
-        "psychological_dossier": { ... }
       },
       "char_xuecai_sister": {
-        "name": "雪菜", ...
-      }
-    },
+        "name": "雪菜", 
+        "relationships": {
+          "char_yumi_player": {
+            "relation_type": "妹妹",
+            "description": "最疼爱的小小探险家...",
+            //NPC 对外关系必须有 affinity
+            "affinity": 95 
+          }
+        },
     "worldview": {
       "locations": {
         "loc_hanyu_village": {
