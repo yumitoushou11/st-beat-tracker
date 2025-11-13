@@ -1,6 +1,6 @@
 // ui/uiManager.js
 import { SbtPopupConfirm } from './SbtPopupConfirm.js';
-import { updateDashboard } from './renderers.js';
+import { updateDashboard, showCharacterDetailModal } from './renderers.js';
 import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
@@ -199,6 +199,36 @@ $('#extensions-settings-button').after(html);
             deps.info(`切换到面板: #${targetPanelId}`);
         });
 
+    // -- 世界档案面板: 分类折叠 --
+    $wrapper.on('click', '.sbt-category-header', function() {
+        const $header = $(this);
+        const $content = $header.next('.sbt-library-items');
+        $header.toggleClass('collapsed');
+        $content.toggleClass('collapsed');
+    });
+
+    // -- 世界档案面板: 角色卡片点击 --
+    let currentChapterState = null;
+
+    // 监听CHAPTER_UPDATED事件，保存最新的章节状态
+    if (deps.eventBus) {
+        deps.eventBus.on('CHAPTER_UPDATED', (chapterState) => {
+            currentChapterState = chapterState;
+        });
+    }
+
+    $wrapper.on('click', '#sbt-archive-characters .sbt-archive-card', function() {
+        const charId = $(this).data('char-id');
+        if (charId && currentChapterState) {
+            showCharacterDetailModal(charId, currentChapterState);
+        }
+    });
+
+    // -- 世界档案面板: 关闭角色详情 --
+    $wrapper.on('click', '#sbt-close-character-detail', function() {
+        $('#sbt-character-detail-panel').hide();
+    });
+
     // -- 监控面板: 手风琴折叠 --
     $wrapper.on('click', '.sbt-accordion-header', function() {
         const $header = $(this);
@@ -211,26 +241,20 @@ $('#extensions-settings-button').after(html);
     
         if (isCharacterChart) {
             if (isOpening) {
-                setTimeout(() => {
-                    $content.find('.sbt-character-card').each(function() {
-                        const $card = $(this);
-                        const currentAffinity = parseFloat($card.attr('data-current-affinity')) || 0;
-                        const finalColor = $card.attr('data-final-color');
-                        const $affinityBar = $card.find('.sbt-progress-fill.affinity');
-                        $affinityBar.css('transition', 'background-color 0s');
-                        $affinityBar.css('background-color', finalColor);
-                        $affinityBar[0].offsetHeight;
-                        $affinityBar.css('transition', '');
-                        $affinityBar.css('width', `${currentAffinity}%`);
-                    });
-                }, 50);
+                $content.find('.sbt-character-card').each(function() {
+                    const $card = $(this);
+                    const currentAffinity = parseFloat($card.attr('data-current-affinity')) || 0;
+                    const finalColor = $card.attr('data-final-color');
+                    const $affinityBar = $card.find('.sbt-progress-fill.affinity');
+                    $affinityBar.css('background-color', finalColor);
+                    $affinityBar.css('width', `${currentAffinity}%`);
+                });
             } else {
                 $content.find('.sbt-character-card').each(function() {
                     const $card = $(this);
                     const oldAffinity = parseFloat($card.attr('data-old-affinity')) || 0;
                     const affinityColor = mapValueToHue(oldAffinity);
                     const $affinityBar = $card.find('.sbt-progress-fill.affinity');
-                    $affinityBar.css('transition', 'none');
                     $affinityBar.css({
                         'width': `${oldAffinity}%`,
                         'background-color': affinityColor

@@ -32,6 +32,7 @@
         <!-- 标签页导航栏 -->
         <nav id="sbt-tab-nav">
             <button id="btn-show-monitor" class="sbt-tab-btn active" data-panel="sbt-monitor-panel"><i class="fa-solid fa-desktop fa-fw"></i> 监控面板</button>
+            <button id="btn-show-archive" class="sbt-tab-btn" data-panel="sbt-archive-panel"><i class="fa-solid fa-book-atlas fa-fw"></i> 世界档案</button>
             <button id="btn-show-compass" class="sbt-tab-btn" data-panel="sbt-compass-panel"><i class="fa-solid fa-compass-drafting fa-fw"></i> 叙事罗盘</button>
             <button id="btn-show-settings" class="sbt-tab-btn" data-panel="sbt-settings-panel"><i class="fa-solid fa-cog fa-fw"></i> 设置</button>
         </nav>
@@ -82,7 +83,147 @@
                 </div>
             </div> <!-- 监控面板结束 -->
 
-            <!-- ======================= 2. 叙事罗盘面板======================= -->
+            <!-- ======================= 2. 世界档案面板 ======================= -->
+            <div id="sbt-archive-panel" class="sbt-tab-panel">
+
+                <!-- 角色档案馆 -->
+                <div class="sbt-library-section">
+                    <h4 class="sbt-library-title">
+                        <i class="fa-solid fa-users fa-fw"></i> 角色档案馆
+                    </h4>
+
+                    <!-- 角色详情展开区域 -->
+                    <div id="sbt-character-detail-panel" class="sbt-character-detail-panel" style="display: none;">
+                        <div class="sbt-character-detail-close">
+                            <button id="sbt-close-character-detail" class="sbt-secondary-btn">
+                                <i class="fa-solid fa-times fa-fw"></i> 关闭详情
+                            </button>
+                        </div>
+                        <div id="sbt-character-detail-content"></div>
+                    </div>
+
+                    <div id="sbt-archive-characters" class="sbt-library-shelf">
+                        <p class="sbt-instructions">暂无角色档案。</p>
+                    </div>
+                </div>
+
+                <!-- 世界观图书馆 -->
+                <div class="sbt-library-section">
+                    <h4 class="sbt-library-title">
+                        <i class="fa-solid fa-globe fa-fw"></i> 世界观图书馆
+                    </h4>
+
+                    <!-- 地点索引 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-map-location-dot fa-fw"></i> 地点索引
+                        </h5>
+                        <div id="sbt-archive-locations" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无地点记录。</p>
+                        </div>
+                    </div>
+
+                    <!-- 物品目录 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-box fa-fw"></i> 物品目录
+                        </h5>
+                        <div id="sbt-archive-items" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无物品记录。</p>
+                        </div>
+                    </div>
+
+                    <!-- 势力档案 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-flag fa-fw"></i> 势力档案
+                        </h5>
+                        <div id="sbt-archive-factions" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无势力记录。</p>
+                        </div>
+                    </div>
+
+                    <!-- 概念辞典 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-lightbulb fa-fw"></i> 概念辞典
+                        </h5>
+                        <div id="sbt-archive-concepts" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无概念记录。</p>
+                        </div>
+                    </div>
+
+                    <!-- 历史事件 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-clock-rotate-left fa-fw"></i> 历史事件
+                        </h5>
+                        <div id="sbt-archive-events" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无历史事件记录。</p>
+                        </div>
+                    </div>
+
+                    <!-- 种族图鉴 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-dragon fa-fw"></i> 种族图鉴
+                        </h5>
+                        <div id="sbt-archive-races" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无种族记录。</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 故事线索引 -->
+                <div class="sbt-library-section">
+                    <h4 class="sbt-library-title">
+                        <i class="fa-solid fa-book-bookmark fa-fw"></i> 故事线索引
+                    </h4>
+
+                    <!-- 主线任务 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-star fa-fw"></i> 主线任务
+                        </h5>
+                        <div id="sbt-archive-main-quests" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无主线任务。</p>
+                        </div>
+                    </div>
+
+                    <!-- 支线任务 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-compass fa-fw"></i> 支线任务
+                        </h5>
+                        <div id="sbt-archive-side-quests" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无支线任务。</p>
+                        </div>
+                    </div>
+
+                    <!-- 关系弧光 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-heart fa-fw"></i> 关系弧光
+                        </h5>
+                        <div id="sbt-archive-relationship-arcs" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无关系弧光。</p>
+                        </div>
+                    </div>
+
+                    <!-- 个人弧光 -->
+                    <div class="sbt-library-category">
+                        <h5 class="sbt-category-header collapsed">
+                            <i class="fa-solid fa-user-circle fa-fw"></i> 个人弧光
+                        </h5>
+                        <div id="sbt-archive-personal-arcs" class="sbt-library-items collapsed">
+                            <p class="sbt-instructions">暂无个人弧光。</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div> <!-- 世界档案面板结束 -->
+
+            <!-- ======================= 3. 叙事罗盘面板======================= -->
             <div id="sbt-compass-panel" class="sbt-tab-panel">
                 
                 <label for="sbt-master-enable-toggle" class="sbt-toggle-switch-container">
@@ -142,7 +283,7 @@
 
             </div> <!-- 叙事罗盘面板结束 -->
 
-            <!-- ======================= 3. 设置面板 ======================= -->
+            <!-- ======================= 4. 设置面板 ======================= -->
             <div id="sbt-settings-panel" class="sbt-tab-panel">
                 <h4><i class="fa-solid fa-brain fa-fw"></i> 核心大脑 AI (后台规划)</h4>
                 <p class="sbt-instructions">

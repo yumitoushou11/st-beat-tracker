@@ -126,6 +126,405 @@ function renderCharacterRelationships(chapterState, container) {
         container.html('<p class="sbt-instructions">渲染角色关系时发生意外错误，请查看控制台获取详情。</p>');
     }
 }
+/**
+ * @description 渲染世界档案面板 - 角色档案馆
+ * @param {object} characters - 角色矩阵对象
+ * @param {JQuery<HTMLElement>} container - 渲染的目标容器
+ */
+function renderArchiveCharacters(characters, container) {
+    if (!container || container.length === 0) return;
+
+    container.empty();
+
+    if (!characters || Object.keys(characters).length === 0) {
+        container.html('<p class="sbt-instructions">暂无角色档案。</p>');
+        return;
+    }
+
+    for (const charId in characters) {
+        const char = characters[charId];
+
+        const cardHtml = `
+            <div class="sbt-archive-card" data-char-id="${charId}">
+                <div class="sbt-archive-card-icon">
+                    <i class="fa-solid fa-user"></i>
+                </div>
+                <div class="sbt-archive-card-title">
+                    ${char.name || charId}
+                    ${char.isProtagonist ? '<i class="fa-solid fa-crown" style="color: var(--sbt-warning-color);" title="主角"></i>' : ''}
+                </div>
+                <div class="sbt-archive-card-subtitle">
+                    ${char.identity || '未知身份'}
+                </div>
+            </div>
+        `;
+        container.append(cardHtml);
+    }
+}
+
+/**
+ * @description 显示角色详情面板（内嵌展开式）
+ * @param {string} charId - 角色ID
+ * @param {object} chapterState - 完整的Chapter对象
+ */
+function showCharacterDetailModal(charId, chapterState) {
+    const char = chapterState.staticMatrices.characters[charId];
+    if (!char) return;
+
+    // 优雅地处理性格字段
+    const formatPersonality = (personality) => {
+        if (!personality) return '暂无信息';
+
+        if (typeof personality === 'string') {
+            return personality;
+        }
+
+        if (typeof personality === 'object') {
+            let result = '';
+
+            // 处理traits数组
+            if (personality.traits && Array.isArray(personality.traits)) {
+                result += '<div style="margin-bottom: 10px;"><strong>性格特质：</strong></div>';
+                result += '<ul style="margin: 5px 0; padding-left: 20px;">';
+                personality.traits.forEach(trait => {
+                    result += `<li>${trait}</li>`;
+                });
+                result += '</ul>';
+            }
+
+            // 处理description
+            if (personality.description) {
+                if (personality.traits) result += '<div style="margin-top: 15px;"></div>';
+                result += `<div>${personality.description}</div>`;
+            }
+
+            return result || JSON.stringify(personality, null, 2);
+        }
+
+        return '暂无信息';
+    };
+
+    // 优雅地处理背景故事
+    const formatBackground = (background) => {
+        if (!background) return '暂无信息';
+
+        if (typeof background === 'string') {
+            return background;
+        }
+
+        if (typeof background === 'object') {
+            let result = '';
+
+            if (background.summary) {
+                result += `<div>${background.summary}</div>`;
+            }
+
+            return result || JSON.stringify(background, null, 2);
+        }
+
+        return '暂无信息';
+    };
+
+    // 通用安全文本处理
+    const safeText = (value) => {
+        if (!value) return '暂无信息';
+        return typeof value === 'string' ? value : JSON.stringify(value, null, 2);
+    };
+
+    // 构建关系网络
+    const isProtagonist = char.isProtagonist === true;
+    let relationshipsHtml = '';
+    let relationshipSectionTitle = '关系网络';
+
+    if (isProtagonist) {
+        // 主角：显示其他角色对主角的好感度（反向查询）
+        relationshipSectionTitle = '角色关系图谱';
+        relationshipsHtml = '<div class="sbt-protagonist-relationship-notice">以下是其他角色对主角的看法和好感度</div>';
+        relationshipsHtml += '<div class="sbt-character-relationship-grid sbt-protagonist-grid">';
+
+        const allCharacters = chapterState.staticMatrices.characters;
+        let hasRelationships = false;
+
+        for (const otherCharId in allCharacters) {
+            if (otherCharId === charId) continue; // 跳过主角自己
+
+            const otherChar = allCharacters[otherCharId];
+
+            // 查找该角色对主角的关系
+            const staticRel = otherChar.relationships?.[charId];
+            const dynamicRel = chapterState.dynamicState.characters?.[otherCharId]?.relationships?.[charId];
+
+            if (staticRel || dynamicRel) {
+                hasRelationships = true;
+                const affinity = parseInt(dynamicRel?.current_affinity ?? staticRel?.affinity ?? 50, 10);
+                const relationType = staticRel?.relation_type || staticRel?.description || '未知关系';
+                const affinityColor = mapValueToHue(affinity);
+
+                relationshipsHtml += `
+                    <div class="sbt-character-relationship-card">
+                        <div class="sbt-character-relationship-name">${otherChar?.name || otherCharId}</div>
+                        <div class="sbt-character-relationship-type">${safeText(relationType)}</div>
+                        <div class="sbt-character-relationship-affinity">对主角好感: ${affinity}</div>
+                        <div class="sbt-character-relationship-affinity-bar">
+                            <div class="sbt-character-relationship-affinity-fill" style="width: ${affinity}%; background-color: ${affinityColor};"></div>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        relationshipsHtml += '</div>';
+
+        if (!hasRelationships) {
+            relationshipsHtml = '<p style="color: var(--sbt-text-medium); margin: 0;">暂无其他角色对主角的关系记录</p>';
+        }
+
+    } else {
+        // 非主角：显示该角色对其他人的好感度
+        if (char.relationships && Object.keys(char.relationships).length > 0) {
+            relationshipsHtml = '<div class="sbt-character-relationship-grid">';
+
+            for (const targetCharId in char.relationships) {
+                const targetChar = chapterState.staticMatrices.characters[targetCharId];
+                const staticRel = char.relationships[targetCharId];
+                const dynamicRel = chapterState.dynamicState.characters?.[charId]?.relationships?.[targetCharId];
+
+                const affinity = parseInt(dynamicRel?.current_affinity ?? staticRel?.affinity ?? 50, 10);
+                const relationType = staticRel?.relation_type || staticRel?.description || '未知关系';
+                const affinityColor = mapValueToHue(affinity);
+
+                relationshipsHtml += `
+                    <div class="sbt-character-relationship-card">
+                        <div class="sbt-character-relationship-name">${targetChar?.name || targetCharId}</div>
+                        <div class="sbt-character-relationship-type">${safeText(relationType)}</div>
+                        <div class="sbt-character-relationship-affinity">好感度: ${affinity}</div>
+                        <div class="sbt-character-relationship-affinity-bar">
+                            <div class="sbt-character-relationship-affinity-fill" style="width: ${affinity}%; background-color: ${affinityColor};"></div>
+                        </div>
+                    </div>
+                `;
+            }
+            relationshipsHtml += '</div>';
+        } else {
+            relationshipsHtml = '<p style="color: var(--sbt-text-medium); margin: 0;">暂无关系记录</p>';
+        }
+    }
+
+    const detailHtml = `
+        <div class="sbt-character-detail-header">
+            <div class="sbt-character-detail-name">
+                <i class="fa-solid fa-user"></i>
+                ${char.name || charId}
+                ${char.isProtagonist ? '<i class="fa-solid fa-crown" style="color: var(--sbt-warning-color);" title="主角"></i>' : ''}
+            </div>
+            <div class="sbt-character-detail-identity">${char.identity || '未知身份'}</div>
+        </div>
+
+        <div class="sbt-character-detail-section">
+            <div class="sbt-character-detail-section-title">
+                <i class="fa-solid fa-brain"></i>
+                核心性格
+            </div>
+            <div class="sbt-character-detail-section-content">${formatPersonality(char.personality)}</div>
+        </div>
+
+        <div class="sbt-character-detail-section">
+            <div class="sbt-character-detail-section-title">
+                <i class="fa-solid fa-book"></i>
+                背景故事
+            </div>
+            <div class="sbt-character-detail-section-content">${formatBackground(char.background)}</div>
+        </div>
+
+        <div class="sbt-character-detail-section ${isProtagonist ? 'sbt-protagonist-relationship-section' : ''}">
+            <div class="sbt-character-detail-section-title">
+                <i class="fa-solid fa-users"></i>
+                ${relationshipSectionTitle}
+            </div>
+            ${relationshipsHtml}
+        </div>
+
+        ${char.goals ? `
+            <div class="sbt-character-detail-section">
+                <div class="sbt-character-detail-section-title">
+                    <i class="fa-solid fa-bullseye"></i>
+                    目标与动机
+                </div>
+                <div class="sbt-character-detail-section-content">${safeText(char.goals)}</div>
+            </div>
+        ` : ''}
+
+        ${char.secrets ? `
+            <div class="sbt-character-detail-section">
+                <div class="sbt-character-detail-section-title">
+                    <i class="fa-solid fa-key"></i>
+                    秘密与隐藏信息
+                </div>
+                <div class="sbt-character-detail-section-content">${safeText(char.secrets)}</div>
+            </div>
+        ` : ''}
+    `;
+
+    // 渲染到内嵌面板并显示
+    const $panel = $('#sbt-character-detail-panel');
+    const $content = $('#sbt-character-detail-content');
+
+    $content.html(detailHtml);
+    $panel.show();
+
+    // 滚动到详情面板
+    $panel[0]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+/**
+ * @description 渲染世界档案面板 - 世界观元素
+ * @param {object} worldviewData - 世界观数据对象
+ * @param {string} category - 类别名称
+ * @param {JQuery<HTMLElement>} container - 渲染的目标容器
+ */
+function renderArchiveWorldview(worldviewData, category, container) {
+    if (!container || container.length === 0) return;
+
+    container.empty();
+
+    if (!worldviewData || Object.keys(worldviewData).length === 0) {
+        container.html(`<p class="sbt-instructions">暂无${category}记录。</p>`);
+        return;
+    }
+
+    for (const id in worldviewData) {
+        const item = worldviewData[id];
+
+        // 安全地获取描述文本
+        let descText = '暂无描述';
+        const desc = item.description || item.summary;
+        if (desc) {
+            descText = typeof desc === 'string' ? desc : JSON.stringify(desc);
+        }
+
+        const itemHtml = `
+            <div class="sbt-archive-item">
+                <div class="sbt-archive-item-title">${item.name || id}</div>
+                <div class="sbt-archive-item-desc">${descText}</div>
+            </div>
+        `;
+        container.append(itemHtml);
+    }
+}
+
+/**
+ * @description 渲染世界档案面板 - 故事线
+ * @param {object} storylineData - 故事线数据对象
+ * @param {JQuery<HTMLElement>} container - 渲染的目标容器
+ */
+function renderArchiveStorylines(storylineData, container) {
+    if (!container || container.length === 0) return;
+
+    container.empty();
+
+    if (!storylineData || Object.keys(storylineData).length === 0) {
+        container.html('<p class="sbt-instructions">暂无相关故事线。</p>');
+        return;
+    }
+
+    for (const id in storylineData) {
+        const line = storylineData[id];
+        const status = line.status || 'dormant';
+        const statusText = status === 'active' ? '进行中' : status === 'completed' ? '已完成' : '休眠';
+
+        // 安全地获取描述文本
+        let descText = '暂无描述';
+        const desc = line.summary || line.description;
+        if (desc) {
+            descText = typeof desc === 'string' ? desc : JSON.stringify(desc);
+        }
+
+        const itemHtml = `
+            <div class="sbt-archive-item">
+                <div class="sbt-archive-item-title">
+                    ${line.title || id}
+                    <span class="sbt-archive-status ${status}">${statusText}</span>
+                </div>
+                <div class="sbt-archive-item-desc">${descText}</div>
+                ${line.type ? `<div class="sbt-archive-item-meta">类型: ${line.type}</div>` : ''}
+            </div>
+        `;
+        container.append(itemHtml);
+    }
+}
+
+/**
+ * @description 更新世界档案面板
+ * @param {Chapter} chapterState - 完整的Chapter对象
+ */
+function updateArchivePanel(chapterState) {
+    if (!chapterState || $('#sbt-archive-panel').length === 0) return;
+
+    // 渲染角色档案馆
+    renderArchiveCharacters(
+        chapterState.staticMatrices.characters,
+        $('#sbt-archive-characters')
+    );
+
+    // 渲染世界观元素
+    renderArchiveWorldview(
+        chapterState.staticMatrices.worldview.locations,
+        '地点',
+        $('#sbt-archive-locations')
+    );
+
+    renderArchiveWorldview(
+        chapterState.staticMatrices.worldview.items,
+        '物品',
+        $('#sbt-archive-items')
+    );
+
+    renderArchiveWorldview(
+        chapterState.staticMatrices.worldview.factions,
+        '势力',
+        $('#sbt-archive-factions')
+    );
+
+    renderArchiveWorldview(
+        chapterState.staticMatrices.worldview.concepts,
+        '概念',
+        $('#sbt-archive-concepts')
+    );
+
+    renderArchiveWorldview(
+        chapterState.staticMatrices.worldview.events,
+        '历史事件',
+        $('#sbt-archive-events')
+    );
+
+    renderArchiveWorldview(
+        chapterState.staticMatrices.worldview.races,
+        '种族',
+        $('#sbt-archive-races')
+    );
+
+    // 渲染故事线
+    renderArchiveStorylines(
+        chapterState.staticMatrices.storylines.main_quests,
+        $('#sbt-archive-main-quests')
+    );
+
+    renderArchiveStorylines(
+        chapterState.staticMatrices.storylines.side_quests,
+        $('#sbt-archive-side-quests')
+    );
+
+    renderArchiveStorylines(
+        chapterState.staticMatrices.storylines.relationship_arcs,
+        $('#sbt-archive-relationship-arcs')
+    );
+
+    renderArchiveStorylines(
+        chapterState.staticMatrices.storylines.personal_arcs,
+        $('#sbt-archive-personal-arcs')
+    );
+}
+
 /**更新整个仪表盘UI，现在传递整个 Chapter 对象 */
 export function updateDashboard(chapterState) {
     if (!chapterState || $('#beat-tracker-component-wrapper').length === 0) return;
@@ -202,6 +601,9 @@ export function updateDashboard(chapterState) {
         ...(chapterState.staticMatrices.storylines.personal_arcs || {})
     };
     renderLineMatrix(allStorylines, $('#sbt-line-matrix-list'));
+
+    // --- 6. 更新世界档案面板 ---
+    updateArchivePanel(chapterState);
 }/**
  * [新增] 渲染并显示角色详情的弹窗。
  * @param {string} charId - 要显示详情的角色ID。
@@ -264,3 +666,6 @@ function showCharacterDetailPopup(charId, chapterState) {
     // 使用 SillyTavern 的 callGenericPopup 显示
     applicationFunctionManager.callGenericPopup(modalHtml, 'html', null, { wide: true, fullscreen: false });
 }
+
+// 导出新的角色详情弹窗函数，供外部使用
+export { showCharacterDetailModal };
