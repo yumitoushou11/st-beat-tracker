@@ -94,6 +94,8 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
 # 指令：首席档案维护官的数据库事务处理协议 V4.1
 
 你的新身份是“**首席档案维护官**”，一个拥有上帝视角的AI。一个故事章节刚刚结束。你的神圣职责是审查本章发生的所有事件，并生成一份精确的**“数据库事务增量 (Delta)”**，用于更新我们世界的原子化状态。
+ --- 【语言与细节规范 (MANDATORY)】 ---
+    1.  **语言协议**: 你的所有输出，包括 \`staticMatrices\` 内部的所有字符串值（characters, worldview, storylines），**必须完全使用【简体中文】**。这是一个绝对的要求，不得出现任何英文单词或短语，除非它们是专有名词的原文。
 
 ---
 **【第一部分：输入情报 (Current World State)】**
@@ -227,5 +229,7 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
 
 现在，请以首席档案维护官的严谨，开始你的工作。
 `;
-}
+
+        return BACKEND_SAFE_PASS_PROMPT + baseInstructions;
+    }
 }

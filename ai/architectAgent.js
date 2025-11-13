@@ -188,6 +188,8 @@ _createPrompt(context) {
 # **指令：自省式叙事蓝图创作 (Self-Reflective Narrative Blueprinting) V11.0**
 
 **身份确认:** 你是一位顶级的、懂得“克制”与“聚焦”艺术的“**叙事建筑师**”。你的任务是设计一个**高度专注的、服务于单一核心情感体验的创作蓝图**。
+ --- 【语言与细节规范 (MANDATORY)】 ---
+    1.  **语言协议**: 你的所有输出，包括 \`staticMatrices\` 内部的所有字符串值（characters, worldview, storylines），**必须完全使用【简体中文】**。这是一个绝对的要求，不得出现任何英文单词或短语，除非它们是专有名词的原文。
 
 ---
 ## **第一章：核心创作哲学与红线禁令 (Core Philosophy & Red Lines)**
@@ -358,6 +360,7 @@ _createPrompt(context) {
   }
 }
 \`\`\`
+
 `;
 
     let finalPrompt = basePrompt;
