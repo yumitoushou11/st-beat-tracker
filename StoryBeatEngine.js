@@ -1086,13 +1086,10 @@ async reanalyzeWorldbook() {
         staticDataManager.saveStaticData(activeCharId, analysisResult.staticMatrices);
         this.info("热重载: 新的静态数据已分析并存入缓存。");
 
-        // 使用深度合并更新当前Chapter的静态数据
+        // 完全替换当前Chapter的静态数据（不合并，以清除旧数据）
         if (analysisResult.staticMatrices) {
-            this.currentChapter.staticMatrices = deepmerge(
-                this.currentChapter.staticMatrices,
-                analysisResult.staticMatrices
-            );
-            this.info("热重载: 新的 staticMatrices (characters, worldview, storylines) 已成功合并到当前 Chapter 实例。");
+            this.currentChapter.staticMatrices = analysisResult.staticMatrices;
+            this.info("热重载: 新的 staticMatrices (characters, worldview, storylines) 已完全替换旧数据。");
         } else {
             this.warn("热重载警告: IntelligenceAgent未能返回完整的 staticMatrices，静态设定未更新。");
         }

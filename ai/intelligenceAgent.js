@@ -55,12 +55,68 @@ ${formattedWorldInfo}
 严格按照ECI方法论，完成以下建档任务：
 
 1.  **建档 \`staticMatrices.characters\`:**
-    *   为每一个角色创建档案，包含其心理档案。
-    *   其 \`relationships\` 对象的值，必须是另一个角色的ID。
-    *   【叙事逻辑铁律：禁止量化主角】
-         *   在为主角（ID通常为 \`char_user_player\` 或类似）创建档案时，其 \`relationships\` 对象中**绝对不能包含任何\`affinity\`（好感度）字段**。其档案中**必须包含一个布尔值字段 \`"isProtagonist": true\`**。
-         *   你可以使用一个 \`description\` 字段来描述主角对其他角色的**初始认知或背景关系**（例如：“这是我体弱多病的姐姐”）。
-         *   对于**所有非主角角色 (NPC)**，其 \`relationships\` 对象中则**必须包含**对其他角色的初始 \`affinity\` 值。其档案中**必须包含 \`"isProtagonist": false\`**。
+    *   为每一个角色创建**高度结构化的详细档案**，包含以下维度：
+
+    **【角色档案结构规范】**
+    *   **基础信息 (core)**:
+        - \`name\`: 角色姓名
+        - \`isProtagonist\`: true/false (必须字段)
+        - \`identity\`: 角色身份/职业
+        - \`age\`: 年龄或年龄段
+        - \`gender\`: 性别
+        - \`race_id\`: 种族ID引用 (如: "race_human")
+
+    *   **外貌特征 (appearance)**:
+        - 描述角色的外貌、体型、着装风格等视觉特征的字符串或结构化对象
+
+    *   **性格心理 (personality)**:
+        - \`traits\`: 核心性格特质数组 (如: ["勇敢", "固执", "善良"])
+        - \`values\`: 价值观数组 (如: ["家人至上", "正义"])
+        - \`speech_style\`: 说话风格描述
+
+    *   **背景故事 (background)**:
+        - \`origin\`: 出身背景
+        - \`education\`: 教育经历
+        - \`key_experiences\`: 关键经历数组 (可引用event_id)
+
+    *   **目标与动机 (goals)**:
+        - \`long_term\`: 长期目标数组
+        - \`short_term\`: 短期目标数组
+        - \`fears\`: 恐惧/担忧数组
+        - \`desires\`: 欲望/渴求数组
+
+    *   **秘密信息 (secrets)**:
+        - 隐藏的信息、不为人知的过去，字符串或数组
+
+    *   **能力技能 (capabilities)**:
+        - \`combat_skills\`: 战斗技能对象 (如: {"剑术": "精通", "魔法": "初级"})
+        - \`social_skills\`: 社交技能对象
+        - \`special_abilities\`: 特殊能力数组
+        - \`weaknesses\`: 弱点数组
+
+    *   **装备资源 (equipment)**:
+        - \`weapons\`: 武器item_id数组
+        - \`armor\`: 护甲item_id数组
+        - \`accessories\`: 配饰item_id数组
+        - \`possessions\`: 其他物品item_id数组
+
+    *   **社交网络 (social)**:
+        - \`relationships\`: 人际关系对象 (格式见下方)
+        - \`affiliations\`: 所属组织/势力ID数组 (如: ["faction_royal_guard"])
+        - \`reputation\`: 声望对象 (如: {"王国": "尊敬", "盗贼公会": "敌对"})
+        - \`social_status\`: 社会地位描述
+
+    *   **经历与成长 (experiences)**:
+        - \`visited_locations\`: 到访过的地点ID数组
+        - \`participated_events\`: 参与过的重大事件ID数组
+        - \`life_milestones\`: 人生里程碑数组
+
+    **【叙事逻辑铁律：禁止量化主角】**
+         *   在为主角创建档案时，其 \`social.relationships\` 对象中**绝对不能包含任何\`affinity\`（好感度）字段**。其档案中**必须包含 \`core.isProtagonist: true\`**。
+         *   你可以使用 \`description\` 字段来描述主角对其他角色的**初始认知或背景关系**（例如："这是我体弱多病的姐姐"）。
+         *   对于**所有非主角角色 (NPC)**，其 \`social.relationships\` 对象中则**必须包含**对其他角色的初始 \`affinity\` 值。其档案中**必须包含 \`core.isProtagonist: false\`**。
+
+    **【重要】**: 并非所有维度都必须填写，根据角色的重要性和情报的丰富程度灵活创建。次要角色可以只有基础信息和relationships。
         
 2.  **建档 \`staticMatrices.worldview\`:**
     *   将所有非角色的世界观实体，按照 \`locations\`, \`items\`, \`events\` 等分类，分别建档。
@@ -77,28 +133,81 @@ ${formattedWorldInfo}
   "staticMatrices": {
     "characters": {
       "char_yumi_player": {
-        "name": "Yumi",
-        "isProtagonist": true,
-        "identity": "...",
-          "relationships": {
-          "char_xuecai_sister": { 
-            "relation_type": "姐姐",
-            //主角对外关系没有 affinity，只有描述
-            "description": "最爱的姐姐，是自己世界的中心，发誓要保护她。" 
-          }
+        "core": {
+          "name": "Yumi",
+          "isProtagonist": true,
+          "identity": "年轻的冒险者",
+          "age": "17岁",
+          "gender": "女",
+          "race_id": "race_human"
         },
+        "appearance": "黑色长发，琥珀色眼睛，身材娇小但充满活力",
+        "personality": {
+          "traits": ["勇敢", "善良", "有点冲动"],
+          "values": ["家人至上", "正义"],
+          "speech_style": "活泼直率，偶尔会说出天真的话"
+        },
+        "background": {
+          "origin": "出生于羽生村的普通家庭",
+          "education": "村里的基础教育",
+          "key_experiences": ["event_sister_illness"]
+        },
+        "goals": {
+          "long_term": ["治愈姐姐的疾病", "成为伟大的冒险者"],
+          "short_term": ["赚取足够的钱购买药材"],
+          "fears": ["失去姐姐", "让姐姐失望"],
+          "desires": ["保护所爱之人", "探索未知世界"]
+        },
+        "social": {
+          "relationships": {
+            "char_xuecai_sister": {
+              "relation_type": "姐姐",
+              "description": "最爱的姐姐，是自己世界的中心，发誓要保护她。"
+            }
+          },
+          "social_status": "村民"
+        }
       },
       "char_xuecai_sister": {
-        "name": "雪菜", 
-        "isProtagonist": false,
-        "relationships": {
-          "char_yumi_player": {
-            "relation_type": "妹妹",
-            "description": "最疼爱的小小探险家...",
-            //NPC 对外关系必须有 affinity
-            "affinity": 95 
-          }
+        "core": {
+          "name": "雪菜",
+          "isProtagonist": false,
+          "identity": "Yumi的姐姐",
+          "age": "22岁",
+          "gender": "女",
+          "race_id": "race_human"
         },
+        "appearance": "银白色长发，温柔的浅蓝色眼睛，身体虚弱但气质优雅",
+        "personality": {
+          "traits": ["温柔", "坚强", "善解人意"],
+          "values": ["家人", "善良"],
+          "speech_style": "温和体贴，总是为他人着想"
+        },
+        "background": {
+          "origin": "羽生村",
+          "key_experiences": ["event_mysterious_illness"]
+        },
+        "goals": {
+          "long_term": ["康复", "不成为妹妹的负担"],
+          "fears": ["无法活下去", "拖累妹妹"],
+          "desires": ["看到妹妹幸福"]
+        },
+        "capabilities": {
+          "social_skills": {"刺绣": "精通", "烹饪": "优秀"},
+          "weaknesses": ["身体虚弱", "无法长时间活动"]
+        },
+        "social": {
+          "relationships": {
+            "char_yumi_player": {
+              "relation_type": "妹妹",
+              "description": "最疼爱的小小探险家...",
+              "affinity": 95
+            }
+          },
+          "social_status": "村民"
+        }
+      }
+    },
     "worldview": {
       "locations": {
         "loc_hanyu_village": {

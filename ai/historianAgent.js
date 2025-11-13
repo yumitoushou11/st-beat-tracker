@@ -129,11 +129,24 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
 ### **方法论一：实体对账与创生 (Entity Reconciliation & Creation)**
 这是你的首要任务。通读<chapter_transcript>，找出所有被提及的关键实体。
 1.  **交叉比对:** 将每一个实体名与输入的【当前世界已知实体清单】进行比对。
-2.  **识别“新大陆”:** 如果一个实体在文本中扮演了重要角色，但在清单中找不到，就将其判定为**“新实体”**。
-3.  **执行“微型创世纪”:** 对于每一个“新实体”，你必须：
+2.  **识别"新大陆":** 如果一个实体在文本中扮演了重要角色，但在清单中找不到，就将其判定为**"新实体"**。
+3.  **执行"微型创世纪":** 对于每一个"新实体"，你必须：
     *   **分配ID:** 遵循ECI命名规范（如 \`char_...\`, \`loc_...\`）为其生成一个唯一的ID。
-    *   **创建静态档案:** 根据它在本章的首次出场，为其创建一个基础的静态档案（包含name, identity, description等），并为其建立与其他已知实体的初始关系（使用ID）。
-    *   **归档:** 将这个新创建的静态档案，放入最终输出的 **\`creations.staticMatrices\`** 对象的对应分类“书架”下。
+    *   **创建静态档案:**
+        - 对于**角色**，使用**高度结构化的档案格式**：
+          - \`core\`: {name, isProtagonist, identity, age, gender, race_id}
+          - \`appearance\`: 外貌描述
+          - \`personality\`: {traits[], values[], speech_style}
+          - \`background\`: {origin, education, key_experiences[]}
+          - \`goals\`: {long_term[], short_term[], fears[], desires[]}
+          - \`secrets\`: 秘密信息
+          - \`capabilities\`: {combat_skills{}, social_skills{}, special_abilities[], weaknesses[]}
+          - \`equipment\`: {weapons[], armor[], accessories[], possessions[]}
+          - \`social\`: {relationships{}, affiliations[], reputation{}, social_status}
+          - \`experiences\`: {visited_locations[], participated_events[], life_milestones[]}
+        - 根据角色的重要性和情报丰富程度，灵活填写字段。次要角色只需core和social.relationships。
+        - 对于其他实体类型，创建基础档案（name, description等）。
+    *   **归档:** 将这个新创建的静态档案，放入最终输出的 **\`creations.staticMatrices\`** 对象的对应分类"书架"下。
 
 ### **方法论二：关系变化裁决**
 -   **最高哲学：信任是期望的稳定兑现。**
@@ -151,9 +164,21 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
 ### **方法论三：故事线网络维护 (STORYLINE MANAGEMENT)**
 -   **【执行方法】**: 遍历【当前世界已知实体清单】中的**每一条**故事线ID。对照【本章完整对话记录】，判断其状态或摘要是否需要更新。如果需要，为其在 **\`updates.storylines.<分类>.<实体ID>\`** 路径下创建更新记录。同时，识别新的故事线萌芽，并为其执行**创生**流程。
 
-### **方法论四：心理档案更新 (Update Psychological Dossiers)**
--   **【核心哲学】**: 捕捉角色在经历情感张力事件后的内心印记。
--   **【输出要求】**: 如果一个角色的内在状态发生了显著变化，为其创建一个新的更新条目，并追加到 **\`updates.characters.<角色ID>.dossier_updates\`** 数组中。
+### **方法论四：角色档案全维度更新 (Comprehensive Character Profile Updates)**
+-   **【核心哲学】**: 角色是多维度的存在，随着剧情发展，角色的各个方面都可能发生变化。
+-   **【更新维度】**:
+    *   **外貌变化** (\`appearance\`): 如受伤、改变穿着、变老等
+    *   **性格发展** (\`personality\`): 新增性格特质、价值观转变、说话风格改变
+    *   **目标调整** (\`goals\`): 新增或放弃目标、恐惧或欲望的变化
+    *   **秘密揭露** (\`secrets\`): 秘密被发现、新增秘密
+    *   **能力成长** (\`capabilities\`): 学习新技能、获得特殊能力、克服/产生新弱点
+    *   **装备变更** (\`equipment\`): 获得/失去物品
+    *   **社交变化** (\`social\`): 人际关系变化（使用方法论二）、加入/离开组织、声望变化
+    *   **经历积累** (\`experiences\`): 访问新地点、参与重大事件、人生里程碑
+-   **【输出要求】**:
+    *   在 **\`updates.characters.<角色ID>\`** 下，为发生变化的维度创建更新记录
+    *   对于数组类型（如skills, goals），使用追加或标记移除的方式
+    *   对于\`relationships\`变化，必须遵循方法论二的规则
 
 ### **方法论五：双轨制摘要 (DUAL-TRACK SUMMARY)**
 -   **【核心哲学】**: 同时扮演“编年史家”和“战地联络官”。
@@ -175,28 +200,56 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
     "staticMatrices": {
       "characters": {
         "char_zhangsan_merchant_1a2b": {
-          "name": "张三",
-          "identity": "主角在本章遇到的神秘商人",
-          "relationships": {
-            "char_yumi_player": { "relation_type": "初识之人" }
+          "core": {
+            "name": "张三",
+            "isProtagonist": false,
+            "identity": "神秘商人",
+            "age": "中年",
+            "gender": "男"
           },
-          ...
+          "appearance": "身着华贵商人长袍，留着精心修剪的胡须",
+          "personality": {
+            "traits": ["精明", "谨慎", "善于观察"],
+            "speech_style": "措辞得体，暗藏机锋"
+          },
+          "capabilities": {
+            "social_skills": {"谈判": "精通", "鉴定": "优秀"}
+          },
+          "social": {
+            "relationships": {
+              "char_yumi_player": {
+                "relation_type": "初识之人",
+                "affinity": 50
+              }
+            }
+          }
         }
       }
     }
   },
   "updates": {
     "characters": {
-      "char_neph_witch": { //更新的主体必须是NPC (若若)
-        "relationships": {
-          "char_yumi_player": { // 目标是主角
-            "current_affinity": 25, // 奈芙对主角的好感度变为25
-            "history_entry": {
-              "timestamp": "{{engine_generated_timestamp}}",
-              "change": "+5",
-              "final_affinity": 25,
-              "reasoning": "在本章中，若若虽然言语刻薄，但在关键时刻保护了主角，巩固了她对主角“有利用价值且不完全是个累赘”的看法...",
-              "source_chapter_uid": "{{current_chapter_uid}}"
+      "char_neph_witch": { //更新的主体必须是NPC
+        "goals": {
+          "short_term": ["保护主角不被自己的敌人发现"] // 新增目标
+        },
+        "capabilities": {
+          "special_abilities": ["火焰魔法·烈焰壁"] // 新增能力
+        },
+        "experiences": {
+          "life_milestones": ["首次为他人冒险"] // 新增里程碑
+        },
+        "social": {
+          "relationships": {
+            "char_yumi_player": { // 对主角的关系变化
+              "current_affinity": 25,
+              "history_entry": {
+                "timestamp": "{{engine_generated_timestamp}}",
+                "change": "+5",
+                "final_affinity": 25,
+                "reasoning": "在本章中，虽然言语刻薄，但在关键时刻保护了主角...",
+                "source_chapter_uid": "{{current_chapter_uid}}"
+              }
             }
           }
         }

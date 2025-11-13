@@ -199,7 +199,7 @@ $('#extensions-settings-button').after(html);
             deps.info(`切换到面板: #${targetPanelId}`);
         });
 
-    // -- 世界档案面板: 分类折叠 --
+    // -- 通用: 所有面板的分类折叠逻辑（世界档案 + 创作工坊）--
     $wrapper.on('click', '.sbt-category-header', function() {
         const $header = $(this);
         const $content = $header.next('.sbt-library-items');
@@ -229,43 +229,152 @@ $('#extensions-settings-button').after(html);
         $('#sbt-character-detail-panel').hide();
     });
 
-    // -- 监控面板: 手风琴折叠 --
-    $wrapper.on('click', '.sbt-accordion-header', function() {
-        const $header = $(this);
-        const $content = $header.next('.sbt-accordion-content');
-        $header.toggleClass('active');
-        $content.toggleClass('active');
+    // -- 角色详情: 可编辑标签系统 --
 
-        const isCharacterChart = $content.find('#sbt-character-chart').length > 0;
-        const isOpening = $content.hasClass('active');
-    
-        if (isCharacterChart) {
-            if (isOpening) {
-                $content.find('.sbt-character-card').each(function() {
-                    const $card = $(this);
-                    const currentAffinity = parseFloat($card.attr('data-current-affinity')) || 0;
-                    const finalColor = $card.attr('data-final-color');
-                    const $affinityBar = $card.find('.sbt-progress-fill.affinity');
-                    $affinityBar.css('background-color', finalColor);
-                    $affinityBar.css('width', `${currentAffinity}%`);
-                });
-            } else {
-                $content.find('.sbt-character-card').each(function() {
-                    const $card = $(this);
-                    const oldAffinity = parseFloat($card.attr('data-old-affinity')) || 0;
-                    const affinityColor = mapValueToHue(oldAffinity);
-                    const $affinityBar = $card.find('.sbt-progress-fill.affinity');
-                    $affinityBar.css({
-                        'width': `${oldAffinity}%`,
-                        'background-color': affinityColor
-                    });
-                    $affinityBar.removeClass('is-maxed');
-                    $card.find('.sbt-change-indicator').removeClass('show');
-                });
+    // 保存编辑到Chapter对象的辅助函数
+    function saveCharacterEdit(charId, path, value, index = null) {
+        if (!currentChapterState) return;
+
+        const char = currentChapterState.staticMatrices.characters[charId];
+        if (!char) return;
+
+        // 解析路径并更新值
+        const pathParts = path.split('.');
+        let target = char;
+
+        for (let i = 0; i < pathParts.length - 1; i++) {
+            if (!target[pathParts[i]]) {
+                target[pathParts[i]] = {};
             }
+            target = target[pathParts[i]];
+        }
+
+        const finalKey = pathParts[pathParts.length - 1];
+
+        if (index !== null && index !== '') {
+            // 修改数组中的某个元素
+            if (Array.isArray(target[finalKey])) {
+                target[finalKey][parseInt(index)] = value;
+            }
+        } else {
+            // 修改普通字段
+            target[finalKey] = value;
+        }
+
+        // 触发更新事件
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        deps.toastr.success('修改已保存', '角色档案');
+    }
+
+    function deleteCharacterTag(charId, path, index) {
+        if (!currentChapterState) return;
+
+        const char = currentChapterState.staticMatrices.characters[charId];
+        if (!char) return;
+
+        const pathParts = path.split('.');
+        let target = char;
+
+        for (let i = 0; i < pathParts.length - 1; i++) {
+            target = target[pathParts[i]];
+            if (!target) return;
+        }
+
+        const finalKey = pathParts[pathParts.length - 1];
+
+        if (Array.isArray(target[finalKey])) {
+            target[finalKey].splice(parseInt(index), 1);
+
+            // 触发更新事件
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            }
+
+            // 重新渲染角色详情
+            showCharacterDetailModal(charId, currentChapterState);
+            deps.toastr.success('已删除', '角色档案');
+        }
+    }
+
+    function addCharacterTag(charId, path) {
+        if (!currentChapterState) return;
+
+        const char = currentChapterState.staticMatrices.characters[charId];
+        if (!char) return;
+
+        const pathParts = path.split('.');
+        let target = char;
+
+        for (let i = 0; i < pathParts.length - 1; i++) {
+            if (!target[pathParts[i]]) {
+                target[pathParts[i]] = {};
+            }
+            target = target[pathParts[i]];
+        }
+
+        const finalKey = pathParts[pathParts.length - 1];
+
+        if (!Array.isArray(target[finalKey])) {
+            target[finalKey] = [];
+        }
+
+        target[finalKey].push('新项目');
+
+        // 触发更新事件
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        // 重新渲染角色详情
+        showCharacterDetailModal(charId, currentChapterState);
+        deps.toastr.info('已添加新项，请编辑内容', '角色档案');
+    }
+
+    // 监听标签编辑完成
+    $wrapper.on('blur', '.sbt-editable-tag, .sbt-editable-text', function() {
+        const $elem = $(this);
+        const path = $elem.data('path');
+        const index = $elem.data('index');
+        const newValue = $elem.text().trim();
+
+        // 从详情面板中找到当前角色ID
+        const charId = $('#sbt-character-detail-content').data('char-id');
+
+        if (charId && path && newValue) {
+            saveCharacterEdit(charId, path, newValue, index);
         }
     });
- 
+
+    // 监听标签删除
+    $wrapper.on('click', '.sbt-tag-delete', function(e) {
+        e.stopPropagation();
+        const $btn = $(this);
+        const path = $btn.data('path');
+        const index = $btn.data('index');
+
+        const charId = $('#sbt-character-detail-content').data('char-id');
+
+        if (charId && path && index !== undefined) {
+            deleteCharacterTag(charId, path, index);
+        }
+    });
+
+    // 监听添加标签
+    $wrapper.on('click', '.sbt-add-tag-btn', function(e) {
+        e.stopPropagation();
+        const $btn = $(this);
+        const path = $btn.data('path');
+
+        const charId = $('#sbt-character-detail-content').data('char-id');
+
+        if (charId && path) {
+            addCharacterTag(charId, path);
+        }
+    });
+
     // -- 监控面板: 日志清空 --
     $wrapper.on('click', '#sbt-clear-log-btn', () => {
         $('#sbt-debug-log-output').empty();

@@ -76,19 +76,10 @@ html {
 }
 .sbt-tab-panel { display: none; }
 .sbt-tab-panel.active { display: block; }
-/* --- [SECTION 4] 手风琴折叠菜单 (Accordion) --- */
-.sbt-accordion-item { margin-bottom: 10px; border: 1px solid var(--sbt-border-color); border-radius: 4px; overflow: hidden; }
-.sbt-accordion-header { background-color: var(--sbt-bg-dark); padding: 10px 15px; margin: 0; font-size: 1em; cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; }
-.sbt-accordion-header:hover { background-color: var(--sbt-bg-medium); }
-.sbt-accordion-header > span > i { margin-right: 8px; }
-.sbt-accordion-header::after { content: '+'; font-size: 1.2em; }
-.sbt-accordion-header.active::after { transform: rotate(45deg); }
-.sbt-accordion-content { background-color: rgba(0,0,0,0.2); max-height: 0; overflow: hidden; padding: 0 15px; }
-.sbt-accordion-content.active { max-height: 200px; overflow-y: auto; padding: 15px; }
 
-/* --- [SECTION 5] 监控面板内容样式 (Monitor Panel Components) --- */
+/* --- [SECTION 5] 内容面板通用样式 (Content Panel Components) --- */
 
-/* --- [SECTION 5A] 新版任务树样式 (New Task Tree Styles) --- */
+/* --- [SECTION 5A] 任务树样式 (Task Tree Styles) --- */
 #sbt-task-tree-container {
     padding: 5px;
 }
@@ -255,29 +246,28 @@ html {
 /* --- [SECTION 6] 表单与通用组件 (Forms & Common Components) --- */
 #sbt-compass-panel h4, #sbt-settings-panel h4 { margin-top: 0; margin-bottom: 8px; }
 #sbt-compass-panel h4 i, #sbt-settings-panel h4 i { margin-right: 8px; }
-.sbt-instructions { font-size: 0.9em; color: var(--sbt-text-medium); margin-bottom: 15px; }
+.sbt-instructions { font-size: 0.88em; color: var(--sbt-text-medium); margin-bottom: 10px; line-height: 1.4; }
 #sbt-narrative-focus-input { width: 100%; height: 80px; background-color: var(--sbt-bg-darker); border: 1px solid var(--sbt-border-color); color: var(--sbt-text-light); border-radius: 4px; padding: 8px; resize: vertical; margin-bottom: 10px; }
-.sbt-settings-form { display: flex; flex-direction: column; gap: 20px; margin-bottom: 25px; }
-.sbt-form-group { display: flex; flex-direction: column; gap: 8px; }
-.sbt-settings-form label { font-size: 0.9em; font-weight: bold; color: var(--sbt-text-medium); margin-bottom: -2px; }
-.sbt-settings-form input[type="text"], .sbt-settings-form input[type="password"] { width: 100%; background-color: var(--sbt-bg-darker); border: 1px solid var(--sbt-border-color); color: var(--sbt-text-light); border-radius: 4px; padding: 12px; font-size: 1em; }
+.sbt-settings-form { display: flex; flex-direction: column; gap: 12px; margin-bottom: 0; }
+.sbt-form-group { display: flex; flex-direction: column; gap: 6px; }
+.sbt-settings-form label { font-size: 0.88em; font-weight: bold; color: var(--sbt-text-medium); margin-bottom: -2px; }
+.sbt-settings-form input[type="text"], .sbt-settings-form input[type="password"] { width: 100%; background-color: var(--sbt-bg-darker); border: 1px solid var(--sbt-border-color); color: var(--sbt-text-light); border-radius: 4px; padding: 8px 10px; font-size: 0.95em; }
 .sbt-settings-form input:focus { outline: none; border-color: var(--sbt-primary-accent); box-shadow: 0 0 8px rgba(154, 200, 255, 0.4); }
 .sbt-password-wrapper { position: relative; display: flex; align-items: center; }
 .sbt-password-wrapper input { padding-right: 40px; }
 #sbt-toggle-api-key { position: absolute; right: 12px; cursor: pointer; color: var(--sbt-text-medium); }
 #sbt-toggle-api-key:hover { color: var(--sbt-primary-accent); }
 
-.sbt-primary-btn { width: 100%; padding: 10px; font-size: 1em; background-color: var(--sbt-primary-accent); border: none; border-radius: 4px; color: var(--sbt-bg-darker); font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.sbt-primary-btn { width: 100%; padding: 8px; font-size: 0.95em; background-color: var(--sbt-primary-accent); border: none; border-radius: 4px; color: var(--sbt-bg-darker); font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .sbt-primary-btn:hover { opacity: 0.9; }
-.sbt-secondary-btn { padding: 5px 12px; font-size: 0.9em; background-color: var(--sbt-bg-medium); border: 1px solid var(--sbt-border-color); border-radius: 4px; color: var(--sbt-text-light); cursor: pointer; }
+.sbt-secondary-btn { width: 100%; padding: 7px 12px; font-size: 0.9em; background-color: var(--sbt-bg-medium); border: 1px solid var(--sbt-border-color); border-radius: 4px; color: var(--sbt-text-light); cursor: pointer; }
 .sbt-secondary-btn:hover { background-color: #555c6e; }
 .sbt-small-button { background: none; border: 1px solid var(--sbt-text-medium); color: var(--sbt-text-medium); border-radius: 4px; padding: 2px 6px; margin-left: auto; font-size: 0.8em; cursor: pointer; }
 .sbt-small-button:hover { background-color: var(--sbt-primary-accent); color: var(--sbt-bg-darker); border-color: var(--sbt-primary-accent); }
 
-.sbt-danger-zone { margin-top: 25px; padding-top: 15px; border-top: 1px dashed var(--sbt-danger-color); text-align: center; }
-.sbt-danger-btn { width: 100%; padding: 10px; font-size: 1em; background-color: var(--sbt-danger-accent); border: none; border-radius: 4px; color: var(--sbt-text-light); font-weight: bold; cursor: pointer; }
+.sbt-danger-btn { padding: 8px 16px; font-size: 0.95em; background-color: var(--sbt-danger-accent); border: none; border-radius: 4px; color: var(--sbt-text-light); font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .sbt-danger-btn:hover { background-color: var(--sbt-danger-hover); }
-.sbt-danger-btn i { margin-right: 8px; }
+.sbt-danger-btn i { margin-right: 4px; }
 .sbt-instructions-small { font-size: 0.8em; color: var(--sbt-text-medium); margin-top: 8px; }
 .sbt-instructions-small strong { color: var(--sbt-warning-color); }
 
@@ -320,15 +310,23 @@ html {
     font-size: 0.9em;
     color: var(--sbt-text-light);
 }
-/* --- [SECTION 11] Toggle Switch Styles --- */
+/* --- [SECTION 11] Toggle Switch & Control Cards Styles --- */
+
+/* 控制卡片容器 */
+.sbt-control-card {
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    padding: 3px;
+    margin-bottom: 8px;
+}
+
 .sbt-toggle-switch-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background-color: var(--sbt-bg-dark);
-    padding: 10px 15px;
+    padding: 8px 12px;
     border-radius: 4px;
-    margin-bottom: 15px;
 }
 .sbt-toggle-label {
     display: flex;
@@ -380,22 +378,13 @@ input:checked + .sbt-slider {
 input:checked + .sbt-slider:before {
     transform: translateX(20px);
 }
-/* --- [SECTION X] 叙事罗盘 - 创世纪与游戏内控制 --- */
-.sbt-genesis-section {
-    text-align: center;
-    padding: 20px;
-    border: 1px dashed var(--sbt-border-color);
-    border-radius: 8px;
-    background-color: rgba(0,0,0,0.1);
-}
 
-
-/* 当游戏开始后，创世纪按钮会被隐藏，游戏内控制会被显示 */
-#sbt-genesis-controls.hidden {
-    display: none;
-}
-#sbt-ingame-controls.visible {
-    display: block;
+/* --- [SECTION 11C] 设置卡片样式 (Settings Cards) --- */
+.sbt-settings-card {
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    padding: 15px;
 }
 
 .sbt-header-indicators {
@@ -419,8 +408,8 @@ input:checked + .sbt-slider:before {
 
 /* 图书馆大分区 */
 .sbt-library-section {
-    margin-bottom: 30px;
-    padding-bottom: 20px;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
     border-bottom: 2px solid var(--sbt-border-color);
 }
 
@@ -429,10 +418,10 @@ input:checked + .sbt-slider:before {
 }
 
 .sbt-library-title {
-    font-size: 1.2em;
+    font-size: 1.05em;
     color: var(--sbt-primary-accent);
-    margin: 0 0 15px 0;
-    padding-bottom: 10px;
+    margin: 0 0 12px 0;
+    padding-bottom: 8px;
     border-bottom: 1px solid var(--sbt-border-color);
 }
 
@@ -446,14 +435,14 @@ input:checked + .sbt-slider:before {
 
 /* 分类标签 - 可折叠 */
 .sbt-library-category {
-    margin-bottom: 15px;
+    margin-bottom: 10px;
 }
 
 .sbt-category-header {
-    font-size: 1em;
+    font-size: 0.95em;
     color: var(--sbt-text-light);
     background-color: var(--sbt-bg-dark);
-    padding: 8px 12px;
+    padding: 6px 10px;
     margin: 0;
     border-left: 3px solid var(--sbt-primary-accent);
     cursor: pointer;
@@ -740,5 +729,120 @@ input:checked + .sbt-slider:before {
 
 .sbt-protagonist-grid .sbt-character-relationship-card:hover {
     border-color: var(--sbt-primary-accent);
-    background-color: rgba(10, 132, 255, 0.1);
+}
+
+/* --- [可编辑标签系统] --- */
+
+/* 标签列表容器 */
+.sbt-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 5px;
+}
+
+/* 标签包装器 */
+.sbt-tag-wrapper {
+    display: inline-flex;
+    align-items: center;
+    position: relative;
+}
+
+/* 可编辑标签 */
+.sbt-editable-tag {
+    display: inline-block;
+    padding: 4px 24px 4px 10px;
+    background-color: rgba(10, 132, 255, 0.15);
+    border: 1px solid rgba(10, 132, 255, 0.3);
+    border-radius: 12px;
+    font-size: 0.9em;
+    color: var(--sbt-text-light);
+    cursor: text;
+    transition: all 0.2s ease;
+    outline: none;
+    min-width: 30px;
+}
+
+.sbt-editable-tag:hover {
+    background-color: rgba(10, 132, 255, 0.25);
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-editable-tag:focus {
+    background-color: rgba(10, 132, 255, 0.3);
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.2);
+}
+
+/* 标签删除按钮 */
+.sbt-tag-delete {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--sbt-text-medium);
+    cursor: pointer;
+    font-size: 0.85em;
+    padding: 2px;
+    opacity: 0.6;
+    transition: all 0.2s ease;
+}
+
+.sbt-tag-delete:hover {
+    color: var(--sbt-danger-color);
+    opacity: 1;
+}
+
+/* 添加标签按钮 */
+.sbt-add-tag-btn {
+    padding: 4px 10px;
+    background-color: rgba(48, 209, 88, 0.15);
+    border: 1px dashed rgba(48, 209, 88, 0.4);
+    border-radius: 12px;
+    font-size: 0.85em;
+    color: var(--sbt-success-color);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-add-tag-btn:hover {
+    background-color: rgba(48, 209, 88, 0.25);
+    border-style: solid;
+    border-color: var(--sbt-success-color);
+}
+
+.sbt-add-tag-btn i {
+    margin-right: 3px;
+}
+
+/* 可编辑文本 */
+.sbt-editable-text {
+    display: inline;
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: text;
+    transition: background-color 0.2s ease;
+    outline: none;
+}
+
+.sbt-editable-text:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.sbt-editable-text:focus {
+    background-color: rgba(10, 132, 255, 0.15);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.2);
+}
+
+/* 字段组样式优化 */
+.sbt-field-group {
+    margin-bottom: 8px;
+}
+
+.sbt-field-label {
+    margin-bottom: 4px;
+}
+
+.sbt-field-content {
+    padding-left: 0;
 }
