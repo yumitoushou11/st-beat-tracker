@@ -454,31 +454,163 @@ _syncUiWithRetry() {
      */
     _buildRelationshipGuide() {
         let guide = AFFINITY_BEHAVIOR_MATRIX_PROMPT;
-        
- const characterMatrix = this.currentChapter.staticMatrices.characters || {};
-    const protagonistKey = Object.keys(characterMatrix).find(
-        key => characterMatrix[key].isProtagonist
-    ) || '{{user}}';
-        
-        const protagonistRelations = dynamicState.relationshipMatrix[protagonistKey] || {};
 
-        if (Object.keys(protagonistRelations).length > 0) {
-            for (const [charName, relData] of Object.entries(protagonistRelations)) {
-                const affinity = relData?.affinity ?? '未知';
+        const characters = this.currentChapter.staticMatrices.characters || {};
+        const protagonistId = Object.keys(characters).find(
+            id => characters[id].isProtagonist
+        );
+
+        if (!protagonistId) {
+            guide += "错误：未找到主角信息。\n";
+            return guide;
+        }
+
+        // 从新数据模型中提取关系：遍历所有NPC对主角的关系
+        let hasRelations = false;
+        for (const charId in characters) {
+            if (charId === protagonistId) continue; // 跳过主角自己
+
+            // 优先使用动态关系，回退到静态关系
+            const dynamicRel = this.currentChapter.dynamicState.characters?.[charId]?.relationships?.[protagonistId];
+            const staticRel = characters[charId]?.relationships?.[protagonistId];
+
+            const affinity = dynamicRel?.current_affinity ?? staticRel?.affinity;
+            if (affinity !== undefined) {
+                hasRelations = true;
+                const charName = characters[charId]?.name || charId;
                 let stage = "未知";
                 if (affinity <= 10) stage = "陌生/警惕";
                 else if (affinity <= 40) stage = "熟悉/中立";
                 else if (affinity <= 70) stage = "友好/信任";
                 else if (affinity <= 90) stage = "亲密/依赖";
                 else stage = "羁绊/守护";
-                
-                guide += `- **你对 ${charName} 的看法:** 好感度 **${affinity}** (处于【${stage}】阶段)。\n`;
+
+                guide += `- **${charName} 对你的看法:** 好感度 **${affinity}** (处于【${stage}】阶段)。\n`;
             }
-        } else {
+        }
+
+        if (!hasRelations) {
             guide += "你与其他角色的关系网络尚未建立。\n";
         }
         return guide;
     }
+        _applyStateUpdates(workingChapter, delta) {
+        this.info("--- 引擎核心：开始应用状态更新Delta ---");
+        
+        // 步骤一：处理新实体的创生 (Creations)
+        if (delta.creations && delta.creations.staticMatrices) {
+            this.info(" -> 检测到新实体创生请求...");
+            // 使用深度合并，将新创建的静态档案安全地并入现有的staticMatrices中
+            workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, delta.creations.staticMatrices);
+            this.diagnose(" -> 新的静态实体档案已合并。", delta.creations.staticMatrices);
+        }
+
+        // 步骤二：处理已存在实体的状态更新 (Updates)
+        if (delta.updates) {
+            this.info(" -> 检测到实体状态更新请求...");
+            const updates = delta.updates;
+
+            // 更新角色动态
+            if (updates.characters) {
+                for (const charId in updates.characters) {
+                    if (!workingChapter.dynamicState.characters[charId]) {
+                        workingChapter.dynamicState.characters[charId] = {};
+                    }
+                    const charUpdates = updates.characters[charId];
+
+                    // 更新关系
+                    if (charUpdates.relationships) {
+                        if (!workingChapter.dynamicState.characters[charId].relationships) {
+                            workingChapter.dynamicState.characters[charId].relationships = {};
+                        }
+                        for (const targetCharId in charUpdates.relationships) {
+                            const relUpdate = charUpdates.relationships[targetCharId];
+                            if (!workingChapter.dynamicState.characters[charId].relationships[targetCharId]) {
+                                workingChapter.dynamicState.characters[charId].relationships[targetCharId] = { history: [] };
+                            }
+                            const targetRel = workingChapter.dynamicState.characters[charId].relationships[targetCharId];
+                            
+                            if (relUpdate.current_affinity !== undefined) {
+                                targetRel.current_affinity = relUpdate.current_affinity;
+                            }
+                            if (relUpdate.history_entry) {
+                                targetRel.history.push(relUpdate.history_entry);
+                            }
+                        }
+                    }
+                    
+                    // 更新心理档案
+                    if (charUpdates.dossier_updates && Array.isArray(charUpdates.dossier_updates)) {
+                        if (!workingChapter.dynamicState.characters[charId].dossier_updates) {
+                            workingChapter.dynamicState.characters[charId].dossier_updates = [];
+                        }
+                        workingChapter.dynamicState.characters[charId].dossier_updates.push(...charUpdates.dossier_updates);
+                    }
+                }
+            }
+
+            // 更新世界观动态 (此处逻辑可根据未来需求扩展，目前框架已备好)
+            if (updates.worldview) {
+                for (const category in updates.worldview) { // 遍历 locations, items...
+                    if (!workingChapter.dynamicState.worldview[category]) {
+                        workingChapter.dynamicState.worldview[category] = {};
+                    }
+                    for (const entityId in updates.worldview[category]) {
+                        const entityUpdate = updates.worldview[category][entityId];
+                        if (!workingChapter.dynamicState.worldview[category][entityId]) {
+                            workingChapter.dynamicState.worldview[category][entityId] = { updates: [] };
+                        }
+                        const targetEntity = workingChapter.dynamicState.worldview[category][entityId];
+
+                        // 如果史官直接提供了更新后的描述，我们也可以更新它
+                        if (entityUpdate.current_description) {
+                            targetEntity.current_description = entityUpdate.current_description;
+                        }
+                        
+                        // 追加历史记录
+                        if (entityUpdate.update_entry && typeof entityUpdate.update_entry === 'object') {
+                            targetEntity.updates.push(entityUpdate.update_entry);
+                        }
+                    }
+                }
+            }
+
+            // 更新故事线动态
+            if (updates.storylines) {
+                for (const category in updates.storylines) { // main_quests, side_quests...
+                    if (!workingChapter.dynamicState.storylines[category]) {
+                        workingChapter.dynamicState.storylines[category] = {};
+                    }
+                    for (const storylineId in updates.storylines[category]) {
+                        const storylineUpdate = updates.storylines[category][storylineId];
+                        if (!workingChapter.dynamicState.storylines[category][storylineId]) {
+                            workingChapter.dynamicState.storylines[category][storylineId] = { history: [] };
+                        }
+                        const targetStoryline = workingChapter.dynamicState.storylines[category][storylineId];
+                        
+                        if (storylineUpdate.current_status) targetStoryline.current_status = storylineUpdate.current_status;
+                        if (storylineUpdate.current_summary) targetStoryline.current_summary = storylineUpdate.current_summary;
+                        if (storylineUpdate.history_entry) targetStoryline.history.push(storylineUpdate.history_entry);
+                    }
+                }
+            }
+            this.diagnose(" -> 实体动态状态已更新。", updates);
+        }
+
+        // 步骤三：更新元数据
+        if (delta.new_long_term_summary) {
+            this.info(" -> 正在更新长篇故事摘要...");
+            workingChapter.meta.longTermStorySummary = delta.new_long_term_summary;
+        }
+        if (delta.new_handoff_memo) {
+            this.info(" -> 正在更新章节交接备忘录...");
+            workingChapter.meta.lastChapterHandoff = delta.new_handoff_memo;
+        }
+
+        this.info("--- 状态更新Delta应用完毕 ---");
+        return workingChapter;
+    }
+
     onStateChange = () => {
     // 使用 debounce 防止事件风暴（例如，快速删除多条消息）
     clearTimeout(this.syncDebounceTimer);
@@ -501,94 +633,92 @@ _syncUiWithRetry() {
     }, 150);
 }
     
+
     async _runGenesisFlow(firstMessageContent = null) {
-    this._setStatus(ENGINE_STATUS.BUSY_GENESIS);
-    this.info(`--- 创世纪流程启动 ---`);
-    console.group(`BRIDGE-PROBE [GENESIS-FLOW-REFACTORED]`);
-   const loadingToast = this.toastr.info(
-            "正在初始化...",
-            "创世纪...",
+        this._setStatus(ENGINE_STATUS.BUSY_GENESIS);
+        this.info(`--- 创世纪流程启动 (ECI模型 V3.1) ---`);
+        console.group(`BRIDGE-PROBE [GENESIS-FLOW-ECI]`);
+        const loadingToast = this.toastr.info(
+            "正在初始化...", "创世纪...",
             { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
         );
-    try {
-        const context = this.deps.applicationFunctionManager.getContext();
-        const activeCharId = context?.characterId;
-        if (!activeCharId) throw new Error("无法获取 activeCharId，创世纪中止。");
-        this.currentChapter = new Chapter({ characterId: activeCharId });
-        this.info("GENESIS: 已为新篇章创建 Chapter 实例。");
-        this.diagnose("GENESIS: 正在检查或分析静态数据...");
-         let analysisResult = staticDataManager.loadStaticData(activeCharId);
+
+        try {
+            const context = this.deps.applicationFunctionManager.getContext();
+            const activeCharId = context?.characterId;
+            if (!activeCharId) throw new Error("无法获取 activeCharId，创世纪中止。");
+
+            // 1. 创建空的ECI Chapter实例
+            this.currentChapter = new Chapter({ characterId: activeCharId });
+            this.info("GENESIS: 已为新篇章创建空的ECI Chapter实例。");
             
+            // 2. 获取静态数据库 (缓存优先)
             loadingToast.find('.toast-message').text("正在分析世界观与角色设定...");
-            if (!analysisResult) {
-                this.info("GENESIS: 未找到缓存，正在实时分析世界书 (ECI模型)...");
+            let staticDb = staticDataManager.loadStaticData(activeCharId);
+
+            if (!staticDb) {
+                this.info("GENESIS: 未找到缓存，正在实时分析世界书...");
                 const persona = window.personas?.[window.main_persona];
                 const worldInfoEntries = await this.deps.getCharacterBoundWorldbookEntries(context);
                 const agentOutput = await this.intelligenceAgent.execute({ worldInfoEntries, persona });
 
                 if (agentOutput && agentOutput.staticMatrices) {
-                    analysisResult = agentOutput.staticMatrices; // 直接获取核心对象
-                    staticDataManager.saveStaticData(activeCharId, analysisResult);
+                    staticDb = agentOutput.staticMatrices;
+                    staticDataManager.saveStaticData(activeCharId, staticDb);
+                    this.info("GENESIS: AI分析成功，新的ECI静态数据库已存入缓存。");
                 } else {
-                    throw new Error("IntelligenceAgent未能返回有效的 staticMatrices 数据。");
+                    throw new Error("IntelligenceAgent未能返回有效数据，且无可用缓存。");
                 }
             } else {
                 this.info("GENESIS: 已从缓存加载ECI静态数据。");
             }
-                        if (analysisResult) {
-                 this.currentChapter.staticMatrices = deepmerge({}, analysisResult);
-                this.info("GENESIS: ECI静态数据库已成功注入当前Chapter实例。");
-            } else {
-                this.warn("加载的静态数据或缓存为空，将使用空的 staticMatrices。");
-            } 
-            // 4. 无论数据来源是缓存还是AI，都使用这套分发逻辑
-            if (analysisResult && analysisResult.characterMatrix && analysisResult.worldviewMatrix && analysisResult.lineMatrix) {
-                this.currentChapter.staticMatrices = {
-                    characterMatrix: analysisResult.characterMatrix,
-                    worldviewMatrix: analysisResult.worldviewMatrix
-                };
-                // 将 lineMatrix 分发到顶层的 lineMatrix
-                this.currentChapter.lineMatrix = analysisResult.lineMatrix;
-            } else {
-                // 降级处理：如果加载的数据结构不正确
-                this.warn("加载的静态数据或缓存结构不完整，将使用空档案。");
-                this.currentChapter.staticMatrices = { characterMatrix: {}, worldviewMatrix: {} };
-                this.currentChapter.lineMatrix = {};
+
+            // 3. 将获取到的静态数据库注入Chapter实例
+            // 【【【 这里是唯一的数据注入点，不再有后续的错误覆盖 】】】
+            this.currentChapter.staticMatrices = staticDb;
+            this.info("GENESIS: ECI静态数据库已成功注入当前Chapter实例。");
+
+            // 4. 【验证日志】
+            console.groupCollapsed('[SBE-DIAGNOSE] Chapter state before planning:');
+            console.dir(JSON.parse(JSON.stringify(this.currentChapter)));
+            console.groupEnd();
+
+            // 5. 获取玩家导演焦点
+            this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
+            // ... (后续流程与之前版本一致)
+            loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
+            const popupResult = await this.deps.showNarrativeFocusPopup(''); 
+            let initialChapterFocus = "由AI自主创新。";
+            if (popupResult.nsfw) {
+                initialChapterFocus = "nsfw: " + (popupResult.value || "请AI自主设计成人情节");
+            } else if (popupResult.confirmed && popupResult.value) {
+                initialChapterFocus = popupResult.value;
             }
-                    this.info("GENESIS: 静态数据与初始故事线已准备就绪。");
-        this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
-        loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
-        const popupResult = await this.deps.showNarrativeFocusPopup(''); 
-        let initialChapterFocus = "由AI自主创新。";
-        if (popupResult.nsfw) {
-            initialChapterFocus = "nsfw: " + (popupResult.value || "请AI自主设计成人情节");
-        } else if (popupResult.confirmed && popupResult.value) {
-            initialChapterFocus = popupResult.value;
+            this.currentChapter.playerNarrativeFocus = initialChapterFocus;
+            this.info(`GENESIS: 玩家设定的开篇小章焦点为: "${initialChapterFocus}"`);
+
+            // 6. 规划开篇剧本
+            this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
+            loadingToast.find('.toast-message').text("建筑师正在构思开篇剧本...");
+            const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);    
+            if (architectResult && architectResult.new_chapter_script) {
+                this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
+                this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
+                this.info("GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。");
+            } else {
+                throw new Error("建筑师未能生成有效的开篇创作蓝图。");
+            }
+
+        } catch (error) {
+            this.diagnose("创世纪流程中发生严重错误:", error);
+            this.toastr.error(`创世纪失败: ${error.message}`, "引擎严重错误");
+            this.currentChapter = null; 
+        } finally {
+            this._setStatus(ENGINE_STATUS.IDLE);
+            console.groupEnd();
+            if (loadingToast) this.toastr.clear(loadingToast);
         }
-        this.currentChapter.playerNarrativeFocus = initialChapterFocus;
-        this.info(`GENESIS: 玩家设定的开篇小章焦点为: "${initialChapterFocus}"`);
-        this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-        loadingToast.find('.toast-message').text("建筑师正在构思开篇剧本...");
-     const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);    
-       if (architectResult && architectResult.new_chapter_script) { // new_chapter_script 现在是蓝图对象
-    this.currentChapter.chapter_blueprint = architectResult.new_chapter_script; // 【适配】
-    this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
-    this.info("GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。");
-} else {
-    throw new Error("建筑师未能生成有效的开篇创作蓝图。");
-}
-    } catch (error) {
-        this.diagnose("创世纪流程中发生严重错误:", error);
-        this.toastr.error(`创世纪失败: ${error.message}`, "引擎严重错误");
-        if (!this.currentChapter) {
-            this.currentChapter = new Chapter({ characterId: this.deps.applicationFunctionManager.getContext()?.characterId });
-        }
-    } finally {
-        this._setStatus(ENGINE_STATUS.IDLE);
-        console.groupEnd();
-          if (loadingToast) this.toastr.clear(loadingToast);
     }
-}
     onCommitState = async (messageIndex) => {
      try {
             this.diagnose(`PROBE [COMMIT-1]: onCommitState 事件触发，消息索引: ${messageIndex}。检查待办任务...`, {
@@ -640,205 +770,179 @@ _syncUiWithRetry() {
     }
 
 async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') {
-    this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
-    const loadingToast = this.toastr.info(
-        "正在启动章节转换流程...",
-        "章节转换中...",
-        { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
-    );
-    this.info(`--- 章节转换流程启动 (健壮模式 V2 - 状态优化) ---`);
-    console.group(`BRIDGE-PROBE [CHAPTER-TRANSITION-OPTIMIZED]: ${eventUid}`);
+        this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
+        const loadingToast = this.toastr.info(
+            "正在启动章节转换流程...", "章节转换中...",
+            { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
+        );
+        this.info(`--- 章节转换流程启动 (ECI事务模型 V3.1 - 断点恢复增强版) ---`);
+        console.group(`BRIDGE-PROBE [CHAPTER-TRANSITION-RESILIENT]: ${eventUid}`);
 
-    try {
-        const activeCharId = this.USER.getContext()?.characterId;
-        if (!activeCharId) throw new Error("无法获取 activeCharId。");
+        try {
+            const activeCharId = this.USER.getContext()?.characterId;
+            if (!activeCharId) throw new Error("无法获取 activeCharId。");
 
-        const { piece: lastStatePiece, deep: lastAnchorIndex } = this.USER.findLastMessageWithLeader({ deep: (this.USER.getContext().chat.length - 1 - endIndex) + 1 });
+            // 1. 加载当前状态
+            const { piece: lastStatePiece, deep: lastAnchorIndex } = this.USER.findLastMessageWithLeader({ deep: (this.USER.getContext().chat.length - 1 - endIndex) });
 
-        let workingChapter = (lastStatePiece && Chapter.isValidStructure(lastStatePiece.leader))
-            ? Chapter.fromJSON(lastStatePiece.leader)
-            : new Chapter({ characterId: activeCharId });
+            let workingChapter = (lastStatePiece && Chapter.isValidStructure(lastStatePiece.leader))
+                ? Chapter.fromJSON(lastStatePiece.leader)
+                : new Chapter({ characterId: activeCharId });
 
-        const staticData = staticDataManager.loadStaticData(activeCharId);
-        workingChapter.staticMatrices = staticData || { characterMatrix: {}, worldviewMatrix: {} };
+            // 确保静态数据是最新的
+            const staticData = staticDataManager.loadStaticData(activeCharId);
+            if (staticData) {
+                workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, staticData);
+            }
 
-        let reviewResult = null;
-        let finalNarrativeFocus = "由AI自主创新。";
+            // 2. 【断点恢复机制】检查是否有未完成的过渡
+            let reviewDelta = null;
+            let finalNarrativeFocus = "由AI自主创新。";
 
-        if (this.LEADER.pendingTransition) {
-            this.info("检测到未完成的过渡，正在恢复进度...");
-            loadingToast.find('.toast-message').text("恢复进度...");
-            reviewResult = this.LEADER.pendingTransition.historianReviewResult;
-            finalNarrativeFocus = this.LEADER.pendingTransition.playerNarrativeFocus;
-            workingChapter.playerNarrativeFocus = finalNarrativeFocus; // 提前应用焦点
-            this.info("史官分析结果和玩家焦点已从临时存储中恢复。");
-        } else {
-            loadingToast.find('.toast-message').text("史官正在复盘...");
-            loadingToast.find('.toast-message').text("史官正在复盘本章历史...");
-            reviewResult = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex);
-            if (!reviewResult) {
-                this.toastr.error(
-                    "史官在复盘本章历史时遇到严重错误（很可能是网络连接问题），章节转换已中止。<br><small>请检查您的网络和API设置后，前往“叙事罗盘”面板手动点击按钮重试。</small>", 
-                    "章节转换失败", 
-                    { timeOut: 15000, escapeHtml: false }
-                );
-                this.LEADER.pendingTransition = null;
+            if (this.LEADER.pendingTransition) {
+                this.info("检测到未完成的章节转换进度，正在恢复...");
+                loadingToast.find('.toast-message').text("恢复之前的进度...");
+
+                reviewDelta = this.LEADER.pendingTransition.historianReviewDelta;
+                finalNarrativeFocus = this.LEADER.pendingTransition.playerNarrativeFocus || "由AI自主创新。";
+                workingChapter.playerNarrativeFocus = finalNarrativeFocus;
+
+                this.info("史官分析结果和玩家焦点已从临时存储中恢复。");
+            } else {
+                // 3. 获取史官的事务增量 (Delta)
+                loadingToast.find('.toast-message').text("史官正在复盘本章历史...");
+                reviewDelta = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex);
+
+                if (!reviewDelta || (!reviewDelta.creations && !reviewDelta.updates)) {
+                    this.toastr.error(
+                        "史官在复盘本章历史时遇到严重错误（很可能是网络连接问题），章节转换已中止。<br><small>请检查您的网络和API设置后，前往叙事罗盘面板手动点击按钮重试。</small>",
+                        "章节转换失败",
+                        { timeOut: 15000, escapeHtml: false }
+                    );
+
+                    // 清除可能存在的错误临时状态
+                    this.LEADER.pendingTransition = null;
+                    this.USER.saveChat();
+
+                    this._setStatus(ENGINE_STATUS.IDLE);
+                    if (loadingToast) this.toastr.clear(loadingToast);
+                    console.groupEnd();
+                    return;
+                }
+
+                // 【阶段1完成】保存史官分析结果到临时存储
+                this.LEADER.pendingTransition = {
+                    historianReviewDelta: reviewDelta,
+                    playerNarrativeFocus: null,
+                    status: 'awaiting_focus'
+                };
                 this.USER.saveChat();
-                this._setStatus(ENGINE_STATUS.IDLE);
-                if (loadingToast) this.toastr.clear(loadingToast);
-                console.groupEnd();
-                return; 
-            }
-            this.LEADER.pendingTransition = {
-                historianReviewResult: reviewResult,
-                playerNarrativeFocus: null,
-                status: 'awaiting_focus'
-            };
-            this.USER.saveChat();
-            this.info("史官复盘完成，中间结果已暂存。");
+                this.info("史官复盘完成，中间结果已暂存（阶段1/3）。");
 
-            loadingToast.find('.toast-message').text("等待导演指示...");
-            if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
-                this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
-                const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
-                if (popupResult.nsfw) {
-                    finalNarrativeFocus = "nsfw: " + (popupResult.value || "请AI自主设计成人情节");
-                } else if (popupResult.confirmed && popupResult.value) {
-                    finalNarrativeFocus = popupResult.value;
-                }
-            }
-            this.LEADER.pendingTransition.playerNarrativeFocus = finalNarrativeFocus;
-            this.LEADER.pendingTransition.status = 'awaiting_architect';
-            this.USER.saveChat();
-            this.info("玩家焦点已捕获，中间结果已更新并暂存。");
-        }
-
-        workingChapter.playerNarrativeFocus = finalNarrativeFocus;
-
-if (reviewResult) {
-
-
-            if (reviewResult.new_events && Array.isArray(reviewResult.new_events)) {
-                workingChapter.dynamicChronicle.log.push(...reviewResult.new_events);
-            }
-
-            if (reviewResult.new_line_matrix && typeof reviewResult.new_line_matrix === 'object') {
-                workingChapter.lineMatrix = reviewResult.new_line_matrix;
-                this.info("故事线网络已更新为包含所有历史的总览。");
-            }
-
-            const summaryEvent = reviewResult.new_events?.find(
-                e => (e.event_type || e.eventType) === 'CHAPTER_SUMMARY_APPENDED'
-            );
-            if (summaryEvent?.payload) {
-                if (typeof summaryEvent.payload.long_term_summary === 'string') {
-                    workingChapter.longTermStorySummary = summaryEvent.payload.long_term_summary;
-                    this.info("长篇故事摘要已更新。");
-                }
-                if (typeof summaryEvent.payload.handoff_memo === 'object') {
-                    workingChapter.lastChapterHandoff = summaryEvent.payload.handoff_memo;
-                    this.info("章节交接备忘录已更新。");
-                }
-            }
-            if (reviewResult.dossier_updates && typeof reviewResult.dossier_updates === 'object') {
-                this.info("检测到角色心理档案更新，正在深度合并...");
-                for (const charId in reviewResult.dossier_updates) {
-                    if (workingChapter.staticMatrices.characterMatrix[charId]) {
-                        workingChapter.staticMatrices.characterMatrix[charId] = deepmerge(
-                            workingChapter.staticMatrices.characterMatrix[charId],
-                            reviewResult.dossier_updates[charId]
-                        );
-
-                        this.info(` -> 角色 [${charId}] 的心理档案已通过深度合并更新。`);
+                // 4. 获取玩家的导演焦点
+                loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
+                if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
+                    this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
+                    const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
+                    if (popupResult.nsfw) {
+                        finalNarrativeFocus = "nsfw: " + (popupResult.value || "请AI自主设计成人情节");
+                    } else if (popupResult.confirmed && popupResult.value) {
+                        finalNarrativeFocus = popupResult.value;
                     }
                 }
+
+                // 【阶段2完成】更新玩家焦点到临时存储
+                this.LEADER.pendingTransition.playerNarrativeFocus = finalNarrativeFocus;
+                this.LEADER.pendingTransition.status = 'awaiting_architect';
+                this.USER.saveChat();
+                this.info("玩家焦点已捕获，中间结果已更新（阶段2/3）。");
             }
-          workingChapter.dynamicChronicle.log = this._consolidateChapterEvents(
-                workingChapter.dynamicChronicle.log,
-                lastAnchorIndex + 1, 
-                endIndex             
-            );
-            // =====================================================================================
-        }
-        workingChapter.lastProcessedEventUid = eventUid;
 
-        this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-        loadingToast.find('.toast-message').text("建筑师正在规划新章节...");
-        const architectResult = await this._planNextChapter(false, workingChapter);
-        if (!architectResult || !architectResult.new_chapter_script) {
-            throw new Error("建筑师未能生成新剧本。中间进度已保存，请点击按钮重试。");
-        }
+            // 5. 【核心】应用史官的事务增量
+            workingChapter = this._applyStateUpdates(workingChapter, reviewDelta);
+            workingChapter.playerNarrativeFocus = finalNarrativeFocus;
 
-        loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
-        const finalChapterState = workingChapter;
-        finalChapterState.chapter_blueprint = architectResult.new_chapter_script; // 【适配】
-finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
-        finalChapterState.checksum = simpleHash(JSON.stringify(finalChapterState) + Date.now());
-
-        const targetPiece = this.USER.getContext().chat[endIndex];
-        if (targetPiece) {
-            targetPiece.leader = finalChapterState.toJSON();
-            this.LEADER.pendingTransition = null;
-            this.USER.saveChat();
-            this.currentChapter = finalChapterState;
-            this.info("新章节状态已成功写入聊天记录，临时状态已清除。");
-
-            try {
-                this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
-                this.toastr.success("章节已更新，仪表盘已刷新！", "无缝衔接");
-            } catch (uiError) {
-                this.diagnose("UI更新操作失败，但这不会影响核心状态的保存。", uiError);
-                this.toastr.error("后台状态已更新，但UI刷新失败，请检查控制台。", "UI错误");
+            // 6. 规划下一章节
+            this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
+            loadingToast.find('.toast-message').text("建筑师正在规划新章节...");
+            const architectResult = await this._planNextChapter(false, workingChapter);
+            if (!architectResult || !architectResult.new_chapter_script) {
+                throw new Error("建筑师未能生成新剧本。中间进度已保存，请点击按钮重试。");
             }
-        } else {
-            throw new Error(`最终写入失败！索引 ${endIndex} 处无目标消息。`);
+
+            // 7. 最终化并持久化新状态
+            loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
+            const finalChapterState = workingChapter;
+            finalChapterState.chapter_blueprint = architectResult.new_chapter_script;
+            finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
+            finalChapterState.lastProcessedEventUid = eventUid;
+            finalChapterState.checksum = simpleHash(JSON.stringify(finalChapterState) + Date.now());
+
+            const targetPiece = this.USER.getContext().chat[endIndex];
+            if (targetPiece) {
+                targetPiece.leader = finalChapterState.toJSON();
+
+                // 【阶段3完成】清除临时状态
+                this.LEADER.pendingTransition = null;
+                this.USER.saveChat();
+
+                this.currentChapter = finalChapterState;
+                this.info("新章节状态已成功写入聊天记录，临时状态已清除（阶段3/3完成）。");
+
+                try {
+                    this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+                    this.toastr.success("章节已更新，仪表盘已刷新！", "无缝衔接");
+                } catch (uiError) {
+                    this.diagnose("UI更新操作失败，但这不会影响核心状态的保存。", uiError);
+                    this.toastr.warning("后台状态已更新，但UI刷新失败，请手动刷新页面。", "UI警告");
+                }
+            } else {
+                throw new Error(`最终写入失败！索引 ${endIndex} 处无目标消息。`);
+            }
+
+        } catch (error) {
+            this.diagnose("章节转换流程中发生严重错误:", error);
+            this.toastr.error(`${error.message}`, "章节规划失败", { timeOut: 10000 });
+        } finally {
+            this._setStatus(ENGINE_STATUS.IDLE);
+            if (loadingToast) {
+                this.toastr.clear(loadingToast);
+            }
+            console.groupEnd();
         }
-    } catch (error) {
-        this.diagnose("章节转换流程中发生严重错误:", error);
-        this.toastr.error(`${error.message}`, "章节规划失败", { timeOut: 5000 });
-      } finally {
-        this._setStatus(ENGINE_STATUS.IDLE); 
-        if (loadingToast) {
-            this.toastr.clear(loadingToast);
-        }
-        console.groupEnd(); 
     }
-}
     async _runStrategicReview(chapterContext, startIndex, endIndex) {
-        console.group("BRIDGE-PROBE [STRATEGIC-REVIEW]: 史官复盘");
-        let reviewResult = null;
+        console.group("BRIDGE-PROBE [STRATEGIC-REVIEW | ECI-MODE]");
+        let reviewDelta = null;
         try {
-            let chapterTranscript = "【对话记录提取失败】";
             const chat = this.USER.getContext().chat;
             const chapterMessages = [];
-
-            for (let i = endIndex; i > startIndex; i--) {
-                chapterMessages.unshift(chat[i]);
+            // 安全地提取消息，即使startIndex为-1（表示新游戏）
+            const safeStartIndex = Math.max(0, startIndex + 1);
+            for (let i = safeStartIndex; i <= endIndex; i++) {
+                if(chat[i]) chapterMessages.push(chat[i]);
             }
 
-        if (chapterMessages.length > 0) {
-            chapterTranscript = chapterMessages.map(msg => `[${msg.is_user ? "{{user}}" : "{{char}}"}]:\n${msg.mes}`).join('\n\n---\n\n');
-        } else {
-            chapterTranscript = "【本章无实质性对话】";
-        }
-         const currentDynamicState = chapterContext.calculateCurrentDynamicState();
+            const chapterTranscript = chapterMessages.length > 0
+                ? chapterMessages.map(msg => `[${msg.is_user ? "{{user}}" : "{{char}}"}]:\n${msg.mes}`).join('\n\n---\n\n')
+                : "【本章无实质性对话】";
 
-   const contextForHistorian = {
+            const contextForHistorian = {
                 chapterTranscript,
                 chapter: chapterContext,
-                isNsfwTransition: false, 
-                currentDynamicState,
             };
 
-        reviewResult = await this.historianAgent.execute(contextForHistorian);
+            reviewDelta = await this.historianAgent.execute(contextForHistorian);
 
-    } catch (error) {
-        this.diagnose("在 _runStrategicReview 过程中发生错误:", error);
-    } finally {
-        console.groupEnd();
-        return reviewResult;
+        } catch (error) {
+            this.diagnose("在 _runStrategicReview 过程中发生错误:", error);
+        } finally {
+            console.groupEnd();
+            return reviewDelta;
+        }
     }
-}
+
+
 /**创世纪流程启动器。*/
 async startGenesisProcess() {
     this.info("--- 用户通过UI启动创世纪流程 ---");
@@ -974,25 +1078,23 @@ async reanalyzeWorldbook() {
         this.diagnose("热重载: 调用 IntelligenceAgent...");
         const analysisResult = await this.intelligenceAgent.execute({ worldInfoEntries, persona });
 
-        if (!analysisResult) {
-            throw new Error("IntelligenceAgent未能返回有效的分析结果。");
+        if (!analysisResult || !analysisResult.staticMatrices) {
+            throw new Error("IntelligenceAgent未能返回有效的分析结果（缺少staticMatrices）。");
         }
-        staticDataManager.saveStaticData(activeCharId, analysisResult);
+
+        // 保存到缓存：StaticDataManager期望接收staticMatrices对象
+        staticDataManager.saveStaticData(activeCharId, analysisResult.staticMatrices);
         this.info("热重载: 新的静态数据已分析并存入缓存。");
 
-
-        if (analysisResult.characterMatrix && analysisResult.worldviewMatrix) {
-            this.currentChapter.staticMatrices = {
-                characterMatrix: analysisResult.characterMatrix,
-                worldviewMatrix: analysisResult.worldviewMatrix
-            };
-            this.info("热重载: 新的 characterMatrix 和 worldviewMatrix 已成功组装并覆盖到当前 Chapter 实例。");
+        // 使用深度合并更新当前Chapter的静态数据
+        if (analysisResult.staticMatrices) {
+            this.currentChapter.staticMatrices = deepmerge(
+                this.currentChapter.staticMatrices,
+                analysisResult.staticMatrices
+            );
+            this.info("热重载: 新的 staticMatrices (characters, worldview, storylines) 已成功合并到当前 Chapter 实例。");
         } else {
-            this.warn("热重载警告: IntelligenceAgent未能返回完整的 characterMatrix 或 worldviewMatrix，静态设定未更新。");
-        }
-        if (analysisResult.lineMatrix) {
-            this.currentChapter.lineMatrix = analysisResult.lineMatrix;
-            this.info("热重载: 新的初始 lineMatrix 已覆盖到当前 Chapter 实例。");
+            this.warn("热重载警告: IntelligenceAgent未能返回完整的 staticMatrices，静态设定未更新。");
         }
 
         const chat = this.USER.getContext().chat;
@@ -1092,13 +1194,10 @@ async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessag
     this.info(`--- 启动“章节建筑师”规划${action}...`);
     
     const chapterContext = chapterForPlanning || this.currentChapter;
-    const currentDynamicState = chapterContext.calculateCurrentDynamicState();
-
      const contextForArchitect = {
         system_confidence: isGenesis ? 0.1 : 0.5,
         player_profile: { description: "暂无画像。" },
         chapter: chapterContext,
-        currentDynamicState: currentDynamicState,
         firstMessageContent: firstMessageContent
     };
     

@@ -1,6 +1,6 @@
 import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
-
+import { repairAndParseJson } from '../utils/jsonRepair.js'; 
 export class IntelligenceAgent extends Agent {
 
   _createPrompt(worldInfoEntries, persona) {
@@ -58,9 +58,10 @@ ${formattedWorldInfo}
     *   为每一个角色创建档案，包含其心理档案。
     *   其 \`relationships\` 对象的值，必须是另一个角色的ID。
     *   【叙事逻辑铁律：禁止量化主角】
-         *   在为主角（ID通常为 \`char_user_player\` 或类似）创建档案时，其 \`relationships\` 对象中**绝对不能包含任何\`affinity\`（好感度）字段**。
+         *   在为主角（ID通常为 \`char_user_player\` 或类似）创建档案时，其 \`relationships\` 对象中**绝对不能包含任何\`affinity\`（好感度）字段**。其档案中**必须包含一个布尔值字段 \`"isProtagonist": true\`**。
          *   你可以使用一个 \`description\` 字段来描述主角对其他角色的**初始认知或背景关系**（例如：“这是我体弱多病的姐姐”）。
-         *   对于**所有非主角角色 (NPC)**，其 \`relationships\` 对象中则**必须包含**对其他角色的初始 \`affinity\` 值。
+         *   对于**所有非主角角色 (NPC)**，其 \`relationships\` 对象中则**必须包含**对其他角色的初始 \`affinity\` 值。其档案中**必须包含 \`"isProtagonist": false\`**。
+        
 2.  **建档 \`staticMatrices.worldview\`:**
     *   将所有非角色的世界观实体，按照 \`locations\`, \`items\`, \`events\` 等分类，分别建档。
 
@@ -77,6 +78,7 @@ ${formattedWorldInfo}
     "characters": {
       "char_yumi_player": {
         "name": "Yumi",
+        "isProtagonist": true,
         "identity": "...",
           "relationships": {
           "char_xuecai_sister": { 
@@ -88,6 +90,7 @@ ${formattedWorldInfo}
       },
       "char_xuecai_sister": {
         "name": "雪菜", 
+        "isProtagonist": false,
         "relationships": {
           "char_yumi_player": {
             "relation_type": "妹妹",
@@ -126,12 +129,12 @@ ${formattedWorldInfo}
 }
 */
      --- 【最终自我修正检查】---
-    在输出之前，请检查你的 "characterMatrix"：
+    在输出之前，请检查你的 "staticMatrices.characters"：
     1. 所有的 affinity 值是否都严格基于【故事开始前】的背景设定？
     2. 是否将任何【未来会发生】的关系，错误地当作了初始关系？
     如果存在错误，请立即修正。
     --- 【语言与细节规范 (MANDATORY)】 ---
-    1.  **语言协议**: 你的所有输出，包括 \`characterMatrix\` 和 \`worldviewMatri\` 内部的所有字符串值，**必须完全使用【简体中文】**。这是一个绝对的要求，不得出现任何英文单词或短语，除非它们是专有名词的原文。
+    1.  **语言协议**: 你的所有输出，包括 \`staticMatrices\` 内部的所有字符串值（characters, worldview, storylines），**必须完全使用【简体中文】**。这是一个绝对的要求，不得出现任何英文单词或短语，除非它们是专有名词的原文。
 现在，以数据库管理员的严谨，开始构建初始世界。
        ` ;
     }
@@ -151,26 +154,40 @@ ${formattedWorldInfo}
         try {
             // 2. 在try块内部赋值
             responseText = await this.deps.mainLlmService.callLLM([{ role: 'user', content: prompt }]);
-            
-            // 3. 只进行一次解析
-            const initialData = this.extractJsonFromString(responseText);
-
-             if (!initialData || !initialData.staticMatrices || !initialData.staticMatrices.characters || !initialData.staticMatrices.worldview || !initialData.staticMatrices.storylines) {
-            throw new Error("AI未能返回包含有效 'staticMatrices' (及其全部分类) 的JSON。");
+             let potentialJsonString;
+        const codeBlockMatch = responseText.match(/```json\s*([\sS]*?)\s*```/);
+        if (codeBlockMatch && codeBlockMatch[1]) {
+            potentialJsonString = codeBlockMatch[1].trim();
+        } else {
+            const firstBrace = responseText.indexOf('{');
+            const lastBrace = responseText.lastIndexOf('}');
+            if (firstBrace !== -1 && lastBrace > firstBrace) {
+                potentialJsonString = responseText.substring(firstBrace, lastBrace + 1);
+            } else {
+                // 如果连大括号都找不到，就直接把整个返回给修复器试试
+                potentialJsonString = responseText;
+            }
         }
+           const initialData = repairAndParseJson(potentialJsonString, this);            if (!initialData || !initialData.staticMatrices || 
+                !initialData.staticMatrices.characters || 
+                !initialData.staticMatrices.worldview || 
+                !initialData.staticMatrices.storylines) {
+                throw new Error("AI未能返回包含有效 'staticMatrices' (及其全部分类 'characters', 'worldview', 'storylines') 的JSON。");
+            }
 
-            this.info("智能情报官AI 分析完成，角色、世界观与初始故事线档案已建立。");
-
+            this.info("智能情报官AI 分析完成，ECI原子化静态数据库已建立。");
+            const staticDb = initialData.staticMatrices;
             console.groupCollapsed('[SBT-DIAGNOSE] Intelligence Officer V3 Output');
-            console.log("角色矩阵:", initialData.characterMatrix);
-            console.log("世界观矩阵:", initialData.worldviewMatrix);
-            console.log("故事线矩阵:", initialData.lineMatrix);
+           console.log("完整的静态数据库 (staticMatrices):", staticDb);
+            console.log("  -> 角色 (characters):", staticDb.characters);
+            console.log("  -> 世界观 (worldview):", staticDb.worldview);
+            console.log("  -> 故事线 (storylines):", staticDb.storylines);
             console.groupEnd();
 
             // 5. 返回经过严格校验的正确数据
        return {
-            staticMatrices: initialData.staticMatrices,
-        };
+                staticMatrices: staticDb
+            };
         } catch (error) {
             // 6. 现在的catch块可以安全地访问responseText（即使它为null），便于调试
             this.diagnose("--- 智能情报官AI 分析失败 ---", {

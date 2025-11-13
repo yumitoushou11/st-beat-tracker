@@ -55,51 +55,56 @@ function renderLineMatrix(matrix, container) {
     container.html(html);
 }
 function renderCharacterRelationships(chapterState, container) {
-    if (!container || container.length === 0) return;
-    container.empty();
+    try {
+        if (!container || container.length === 0) {
+            console.warn("[关系渲染器] 探针报告：目标容器不存在，渲染中止。");
+            return;
+        }
+            container.empty();
 
-    const matrix = chapterState.staticMatrices.characterMatrix;
-
+    const matrix = chapterState.staticMatrices.characters;
+        console.group("[关系渲染器] 探针1号：输入数据检查");
+        console.log("收到的完整 chapterState:", chapterState);
+        console.log("提取的角色矩阵 (matrix):", matrix);
+        console.groupEnd();
     if (!matrix || Object.keys(matrix).length <= 1) {
         container.html('<p class="sbt-instructions">暂无其他角色可显示。</p>');
         return;
     }
 
     const protagonistId = Object.keys(matrix).find(id => matrix[id]?.isProtagonist);
-    if (!protagonistId) {
-        container.html('<p class="sbt-instructions">错误：在角色档案中未找到主角。</p>');
-        return;
-    }
-    
-    const dynamicState = chapterState.calculateCurrentDynamicState();
-    
-    for (const charId in matrix) {
-        if (matrix[charId].isProtagonist) continue;
+        console.group("[关系渲染器] 探针2号：主角ID查找");
+        console.log("查找到的主角ID (protagonistId):", protagonistId);
+        console.groupEnd();
 
-        const dynamicRel = dynamicState.relationshipMatrix[charId]?.[protagonistId];
+        if (!protagonistId) {
+            container.html('<p class="sbt-instructions">错误：在角色档案中未找到主角 (isProtagonist: true)。</p>');
+            console.error("[关系渲染器] 探针报告：关键错误！未能找到主角ID。请检查AI生成的角色档案中 'isProtagonist' 字段是否存在且为布尔值 true。");
+            return;
+        }
+                console.log("[关系渲染器] 探针报告：主角查找成功，准备进入渲染循环...");
+    for (const charId in matrix) {
+        if (charId === protagonistId) continue;
         const staticRel = matrix[charId]?.relationships?.[protagonistId];
-        
-        const relData = dynamicRel || staticRel || { affinity: 0, reputation: "关系尚未建立" };
-        const newAffinity = parseInt(relData.affinity, 10) || 0;
-        
-        // 1. 用于“悬浮提示”的文本：优先使用最详细的 history，其次是 reputation。
-        const tooltipText = relData.history || relData.reputation || "暂无详细互动记录。";
-        
-        // 2. 用于“卡片显示”的文本：只使用最简短的 reputation。
-        const cardSummaryText = relData.reputation || "暂无状态描述";
+        const dynamicRel = chapterState.dynamicState.characters?.[charId]?.relationships?.[protagonistId];
+        const newAffinity = parseInt(dynamicRel?.current_affinity ?? staticRel?.affinity ?? 0, 10);
+        const cardSummaryText = staticRel?.description || "关系尚未建立";
+        const historyLog = dynamicRel?.history || [];
+        const tooltipText = historyLog.length > 0
+            ? historyLog.map(entry => `(好感 ${entry.change || 'N/A'}) ${entry.reasoning}`).join('\n---\n')
+            : "暂无详细互动记录。";
 
         const cardHtml = `
-             <div class="sbt-character-card sbt-clickable" data-char-id="${charId}" title="裁决详情：\n${tooltipText}">
-                <h6>${charId}</h6>
+             <div class="sbt-character-card sbt-clickable" data-char-id="${charId}" title="好感度变更历史：\n${tooltipText}">
+                <h6>${matrix[charId].name || charId}</h6>
                 <p class="sbt-relationship-label sbt-affinity-label">好感度: ${newAffinity}</p>
                 <div class="sbt-progress-bar">
                     <div class="sbt-progress-fill affinity"></div>
                     <span class="sbt-change-indicator"></span>
                 </div>
-                <p class="sbt-last-interaction-text">当前状态: ${cardSummaryText}</p>
+                <p class="sbt-last-interaction-text">当前关系: ${cardSummaryText}</p>
             </div>`;
         container.append(cardHtml);
-        
         const $card = container.find(`.sbt-character-card[data-char-id="${charId}"]`);
         const oldAffinity = parseFloat($card.attr('data-current-affinity')) || 0;
         const finalColor = mapValueToHue(newAffinity);
@@ -115,6 +120,10 @@ function renderCharacterRelationships(chapterState, container) {
             'backgroundColor': initialColor,
             'width': `${oldAffinity}%`
         });
+    }
+}catch (error) {
+        console.error("[关系渲染器] 探针3号：在渲染过程中捕获到意外错误！", error);
+        container.html('<p class="sbt-instructions">渲染角色关系时发生意外错误，请查看控制台获取详情。</p>');
     }
 }
 /**更新整个仪表盘UI，现在传递整个 Chapter 对象 */
@@ -179,48 +188,51 @@ export function updateDashboard(chapterState) {
         }
     }
 
-    // --- 4. 渲染其他模块 ---
+    // --- 4. 渲染角色关系图谱 ---
+    const relationshipContainer = $('#sbt-character-chart');
+    if (relationshipContainer.length > 0) {
+        renderCharacterRelationships(chapterState, relationshipContainer);
+    }
+
+    // --- 5. 渲染故事线网络 ---
     const allStorylines = {
-    ...(chapterState.staticMatrices.storylines.main_quests || {}),
-    ...(chapterState.staticMatrices.storylines.side_quests || {}),
-    ...(chapterState.staticMatrices.storylines.relationship_arcs || {}),
-    ...(chapterState.staticMatrices.storylines.personal_arcs || {})
-};
-renderLineMatrix(allStorylines, $('#sbt-line-matrix-list'));
+        ...(chapterState.staticMatrices.storylines.main_quests || {}),
+        ...(chapterState.staticMatrices.storylines.side_quests || {}),
+        ...(chapterState.staticMatrices.storylines.relationship_arcs || {}),
+        ...(chapterState.staticMatrices.storylines.personal_arcs || {})
+    };
+    renderLineMatrix(allStorylines, $('#sbt-line-matrix-list'));
 }/**
  * [新增] 渲染并显示角色详情的弹窗。
  * @param {string} charId - 要显示详情的角色ID。
  * @param {Chapter} chapterState - 完整的Chapter对象。
  */
 function showCharacterDetailPopup(charId, chapterState) {
-    const characterData = chapterState.staticMatrices.characterMatrix[charId];
+    const characterData = chapterState.staticMatrices.characters[charId];
     if (!characterData) return;
 
     // --- 准备数据 ---
-    // 1. 动态关系 (用于显示最新好感度)
-    const dynamicState = chapterState.calculateCurrentDynamicState();
-    
-    // 2. 静态关系 (用于显示初始设定)
     const staticRelationships = characterData.relationships || {};
 
     // --- 构建HTML ---
     let relationshipsHtml = '<div class="sbt-popup-subtitle">关系网络</div>';
-    const allChars = chapterState.staticMatrices.characterMatrix;
+    const allChars = chapterState.staticMatrices.characters;
 
     for (const targetCharId in allChars) {
         if (targetCharId === charId) continue; // 不显示对自己
-        
+
         // 优先显示动态更新后的关系，如果不存在，则显示静态初始关系
-        const dynamicRel = dynamicState.relationshipMatrix[charId]?.[targetCharId];
+        const dynamicRel = chapterState.dynamicState.characters?.[charId]?.relationships?.[targetCharId];
         const staticRel = staticRelationships[targetCharId];
-        
-        const relData = dynamicRel || staticRel;
-        const affinity = relData?.affinity ?? '??';
-        const reputation = relData?.reputation ?? '关系未建立';
+
+        // 优先使用动态数据
+        const currentAffinity = dynamicRel?.current_affinity ?? staticRel?.affinity;
+        const affinity = currentAffinity ?? '??';
+        const reputation = staticRel?.relation_type || staticRel?.description || '关系未建立';
 
         relationshipsHtml += `
             <div class="sbt-popup-relation-item">
-                <span>对 <strong>${targetCharId}</strong> 的看法:</span>
+                <span>对 <strong>${allChars[targetCharId]?.name || targetCharId}</strong> 的看法:</span>
                 <span class="sbt-popup-relation-value">${reputation} (好感: ${affinity})</span>
             </div>
         `;
@@ -232,19 +244,17 @@ function showCharacterDetailPopup(charId, chapterState) {
     const modalHtml = `
         <div id="sbt-character-detail-popup">
             <div class="sbt-popup-header">
-                <h4>角色档案: ${charId}</h4>
-                <p>${characterData.personality.split(' | ')[0]} | ${characterData.appearance.split(' | ')[0]}岁</p>
+                <h4>角色档案: ${characterData.name || charId}</h4>
+                <p>${characterData.identity || '未知身份'}</p>
             </div>
             <div class="sbt-popup-content">
                 <div class="sbt-popup-section">
                     <div class="sbt-popup-subtitle">核心性格</div>
-                    <p>${characterData.personality}</p>
+                    <p>${characterData.personality || '暂无性格描述'}</p>
                 </div>
                 <div class="sbt-popup-section">
                     <div class="sbt-popup-subtitle">背景故事</div>
-                    <ul>
-                        ${(characterData.background || []).map(b => `<li>${b}</li>`).join('')}
-                    </ul>
+                    <p>${characterData.background || '暂无背景故事'}</p>
                 </div>
                 <div class="sbt-popup-section">${relationshipsHtml}</div>
             </div>

@@ -3,6 +3,7 @@
 import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js';
+import { deepmerge } from '../utils/deepmerge.js';
 
 const NSFW_TOOLKIT_PROMPT = `
 # NSE 叙事原型工具箱
@@ -142,9 +143,6 @@ export class ArchitectAgent extends Agent {
             }
 
             this.info("--- 章节建筑师AI V10.0 --- 新章节的创作蓝图已成功生成。");
-
-            // 【革新】不再格式化为Markdown。直接将AI生成的结构化“蓝图”对象作为最终产物。
-            // 这符合“最小侵入度”原则，引擎下游将直接使用这个对象。
             return { 
                 new_chapter_script: result.chapter_blueprint, // 直接传递对象
                 design_notes: result.design_notes, // 设计笔记作为元数据保留
@@ -163,18 +161,19 @@ export class ArchitectAgent extends Agent {
 // architectAgent.js
 
 _createPrompt(context) {
-    const { chapter, currentDynamicState, firstMessageContent } = context;        
-    const characterMatrix = chapter?.staticMatrices?.characters || {};
-    const worldviewMatrix = chapter?.staticMatrices?.worldview || {};    const longTermStorySummary = chapter?.longTermStorySummary || "故事刚刚开始。";
-    const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
-    const isNsfwFocused = playerNarrativeFocus.toLowerCase().startsWith('nsfw:');
-    const relationshipMatrix = currentDynamicState?.relationshipMatrix || {};
-
-    let openingSceneContext = "无指定的开场白，请自由创作开篇。";
-    let handoffToUse = chapter?.lastChapterHandoff || { 
-        ending_snapshot: "故事从零开始。",
-        action_handoff: "为故事创作一个引人入胜的开端。"
-    };
+    const { chapter, firstMessageContent } = context;        
+            const currentWorldState = deepmerge(
+            chapter.staticMatrices,
+            chapter.dynamicState
+        );
+        const longTermStorySummary = chapter?.meta?.longTermStorySummary || "故事刚刚开始。";
+        const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
+        const isNsfwFocused = playerNarrativeFocus.toLowerCase().startsWith('nsfw:');
+        let openingSceneContext = "无指定的开场白，请自由创作开篇。";
+        let handoffToUse = chapter?.meta?.lastChapterHandoff || { 
+            ending_snapshot: "故事从零开始。",
+            action_handoff: "为故事创作一个引人入胜的开端。"
+        };
 
     if (firstMessageContent) {
         openingSceneContext = firstMessageContent;
@@ -185,7 +184,6 @@ _createPrompt(context) {
         this.info("建筑师检测到开场白，已切换到'续写模式'。");
     }
       
-    // 【革新】这是全新的、“自省式蓝图”的Prompt核心
     const basePrompt = `
 # **指令：自省式叙事蓝图创作 (Self-Reflective Narrative Blueprinting) V11.0**
 
@@ -223,11 +221,9 @@ _createPrompt(context) {
 ---
 ## **第二章：输入情报分析 (Analysis of Incoming Intelligence)**
 *（你将基于以下情报，并严格遵守上述禁令，进行规划）*
-
 // 如果有开场白，你必须遵循以下铁律：
 // 1. 它是故事的【绝对起点】。你的所有规划，都必须是这个场景的【直接延续】。
 // 2. 你必须在最终输出的 "design_notes.connection_and_hook" 字段中，明确阐述你的开篇节拍是如何无缝衔接这个已有开场白的。
-
 0.  **【零号情报】开场白场景 (Opening Scene Hand-off):**
     \`\`\`
     ${openingSceneContext} 
@@ -235,10 +231,10 @@ _createPrompt(context) {
 1.  **导演（玩家）的战术焦点:** \`${playerNarrativeFocus}\`
 2.  **长篇故事梗概:** ${longTermStorySummary}
 3.  **上一章交接备忘录:** ${JSON.stringify(handoffToUse, null, 2)}
-4.  **当前动态关系档案:** ${JSON.stringify(relationshipMatrix, null, 2)}
-5.  **静态世界观与故事线档案:** ${JSON.stringify(worldviewMatrix, null, 2)}
-6.  **静态角色核心档案:** ${JSON.stringify(characterMatrix, null, 2)}
-
+4.  **核心情报：当前世界的完整状态快照:**
+    <current_world_state>
+    ${JSON.stringify(currentWorldState, null, 2)}
+    </current_world_state>
 ---
 ## **第三章：强制前置思考：自省式蓝图设计**
 ---
