@@ -95,9 +95,10 @@ export class StoryBeatEngine {
         onReanalyzeWorldbook: this.reanalyzeWorldbook.bind(this),
         onForceChapterTransition: this.forceChapterTransition.bind(this),
         onStartGenesis: this.startGenesisProcess.bind(this),
-            mainLlmService: this.mainLlmService, 
+            mainLlmService: this.mainLlmService,
             conductorLlmService: this.conductorLlmService,
         onSetNarrativeFocus: this.setNarrativeFocus.bind(this),
+        onSaveCharacterEdit: this.saveCharacterEdit.bind(this),
     };
     const finalDependencies = initializeUIManager(uiManagerDependencies);
     this.deps = finalDependencies;
@@ -510,15 +511,42 @@ _syncUiWithRetry() {
             this.info(" -> 检测到实体状态更新请求...");
             const updates = delta.updates;
 
-            // 更新角色动态
+            // 更新角色动态和静态
             if (updates.characters) {
                 for (const charId in updates.characters) {
+                    const charUpdates = updates.characters[charId];
+
+                    // 确保角色在 staticMatrices 和 dynamicState 中都存在
+                    if (!workingChapter.staticMatrices.characters[charId]) {
+                        this.warn(`警告：尝试更新不存在的角色 ${charId}，跳过此角色的更新`);
+                        continue;
+                    }
                     if (!workingChapter.dynamicState.characters[charId]) {
                         workingChapter.dynamicState.characters[charId] = {};
                     }
-                    const charUpdates = updates.characters[charId];
 
-                    // 更新关系
+                    // 处理 social.relationships 的特殊逻辑（动态数据）
+                    if (charUpdates.social?.relationships) {
+                        if (!workingChapter.dynamicState.characters[charId].relationships) {
+                            workingChapter.dynamicState.characters[charId].relationships = {};
+                        }
+                        for (const targetCharId in charUpdates.social.relationships) {
+                            const relUpdate = charUpdates.social.relationships[targetCharId];
+                            if (!workingChapter.dynamicState.characters[charId].relationships[targetCharId]) {
+                                workingChapter.dynamicState.characters[charId].relationships[targetCharId] = { history: [] };
+                            }
+                            const targetRel = workingChapter.dynamicState.characters[charId].relationships[targetCharId];
+
+                            if (relUpdate.current_affinity !== undefined) {
+                                targetRel.current_affinity = relUpdate.current_affinity;
+                            }
+                            if (relUpdate.history_entry) {
+                                targetRel.history.push(relUpdate.history_entry);
+                            }
+                        }
+                    }
+
+                    // 处理旧版 relationships 格式（兼容性）
                     if (charUpdates.relationships) {
                         if (!workingChapter.dynamicState.characters[charId].relationships) {
                             workingChapter.dynamicState.characters[charId].relationships = {};
@@ -529,7 +557,7 @@ _syncUiWithRetry() {
                                 workingChapter.dynamicState.characters[charId].relationships[targetCharId] = { history: [] };
                             }
                             const targetRel = workingChapter.dynamicState.characters[charId].relationships[targetCharId];
-                            
+
                             if (relUpdate.current_affinity !== undefined) {
                                 targetRel.current_affinity = relUpdate.current_affinity;
                             }
@@ -538,13 +566,83 @@ _syncUiWithRetry() {
                             }
                         }
                     }
-                    
+
                     // 更新心理档案
                     if (charUpdates.dossier_updates && Array.isArray(charUpdates.dossier_updates)) {
                         if (!workingChapter.dynamicState.characters[charId].dossier_updates) {
                             workingChapter.dynamicState.characters[charId].dossier_updates = [];
                         }
                         workingChapter.dynamicState.characters[charId].dossier_updates.push(...charUpdates.dossier_updates);
+                    }
+
+                    // 【关键修复】更新角色的静态字段（核心身份、外貌、性格、能力等）
+                    // 将更新合并到 staticMatrices.characters
+                    const staticChar = workingChapter.staticMatrices.characters[charId];
+                    const fieldsToMerge = [
+                        'core', 'appearance', 'personality', 'background', 'goals',
+                        'capabilities', 'equipment', 'experiences', 'secrets'
+                    ];
+
+                    // 字符串类型字段（直接覆盖）
+                    const stringFields = ['appearance', 'secrets'];
+                    // 对象类型字段（深度合并）
+                    const objectFields = ['core', 'personality', 'background', 'goals', 'capabilities', 'equipment', 'experiences'];
+
+                    for (const field of fieldsToMerge) {
+                        if (charUpdates[field]) {
+                            // 判断字段类型
+                            if (stringFields.includes(field)) {
+                                // 字符串字段：直接覆盖
+                                staticChar[field] = charUpdates[field];
+                                this.diagnose(`  -> 已更新角色 ${charId} 的 ${field} 字段（字符串）`);
+                            } else if (objectFields.includes(field)) {
+                                // 对象字段：深度合并
+                                let fieldValue = charUpdates[field];
+
+                                // 处理字段值 - 检查是否有 operation 结构（向后兼容）
+                                if (typeof fieldValue === 'object' && !Array.isArray(fieldValue)) {
+                                    // 遍历子字段，处理可能的 operation 结构
+                                    for (const subKey in fieldValue) {
+                                        const subValue = fieldValue[subKey];
+
+                                        // 如果是 {operation: 'append', values: [...]} 格式，转换为直接数组
+                                        if (subValue && typeof subValue === 'object' && subValue.operation === 'append' && Array.isArray(subValue.values)) {
+                                            this.warn(`警告：检测到旧格式的 operation 结构 (${field}.${subKey})，自动转换为完整数组`);
+
+                                            // 获取原有值
+                                            const existingValue = staticChar[field]?.[subKey];
+                                            if (Array.isArray(existingValue)) {
+                                                // 合并原有值和新值
+                                                fieldValue[subKey] = [...existingValue, ...subValue.values];
+                                            } else {
+                                                // 只使用新值
+                                                fieldValue[subKey] = subValue.values;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // 确保原字段存在且为对象
+                                if (!staticChar[field] || typeof staticChar[field] !== 'object') {
+                                    staticChar[field] = {};
+                                }
+
+                                // 使用深度合并
+                                staticChar[field] = deepmerge(staticChar[field], fieldValue);
+                                this.diagnose(`  -> 已更新角色 ${charId} 的 ${field} 字段（对象）`);
+                            }
+                        }
+                    }
+
+                    // 更新 social 字段（除了 relationships，因为那是动态的）
+                    if (charUpdates.social) {
+                        if (!staticChar.social) {
+                            staticChar.social = {};
+                        }
+                        // 合并除了 relationships 之外的 social 字段
+                        const socialUpdates = { ...charUpdates.social };
+                        delete socialUpdates.relationships; // relationships 已经在上面处理
+                        staticChar.social = deepmerge(staticChar.social, socialUpdates);
                     }
                 }
             }
@@ -575,24 +673,118 @@ _syncUiWithRetry() {
                 }
             }
 
-            // 更新故事线动态
+            // 更新故事线动态和静态
             if (updates.storylines) {
+                console.group('[SBE-PROBE] 故事线更新流程启动');
+                this.info(`检测到故事线更新请求，分类数量: ${Object.keys(updates.storylines).length}`);
+                console.log('史官输出的完整 updates.storylines:', JSON.parse(JSON.stringify(updates.storylines)));
+
                 for (const category in updates.storylines) { // main_quests, side_quests...
+                    console.group(`[SBE-PROBE] 处理分类: ${category}`);
+                    this.info(`  -> 当前分类: ${category}, 故事线数量: ${Object.keys(updates.storylines[category]).length}`);
+
                     if (!workingChapter.dynamicState.storylines[category]) {
                         workingChapter.dynamicState.storylines[category] = {};
+                        this.info(`  -> 已初始化 dynamicState.storylines.${category}`);
                     }
+                    if (!workingChapter.staticMatrices.storylines[category]) {
+                        workingChapter.staticMatrices.storylines[category] = {};
+                        this.info(`  -> 已初始化 staticMatrices.storylines.${category}`);
+                    }
+
+                    console.log(`现有的 staticMatrices.storylines.${category} 故事线:`, Object.keys(workingChapter.staticMatrices.storylines[category]));
+
                     for (const storylineId in updates.storylines[category]) {
+                        console.group(`[SBE-PROBE] 处理故事线: ${storylineId}`);
                         const storylineUpdate = updates.storylines[category][storylineId];
+                        this.info(`  -> 正在处理故事线: ${category}/${storylineId}`);
+                        console.log('史官提供的更新内容:', JSON.parse(JSON.stringify(storylineUpdate)));
+
+                        // 确保故事线在 staticMatrices 中存在
+                        if (!workingChapter.staticMatrices.storylines[category][storylineId]) {
+                            this.warn(`❌ 警告：尝试更新不存在的故事线 ${category}/${storylineId}，跳过此更新`);
+                            console.log('现有故事线列表:', Object.keys(workingChapter.staticMatrices.storylines[category]));
+                            console.groupEnd();
+                            continue;
+                        }
+
+                        // 更新动态状态
                         if (!workingChapter.dynamicState.storylines[category][storylineId]) {
                             workingChapter.dynamicState.storylines[category][storylineId] = { history: [] };
+                            this.info(`  -> 已初始化 dynamicState.storylines.${category}.${storylineId}`);
                         }
-                        const targetStoryline = workingChapter.dynamicState.storylines[category][storylineId];
-                        
-                        if (storylineUpdate.current_status) targetStoryline.current_status = storylineUpdate.current_status;
-                        if (storylineUpdate.current_summary) targetStoryline.current_summary = storylineUpdate.current_summary;
-                        if (storylineUpdate.history_entry) targetStoryline.history.push(storylineUpdate.history_entry);
+                        const dynamicStoryline = workingChapter.dynamicState.storylines[category][storylineId];
+                        console.log('更新前的动态状态:', JSON.parse(JSON.stringify(dynamicStoryline)));
+
+                        let dynamicUpdated = false;
+                        if (storylineUpdate.current_status) {
+                            dynamicStoryline.current_status = storylineUpdate.current_status;
+                            this.info(`    ✓ 已更新 current_status: ${storylineUpdate.current_status}`);
+                            dynamicUpdated = true;
+                        }
+                        if (storylineUpdate.current_summary) {
+                            dynamicStoryline.current_summary = storylineUpdate.current_summary;
+                            this.info(`    ✓ 已更新 current_summary: ${storylineUpdate.current_summary.substring(0, 50)}...`);
+                            dynamicUpdated = true;
+                        }
+                        if (storylineUpdate.history_entry) {
+                            dynamicStoryline.history.push(storylineUpdate.history_entry);
+                            this.info(`    ✓ 已添加历史记录条目`);
+                            dynamicUpdated = true;
+                        }
+
+                        // 【关键修复】更新静态字段
+                        const staticStoryline = workingChapter.staticMatrices.storylines[category][storylineId];
+                        console.log('更新前的静态状态:', JSON.parse(JSON.stringify(staticStoryline)));
+
+                        let staticUpdated = false;
+                        // 更新基本字段（如果史官提供了新值）
+                        if (storylineUpdate.title) {
+                            staticStoryline.title = storylineUpdate.title;
+                            this.info(`    ✓ 已更新静态字段 title: ${storylineUpdate.title}`);
+                            staticUpdated = true;
+                        }
+                        if (storylineUpdate.summary) {
+                            staticStoryline.summary = storylineUpdate.summary;
+                            this.info(`    ✓ 已更新静态字段 summary: ${storylineUpdate.summary.substring(0, 50)}...`);
+                            staticUpdated = true;
+                        }
+                        if (storylineUpdate.status) {
+                            staticStoryline.status = storylineUpdate.status;
+                            this.info(`    ✓ 已更新静态字段 status: ${storylineUpdate.status}`);
+                            staticUpdated = true;
+                        }
+                        if (storylineUpdate.trigger) {
+                            staticStoryline.trigger = storylineUpdate.trigger;
+                            this.info(`    ✓ 已更新静态字段 trigger: ${storylineUpdate.trigger}`);
+                            staticUpdated = true;
+                        }
+                        if (storylineUpdate.type) {
+                            staticStoryline.type = storylineUpdate.type;
+                            this.info(`    ✓ 已更新静态字段 type: ${storylineUpdate.type}`);
+                            staticUpdated = true;
+                        }
+                        if (storylineUpdate.involved_chars) {
+                            staticStoryline.involved_chars = storylineUpdate.involved_chars;
+                            this.info(`    ✓ 已更新静态字段 involved_chars: [${storylineUpdate.involved_chars.join(', ')}]`);
+                            staticUpdated = true;
+                        }
+
+                        if (dynamicUpdated || staticUpdated) {
+                            this.info(`  ✅ 故事线 ${category}/${storylineId} 更新完成 (动态:${dynamicUpdated}, 静态:${staticUpdated})`);
+                        } else {
+                            this.warn(`  ⚠️ 故事线 ${category}/${storylineId} 没有任何字段被更新`);
+                        }
+
+                        console.log('更新后的动态状态:', JSON.parse(JSON.stringify(dynamicStoryline)));
+                        console.log('更新后的静态状态:', JSON.parse(JSON.stringify(staticStoryline)));
+                        console.groupEnd();
                     }
+                    console.groupEnd();
                 }
+                console.groupEnd();
+            } else {
+                this.info("史官未提供任何故事线更新（updates.storylines 为空）");
             }
             this.diagnose(" -> 实体动态状态已更新。", updates);
         }
@@ -1226,15 +1418,52 @@ async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessag
     setNarrativeFocus(focusText) {
         if (this.currentChapter && typeof focusText === 'string') {
             this.currentChapter.playerNarrativeFocus = focusText.trim();
-            
+
             // 保存状态。由于这是在用户交互后立即发生，我们直接保存到 localStorage
-            stateManager.saveChapterState(this.currentChapter); 
-            
+            stateManager.saveChapterState(this.currentChapter);
+
             this.info(`叙事焦点已更新为: "${this.currentChapter.playerNarrativeFocus}"`);
             this.toastr.success("下一章的叙事焦点已设定！建筑师AI将会参考您的意见。", "罗盘已校准");
-            
+
             // 触发一次UI更新，以防有显示焦点的地方
             $(document).trigger('sbt-chapter-updated', [this.currentChapter]);
+        }
+    }
+
+    async saveCharacterEdit(charId, updatedChapterState) {
+        this.info(`--- 保存角色 ${charId} 的编辑内容 ---`);
+
+        try {
+            // 查找最后一条AI消息作为锚点
+            const chat = this.USER.getContext().chat;
+            let lastAiMessageIndex = -1;
+
+            for (let i = chat.length - 1; i >= 0; i--) {
+                if (chat[i] && !chat[i].is_user) {
+                    lastAiMessageIndex = i;
+                    break;
+                }
+            }
+
+            if (lastAiMessageIndex === -1) {
+                throw new Error("未找到可锚定的AI消息");
+            }
+
+            // 将更新后的状态锚定到消息上
+            const anchorMessage = chat[lastAiMessageIndex];
+            anchorMessage.leader = updatedChapterState.toJSON ? updatedChapterState.toJSON() : updatedChapterState;
+
+            // 保存聊天记录
+            this.USER.saveChat();
+
+            // 更新当前章节引用
+            this.currentChapter = updatedChapterState;
+
+            this.info(`角色 ${charId} 的编辑已成功保存到消息索引 ${lastAiMessageIndex}`);
+
+        } catch (error) {
+            this.diagnose("保存角色编辑失败:", error);
+            throw error;
         }
     }
 

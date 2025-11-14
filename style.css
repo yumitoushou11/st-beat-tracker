@@ -599,17 +599,17 @@ input:checked + .sbt-slider:before {
 
 .sbt-character-detail-header {
     background: linear-gradient(135deg, var(--sbt-bg-dark) 0%, var(--sbt-bg-medium) 100%);
-    padding: 20px;
-    border-radius: 4px;
+    padding: 12px 15px;
+    border-radius: 3px;
     border-bottom: 2px solid var(--sbt-primary-accent);
-    margin-bottom: 20px;
+    margin-bottom: 8px;
 }
 
 .sbt-character-detail-name {
-    font-size: 1.5em;
-    font-weight: bold;
+    font-size: 1.3em;
+    font-weight: 600;
     color: var(--sbt-primary-accent);
-    margin: 0 0 8px 0;
+    margin: 0 0 4px 0;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -622,39 +622,44 @@ input:checked + .sbt-slider:before {
 }
 
 .sbt-character-detail-section {
-    margin-bottom: 20px;
+    margin-bottom: 4px;
     background-color: var(--sbt-bg-darker);
-    padding: 15px;
-    border-radius: 4px;
-    border-left: 3px solid var(--sbt-primary-accent);
+    padding: 4px 6px;
+    border-radius: 3px;
+    border-left: 2px solid var(--sbt-primary-accent);
 }
 
 .sbt-character-detail-section-title {
-    font-size: 1.1em;
-    font-weight: bold;
+    font-size: 0.9em;
+    font-weight: 600;
     color: var(--sbt-text-light);
-    margin: 0 0 10px 0;
+    margin: 0 0 2px 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 3px;
+}
+
+.sbt-character-detail-section-title i {
+    font-size: 0.85em;
 }
 
 .sbt-character-detail-section-content {
     color: var(--sbt-text-medium);
-    line-height: 1.6;
+    line-height: 1.3;
     white-space: pre-wrap;
+    font-size: 0.9em;
 }
 
 .sbt-character-relationship-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: 10px;
-    margin-top: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px;
+    margin-top: 4px;
 }
 
 .sbt-character-relationship-card {
     background-color: var(--sbt-bg-dark);
-    padding: 10px;
+    padding: 6px 8px;
     border-radius: 4px;
     border: 1px solid var(--sbt-border-color);
 }
@@ -731,118 +736,747 @@ input:checked + .sbt-slider:before {
     border-color: var(--sbt-primary-accent);
 }
 
-/* --- [可编辑标签系统] --- */
+/* --- [字段显示系统 - 档案风格] --- */
 
-/* 标签列表容器 */
+/* === 三级字号系统 === */
+/* 大号 1em: Section标题 */
+/* 标准 0.9em: 正文内容、标签、按钮、字段标签 */
+/* 小号 0.85em: 辅助提示 */
+
+/* 编辑模式切换按钮 */
+.sbt-edit-mode-toggle {
+    margin-top: 8px;
+    padding: 4px 10px;
+    background-color: transparent;
+    border: 1px solid rgba(10, 132, 255, 0.4);
+    border-radius: 4px;
+    color: var(--sbt-primary-accent);
+    cursor: pointer;
+    font-size: 0.9em; /* 标准字号 */
+    transition: all 0.2s ease;
+}
+
+.sbt-edit-mode-toggle:hover {
+    background-color: rgba(10, 132, 255, 0.1);
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-edit-mode-toggle i {
+    margin-right: 3px;
+}
+
+/* 内容包裹容器 */
+.sbt-content-wrapper {
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    padding: 4px 8px;
+    line-height: 1.3;
+}
+
+/* 紧凑字段显示 */
+.sbt-compact-fields {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sbt-field-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 4px;
+    line-height: 1.3;
+}
+
+.sbt-field-key {
+    color: rgba(10, 132, 255, 0.85);
+    font-size: 0.9em; /* 标准字号 - 与标签一致 */
+    font-weight: 500;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+/* 标签列表 */
 .sbt-tag-list {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 5px;
+    gap: 4px;
+    margin: 0;
 }
 
-/* 标签包装器 */
-.sbt-tag-wrapper {
+.sbt-field-row .sbt-tag-list {
     display: inline-flex;
-    align-items: center;
-    position: relative;
 }
 
-/* 可编辑标签 */
-.sbt-editable-tag {
+/* 标签样式 */
+.sbt-tag {
     display: inline-block;
-    padding: 4px 24px 4px 10px;
+    padding: 2px 8px;
+    background-color: rgba(10, 132, 255, 0.12);
+    border: none;
+    border-radius: 3px;
+    font-size: 0.9em; /* 标准字号 */
+    color: var(--sbt-text-light);
+    transition: all 0.15s ease;
+    font-weight: 400;
+}
+
+.sbt-tag:hover {
+    background-color: rgba(10, 132, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+/* 文本内容 */
+.sbt-text-content {
+    color: var(--sbt-text-light);
+    line-height: 1.4;
+    font-size: 0.9em; /* 标准字号 */
+}
+
+/* 空文本 */
+.sbt-empty-text {
+    color: var(--sbt-text-medium);
+    font-style: italic;
+    opacity: 0.5;
+    font-size: 0.85em; /* 小号字号 */
+}
+
+/* --- [SECTION 14] 角色编辑模式样式 --- */
+
+/* 编辑操作按钮容器 */
+.sbt-character-detail-actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+    justify-content: flex-start;
+}
+
+/* 可编辑的文本字段 */
+.sbt-editable-text {
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    padding: 8px;
+    color: var(--sbt-text-light);
+    min-height: 30px;
+    cursor: text;
+    transition: all 0.2s ease;
+}
+
+.sbt-editable-text:hover {
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-editable-text:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    background-color: var(--sbt-bg-medium);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
+}
+
+/* 可编辑的文本区域 */
+.sbt-editable-textarea {
+    width: 100%;
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 3px;
+    padding: 6px 8px;
+    color: var(--sbt-text-light);
+    font-family: inherit;
+    font-size: 0.9em;
+    line-height: 1.4;
+    min-height: 80px;
+    resize: vertical;
+    transition: all 0.2s ease;
+}
+
+.sbt-editable-textarea:hover {
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-editable-textarea:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    background-color: var(--sbt-bg-medium);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
+}
+
+/* 可编辑的标签 */
+.sbt-tag-editable {
+    display: inline-block;
+    padding: 4px 10px;
     background-color: rgba(10, 132, 255, 0.15);
-    border: 1px solid rgba(10, 132, 255, 0.3);
-    border-radius: 12px;
+    border: 1px solid var(--sbt-primary-accent);
+    border-radius: 3px;
     font-size: 0.9em;
     color: var(--sbt-text-light);
     cursor: text;
-    transition: all 0.2s ease;
-    outline: none;
-    min-width: 30px;
+    transition: all 0.15s ease;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    min-width: 60px;
 }
 
-.sbt-editable-tag:hover {
+.sbt-tag-editable:hover {
     background-color: rgba(10, 132, 255, 0.25);
-    border-color: var(--sbt-primary-accent);
 }
 
-.sbt-editable-tag:focus {
+.sbt-tag-editable:focus {
+    outline: none;
     background-color: rgba(10, 132, 255, 0.3);
-    border-color: var(--sbt-primary-accent);
     box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.2);
+}
+
+/* 空标签的placeholder效果 */
+.sbt-tag-editable:empty:before {
+    content: attr(placeholder);
+    color: var(--sbt-text-medium);
+    opacity: 0.5;
+    font-style: italic;
+}
+
+.sbt-tag-editable:empty:focus:before {
+    content: "";
 }
 
 /* 标签删除按钮 */
 .sbt-tag-delete {
-    position: absolute;
-    right: 6px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--sbt-text-medium);
+    display: inline-block;
+    padding: 4px 6px;
+    margin-left: 2px;
+    margin-right: 5px;
+    margin-bottom: 5px;
+    color: var(--sbt-danger-color);
     cursor: pointer;
+    border-radius: 3px;
+    transition: all 0.15s ease;
     font-size: 0.85em;
-    padding: 2px;
-    opacity: 0.6;
-    transition: all 0.2s ease;
 }
 
 .sbt-tag-delete:hover {
-    color: var(--sbt-danger-color);
-    opacity: 1;
+    background-color: var(--sbt-danger-color);
+    color: var(--sbt-bg-darker);
 }
 
 /* 添加标签按钮 */
-.sbt-add-tag-btn {
+.sbt-tag-add-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
     padding: 4px 10px;
-    background-color: rgba(48, 209, 88, 0.15);
-    border: 1px dashed rgba(48, 209, 88, 0.4);
-    border-radius: 12px;
-    font-size: 0.85em;
-    color: var(--sbt-success-color);
+    background-color: rgba(10, 132, 255, 0.1);
+    border: 1px dashed var(--sbt-primary-accent);
+    border-radius: 3px;
+    color: var(--sbt-primary-accent);
     cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.15s ease;
+    margin-bottom: 5px;
+}
+
+.sbt-tag-add-btn:hover {
+    background-color: rgba(10, 132, 255, 0.2);
+    border-style: solid;
+}
+
+.sbt-tag-add-btn i {
+    font-size: 0.8em;
+}
+
+/* 保存和取消按钮 */
+.sbt-save-character-btn {
+    background-color: var(--sbt-success-color);
+    color: var(--sbt-bg-darker);
+    border: none;
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85em;
+    font-weight: 500;
     transition: all 0.2s ease;
 }
 
-.sbt-add-tag-btn:hover {
-    background-color: rgba(48, 209, 88, 0.25);
-    border-style: solid;
-    border-color: var(--sbt-success-color);
+.sbt-save-character-btn:hover:not(:disabled) {
+    background-color: #28B84A;
 }
 
-.sbt-add-tag-btn i {
-    margin-right: 3px;
+.sbt-save-character-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
-/* 可编辑文本 */
-.sbt-editable-text {
-    display: inline;
-    padding: 2px 4px;
+.sbt-cancel-edit-btn {
+    background-color: transparent;
+    color: var(--sbt-text-light);
+    border: 1px solid var(--sbt-border-color);
+    padding: 4px 10px;
     border-radius: 3px;
-    cursor: text;
-    transition: background-color 0.2s ease;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+}
+
+.sbt-cancel-edit-btn:hover {
+    background-color: rgba(10, 132, 255, 0.1);
+    border-color: var(--sbt-primary-accent);
+}
+
+/* 编辑模式下的标签列表 */
+.sbt-tag-list {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px;
+}
+
+/* 好感度输入框 */
+.sbt-affinity-input {
+    width: 60px;
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 3px;
+    padding: 2px 6px;
+    color: var(--sbt-text-light);
+    font-size: 0.9em;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.sbt-affinity-input:hover {
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-affinity-input:focus {
     outline: none;
+    border-color: var(--sbt-primary-accent);
+    background-color: var(--sbt-bg-medium);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
 }
 
-.sbt-editable-text:hover {
-    background-color: rgba(255, 255, 255, 0.05);
+/* 基本信息输入框 */
+.sbt-name-input {
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid var(--sbt-border-color);
+    color: var(--sbt-primary-accent);
+    font-size: 1.5em;
+    font-weight: bold;
+    padding: 2px 5px;
+    width: auto;
+    min-width: 100px;
+    transition: all 0.2s ease;
 }
 
-.sbt-editable-text:focus {
-    background-color: rgba(10, 132, 255, 0.15);
-    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.2);
+.sbt-name-input:hover {
+    border-bottom-color: var(--sbt-primary-accent);
 }
 
-/* 字段组样式优化 */
-.sbt-field-group {
+.sbt-name-input:focus {
+    outline: none;
+    border-bottom-color: var(--sbt-primary-accent);
+    background-color: rgba(10, 132, 255, 0.05);
+}
+
+.sbt-basic-input {
+    background-color: transparent;
+    border: none;
+    border-bottom: 1px solid var(--sbt-border-color);
+    color: var(--sbt-text-medium);
+    font-size: 1em;
+    padding: 2px 5px;
+    width: auto;
+    min-width: 60px;
+    transition: all 0.2s ease;
+}
+
+.sbt-basic-input:hover {
+    border-bottom-color: var(--sbt-primary-accent);
+}
+
+.sbt-basic-input:focus {
+    outline: none;
+    border-bottom-color: var(--sbt-primary-accent);
+    background-color: rgba(10, 132, 255, 0.05);
+    color: var(--sbt-text-light);
+}
+
+.sbt-basic-input.sbt-small-input {
+    min-width: 40px;
+    max-width: 80px;
+}
+
+/* 世界观档案编辑 */
+.sbt-archive-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
     margin-bottom: 8px;
 }
 
-.sbt-field-label {
-    margin-bottom: 4px;
+.sbt-archive-item-actions {
+    display: flex;
+    gap: 5px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
 }
 
-.sbt-field-content {
-    padding-left: 0;
+.sbt-archive-item:hover .sbt-archive-item-actions {
+    opacity: 1;
+}
+
+/* 世界观卡片新布局 */
+.sbt-worldview-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.sbt-worldview-card-content {
+    flex: 1;
+    cursor: pointer;
+    padding-right: 10px;
+}
+
+.sbt-worldview-card-actions {
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.sbt-worldview-card:hover .sbt-worldview-card-actions {
+    opacity: 1;
+}
+
+/* 卡片上的编辑按钮 */
+.sbt-worldview-edit-btn {
+    background-color: rgba(10, 132, 255, 0.15);
+    border: 1px solid rgba(10, 132, 255, 0.5);
+    color: var(--sbt-primary-accent);
+    padding: 5px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 500;
+}
+
+.sbt-worldview-edit-btn:hover {
+    background-color: rgba(10, 132, 255, 0.25);
+    border-color: var(--sbt-primary-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(10, 132, 255, 0.3);
+}
+
+.sbt-worldview-edit-btn i {
+    font-size: 1em;
+}
+
+/* 详情面板中的编辑按钮 */
+.sbt-edit-worldview-mode-toggle {
+    background-color: transparent;
+    border: 1px solid rgba(10, 132, 255, 0.4);
+    color: var(--sbt-primary-accent);
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    transition: all 0.2s ease;
+    font-weight: 500;
+}
+
+.sbt-edit-worldview-mode-toggle:hover {
+    background-color: rgba(10, 132, 255, 0.15);
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-edit-worldview-mode-toggle i {
+    margin-right: 4px;
+}
+
+/* 删除按钮 */
+.sbt-delete-worldview-item-btn {
+    background-color: rgba(255, 69, 58, 0.1);
+    border: 1px solid rgba(255, 69, 58, 0.5);
+    color: var(--sbt-danger-color);
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+}
+
+/* 编辑模式下的删除按钮（在按钮组右侧） */
+.sbt-character-detail-actions .sbt-delete-worldview-item-btn {
+    margin-left: auto; /* 将删除按钮推到右侧 */
+}
+
+.sbt-delete-worldview-item-btn:hover {
+    background-color: rgba(255, 69, 58, 0.2);
+    border-color: var(--sbt-danger-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(255, 69, 58, 0.3);
+}
+
+.sbt-delete-worldview-item-btn i {
+    margin-right: 4px;
+}
+
+/* 保存和取消按钮（编辑模式） */
+.sbt-save-worldview-item-btn {
+    background-color: var(--sbt-success-color);
+    color: var(--sbt-bg-darker);
+    border: none;
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.sbt-save-worldview-item-btn:hover:not(:disabled) {
+    background-color: #28B84A;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(48, 209, 88, 0.3);
+}
+
+.sbt-save-worldview-item-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.sbt-save-worldview-item-btn i {
+    margin-right: 4px;
+}
+
+.sbt-cancel-worldview-edit-btn {
+    background-color: transparent;
+    color: var(--sbt-text-light);
+    border: 1px solid var(--sbt-border-color);
+    padding: 6px 14px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+.sbt-cancel-worldview-edit-btn:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--sbt-text-medium);
+}
+
+.sbt-cancel-worldview-edit-btn i {
+    margin-right: 4px;
+}
+
+/* 编辑界面样式 */
+.sbt-worldview-edit-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sbt-worldview-textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 12px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-light);
+    font-size: 0.95em;
+    line-height: 1.6;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.sbt-worldview-textarea:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    background-color: var(--sbt-bg-dark);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
+}
+
+.sbt-worldview-textarea::placeholder {
+    color: var(--sbt-text-medium);
+    opacity: 0.6;
+}
+
+.sbt-worldview-edit-tips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: rgba(10, 132, 255, 0.1);
+    border-left: 3px solid var(--sbt-primary-accent);
+    border-radius: 4px;
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+}
+
+.sbt-worldview-edit-tips i {
+    color: var(--sbt-primary-accent);
+}
+
+/* 查看模式内容样式 */
+.sbt-worldview-content {
+    padding: 10px 0;
+}
+
+.sbt-worldview-content p {
+    margin: 0;
+    line-height: 1.7;
+    color: var(--sbt-text-light);
+}
+
+.sbt-empty-text {
+    color: var(--sbt-text-medium);
+    font-style: italic;
+    opacity: 0.7;
+}
+
+/* 世界观名称输入框（比角色名称小） */
+.sbt-worldview-name-input {
+    background-color: transparent;
+    border: none;
+    border-bottom: 2px solid var(--sbt-border-color);
+    color: var(--sbt-primary-accent);
+    font-size: 1.1em;
+    font-weight: 600;
+    padding: 4px 8px;
+    width: auto;
+    min-width: 150px;
+    max-width: 400px;
+    transition: all 0.2s ease;
+}
+
+.sbt-worldview-name-input:hover {
+    border-bottom-color: var(--sbt-primary-accent);
+}
+
+.sbt-worldview-name-input:focus {
+    outline: none;
+    border-bottom-color: var(--sbt-primary-accent);
+    background-color: rgba(10, 132, 255, 0.05);
+    box-shadow: 0 2px 0 0 rgba(10, 132, 255, 0.2);
+}
+
+.sbt-worldview-name-input::placeholder {
+    color: var(--sbt-text-medium);
+    opacity: 0.5;
+}
+
+.sbt-add-worldview-btn {
+    background-color: rgba(10, 132, 255, 0.08);
+    border: 2px dashed rgba(10, 132, 255, 0.4);
+    color: var(--sbt-primary-accent);
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9em;
+    transition: all 0.2s ease;
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.sbt-add-worldview-btn:hover {
+    background-color: rgba(10, 132, 255, 0.15);
+    border-style: solid;
+    border-color: var(--sbt-primary-accent);
+    transform: translateY(-1px);
+}
+
+.sbt-add-worldview-btn i {
+    margin-right: 6px;
+}
+
+/* 新建角色按钮 */
+.sbt-add-character-btn {
+    background-color: rgba(10, 132, 255, 0.08);
+    border: 2px dashed rgba(10, 132, 255, 0.4);
+    color: var(--sbt-primary-accent);
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9em;
+    transition: all 0.2s ease;
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.sbt-add-character-btn:hover {
+    background-color: rgba(10, 132, 255, 0.15);
+    border-style: solid;
+    border-color: var(--sbt-primary-accent);
+    transform: translateY(-1px);
+}
+
+.sbt-add-character-btn i {
+    margin-right: 6px;
+}
+
+/* 删除角色按钮 */
+.sbt-delete-character-btn {
+    background-color: rgba(255, 69, 58, 0.1);
+    border: 1px solid rgba(255, 69, 58, 0.5);
+    color: var(--sbt-danger-color);
+    padding: 4px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+}
+
+/* 编辑模式下的删除角色按钮（在按钮组右侧） */
+.sbt-character-detail-actions .sbt-delete-character-btn {
+    margin-left: auto; /* 将删除按钮推到右侧 */
+}
+
+.sbt-delete-character-btn:hover {
+    background-color: rgba(255, 69, 58, 0.2);
+    border-color: var(--sbt-danger-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(255, 69, 58, 0.3);
+}
+
+.sbt-delete-character-btn i {
+    margin-right: 4px;
+}
+
+/* 故事线历史记录样式 */
+.sbt-storyline-history {
+    margin-top: 12px;
+    padding: 10px;
+    background-color: rgba(10, 132, 255, 0.05);
+    border-left: 3px solid var(--sbt-primary-accent);
+    border-radius: 4px;
+}
+
+.sbt-storyline-history-title {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--sbt-primary-accent);
+    margin-bottom: 8px;
+}
+
+.sbt-storyline-history-entry {
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+    margin-bottom: 6px;
+    padding-left: 8px;
+}
+
+.sbt-storyline-timestamp {
+    color: var(--sbt-text-light);
+    font-weight: 500;
+    margin-right: 4px;
 }

@@ -13,9 +13,21 @@ export class HistorianAgent extends Agent {
         console.groupEnd();
 
         const prompt = this._createPrompt(context);
-        
+
         console.groupCollapsed('[SBT-HISTORIAN] Full Historian AI System Prompt V3.0');
         console.log(prompt);
+        console.groupEnd();
+
+        // 【探针】检查输入的章节数据中的故事线信息
+        console.group('[HISTORIAN-PROBE] 输入章节数据检查');
+        console.log('staticMatrices.storylines 键:', Object.keys(context.chapter.staticMatrices.storylines));
+        Object.entries(context.chapter.staticMatrices.storylines).forEach(([cat, quests]) => {
+            console.log(`  ${cat}: ${Object.keys(quests).length} 条`, Object.keys(quests));
+        });
+        console.log('dynamicState.storylines 键:', Object.keys(context.chapter.dynamicState.storylines));
+        Object.entries(context.chapter.dynamicState.storylines).forEach(([cat, states]) => {
+            console.log(`  ${cat}: ${Object.keys(states).length} 条`, Object.keys(states));
+        });
         console.groupEnd();
 
         const messages = [{ role: 'user', content: prompt }];
@@ -42,13 +54,33 @@ export class HistorianAgent extends Agent {
             }
         }
         
-        const result = repairAndParseJson(potentialJsonString, this); 
+        const result = repairAndParseJson(potentialJsonString, this);
  if (!result || (result.creations === undefined && result.updates === undefined)) {
                 this.diagnose("史官AI返回的JSON结构不完整（缺少creations或updates块）。Raw Response:", responseText);
                 throw new Error("史官AI未能返回包含 'creations' 或 'updates' 的有效JSON Delta。");
             }
             if (result.creations === undefined) result.creations = {};
             if (result.updates === undefined) result.updates = {};
+
+            // 【探针】检查故事线更新
+            console.group('[HISTORIAN-PROBE] 故事线更新检查');
+            if (result.updates.storylines) {
+                const categories = Object.keys(result.updates.storylines);
+                this.info(`✓ 史官输出了故事线更新，分类数: ${categories.length}`);
+                categories.forEach(cat => {
+                    const storylines = Object.keys(result.updates.storylines[cat]);
+                    this.info(`  -> ${cat}: ${storylines.length} 条故事线`);
+                    storylines.forEach(id => {
+                        const update = result.updates.storylines[cat][id];
+                        const fields = Object.keys(update);
+                        this.info(`    -> ${id}: 包含字段 [${fields.join(', ')}]`);
+                        console.log(`      完整内容:`, JSON.parse(JSON.stringify(update)));
+                    });
+                });
+            } else {
+                this.warn('❌ 史官未输出任何故事线更新 (updates.storylines 不存在或为空)');
+            }
+            console.groupEnd();
 
             this.info("--- 首席史官AI--- 审查完毕，数据库事务增量已生成。");            console.groupCollapsed('[SBT-HISTORIAN-PROBE] Final Parsed Output');
             console.dir(JSON.parse(JSON.stringify(result)));
@@ -76,6 +108,20 @@ export class HistorianAgent extends Agent {
         const dynamicState = chapter.dynamicState;
         const longTermStorySummary = chapter.meta.longTermStorySummary; // 新路径
         const activeChapterBlueprint = chapter.chapter_blueprint;
+        // 【探针】生成实体清单前先检查数据
+        console.group('[HISTORIAN-PROBE] 生成实体清单');
+        console.log('staticMatrices.storylines 结构:', JSON.parse(JSON.stringify(staticMatrices.storylines)));
+
+        const storylineList = Object.entries(staticMatrices.storylines).flatMap(([category, quests]) => {
+            console.log(`  -> 分类 ${category}: ${Object.keys(quests).length} 条故事线`);
+            return Object.entries(quests).map(([id, data]) => {
+                console.log(`    -> ${id}: ${data.title}`);
+                return `- ${data.title} (ID: ${id}, 分类: ${category})`;
+            });
+        });
+        console.log('生成的故事线列表:', storylineList);
+        console.groupEnd();
+
         const existingEntityManifest = `
 <existing_characters>
 ${Object.entries(staticMatrices.characters).map(([id, data]) => `- ${data.name} (ID: ${id})`).join('\n')}
@@ -84,9 +130,7 @@ ${Object.entries(staticMatrices.characters).map(([id, data]) => `- ${data.name} 
 ${Object.entries(staticMatrices.worldview.locations).map(([id, data]) => `- ${data.name} (ID: ${id})`).join('\n')}
 </existing_locations>
 <existing_storylines>
-${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) => 
-    Object.entries(quests).map(([id, data]) => `- ${data.title} (ID: ${id})`)
-).join('\n')}
+${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 </existing_storylines>
 `;
 
@@ -161,23 +205,59 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
     *   更新 \`current_affinity\` 为本章结束后的最终值。
     *   创建一个新的 \`history_entry\` 对象，记录本次变化的细节（change, final_affinity, reasoning）。你的reasoning必须体现你是如何运用“四步法”得出结论的。
 
-### **方法论三：故事线网络维护 (STORYLINE MANAGEMENT)**
--   **【执行方法】**: 遍历【当前世界已知实体清单】中的**每一条**故事线ID。对照【本章完整对话记录】，判断其状态或摘要是否需要更新。如果需要，为其在 **\`updates.storylines.<分类>.<实体ID>\`** 路径下创建更新记录。同时，识别新的故事线萌芽，并为其执行**创生**流程。
+### **方法论三：故事线网络全维度维护 (COMPREHENSIVE STORYLINE MANAGEMENT)**
+-   **【核心哲学】**: 故事线是会随着剧情发展而演变的活跃实体，其各个方面都可能发生变化。
+-   **【执行方法】**: 遍历【当前世界已知实体清单】中的**每一条**故事线ID。对照【本章完整对话记录】，判断其是否需要更新。如果需要，为其在 **\`updates.storylines.<分类>.<实体ID>\`** 路径下创建更新记录。同时，识别新的故事线萌芽，并为其执行**创生**流程。
+-   **【可更新的故事线维度】**:
+    *   **标题** (\`title\`): 如果故事线的性质发生重大转变，可以更新标题
+    *   **摘要** (\`summary\`): 故事线的基础描述或背景信息
+    *   **状态** (\`status\`): active（进行中）、completed（已完成）、failed（已失败）、paused（已暂停）
+    *   **触发条件** (\`trigger\`): 如果触发方式发生变化
+    *   **类型** (\`type\`): 如果故事线的分类需要调整
+    *   **涉及角色** (\`involved_chars\`): 参与此故事线的角色ID数组
+-   **【输出要求】**:
+    *   在 **\`updates.storylines.<分类>.<实体ID>\`** 下，为发生变化的维度创建更新记录
+    *   **动态字段**（放在 dynamicState 中）:
+        - \`current_status\`: 本章结束后的最新状态
+        - \`current_summary\`: 本章结束后的最新进展摘要
+        - \`history_entry\`: 记录本次变化的细节（timestamp, status_change, summary_update, reasoning, source_chapter_uid）
+    *   **静态字段**（会更新 staticMatrices 中的对应值）:
+        - 如果需要更新基础信息（如 \`title\`、\`summary\`、\`trigger\`、\`type\`、\`involved_chars\`），直接输出这些字段的新值
+    *   所有字段必须使用中文字段名
 
 ### **方法论四：角色档案全维度更新 (Comprehensive Character Profile Updates)**
 -   **【核心哲学】**: 角色是多维度的存在，随着剧情发展，角色的各个方面都可能发生变化。
--   **【更新维度】**:
+-   **【更新维度及中文字段名】**:
+    *   **核心身份信息** (\`core\`): 使用中文字段名 \`name\`（姓名）、\`identity\`（身份/职业）、\`age\`（年龄）、\`gender\`（性别）、\`race_id\`（种族ID）
+        - **特别注意**: 当角色的身份发生重大变化时（如职业转变、社会地位改变、年龄增长等），必须更新 \`core.identity\` 字段
     *   **外貌变化** (\`appearance\`): 如受伤、改变穿着、变老等
-    *   **性格发展** (\`personality\`): 新增性格特质、价值观转变、说话风格改变
-    *   **目标调整** (\`goals\`): 新增或放弃目标、恐惧或欲望的变化
+    *   **性格发展** (\`personality\`): 使用中文字段名 \`性格特质\`、\`价值观\`、\`说话风格\`
+    *   **背景更新** (\`background\`): 使用中文字段名 \`出身背景\`、\`教育经历\`、\`关键经历\`、\`当前状况\`
+    *   **目标调整** (\`goals\`): 使用中文字段名 \`长期目标\`、\`短期目标\`、\`恐惧\`、\`欲望\`
     *   **秘密揭露** (\`secrets\`): 秘密被发现、新增秘密
-    *   **能力成长** (\`capabilities\`): 学习新技能、获得特殊能力、克服/产生新弱点
-    *   **装备变更** (\`equipment\`): 获得/失去物品
-    *   **社交变化** (\`social\`): 人际关系变化（使用方法论二）、加入/离开组织、声望变化
-    *   **经历积累** (\`experiences\`): 访问新地点、参与重大事件、人生里程碑
--   **【输出要求】**:
+    *   **能力成长** (\`capabilities\`): 使用中文字段名 \`战斗技能\`、\`社交技能\`、\`特殊能力\`、\`弱点\`
+    *   **装备变更** (\`equipment\`): 使用中文字段名 \`武器\`、\`护甲\`、\`配饰\`、\`物品\`
+    *   **社交变化** (\`social\`): 关系变化（使用方法论二）、使用中文字段名 \`所属组织\`、\`声望\`、\`社会地位\`
+    *   **经历积累** (\`experiences\`): 使用中文字段名 \`到访地点\`、\`参与事件\`、\`人生里程碑\`
+-   **【输出要求 - 严格执行】**:
     *   在 **\`updates.characters.<角色ID>\`** 下，为发生变化的维度创建更新记录
-    *   对于数组类型（如skills, goals），使用追加或标记移除的方式
+    *   **【【【 绝对禁止使用英文字段和操作符 】】】**:
+        - **严禁** 使用 \`operation\`、\`values\`、\`append\`、\`remove\` 等任何英文字段名！
+        - **严禁** 使用任何操作符结构（如 \`{operation: "append", values: [...]}\`）！
+        - 这些都是**旧版本的废弃格式**，现在完全禁止使用！
+    *   **【数组更新的唯一正确方式】**:
+        - 对于数组类型字段（如 \`性格特质\`、\`人生里程碑\`、\`特殊能力\` 等）
+        - **必须直接输出完整的、更新后的数组值**，包含所有旧项和新增项
+        - **不要**使用任何操作符或英文字段包装
+    *   **【正确示例】**:
+        - 原有数据: \`"性格特质": ["活泼", "勇敢"]\`
+        - 需要新增: "善于保守秘密"
+        - **正确输出**: \`"性格特质": ["活泼", "勇敢", "善于保守秘密"]\`
+    *   **【错误示例 - 绝对禁止】**:
+        - ❌ \`"性格特质": {operation: "append", values: ["善于保守秘密"]}\`
+        - ❌ \`"traits": ["活泼", "勇敢", "善于保守秘密"]\` (使用了英文字段名)
+        - ❌ \`"人生里程碑": {operation: "append", values: ["首次战斗"]}\`
+    *   **所有细分字段必须使用中文字段名**，如 \`性格特质\` 而非 \`traits\`、\`人生里程碑\` 而非 \`life_milestones\`
     *   对于\`relationships\`变化，必须遵循方法论二的规则
 
 ### **方法论五：双轨制摘要 (DUAL-TRACK SUMMARY)**
@@ -230,14 +310,29 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
   "updates": {
     "characters": {
       "char_neph_witch": { //更新的主体必须是NPC
+        "core": {
+          // 【重要】当角色的身份发生重大变化时，必须更新 identity 字段
+          "identity": "被诅咒的魔女（黑猫形态）", // 原本是"流浪黑猫"，现在身份已揭示
+          "age": "外表年轻（实际200岁+）" // 年龄信息更新
+        },
         "goals": {
-          "short_term": ["保护主角不被自己的敌人发现"] // 新增目标
+          "短期目标": ["保护主角不被自己的敌人发现", "解除诅咒"],
+          "长期目标": ["恢复人形", "找到诅咒的源头"]
         },
         "capabilities": {
-          "special_abilities": ["火焰魔法·烈焰壁"] // 新增能力
+          "特殊能力": ["火焰魔法", "火焰魔法·烈焰壁", "黑猫形态·夜视"],
+          "弱点": ["对冷水敏感", "无法使用高级魔法"]
         },
         "experiences": {
-          "life_milestones": ["首次为他人冒险"] // 新增里程碑
+          "人生里程碑": ["被诅咒成黑猫", "首次为他人冒险", "与主角建立信任"],
+          "参与事件": ["森林遭遇战", "神秘商人的警告"]
+        },
+        "personality": {
+          "性格特质": ["高傲", "孤独", "渴望自由", "内心温柔"],
+          "价值观": ["自由高于一切", "恩怨分明"]
+        },
+        "equipment": {
+          "物品": ["破损的魔法项链", "主角给予的食物"]
         },
         "social": {
           "relationships": {
@@ -247,7 +342,7 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
                 "timestamp": "{{engine_generated_timestamp}}",
                 "change": "+5",
                 "final_affinity": 25,
-                "reasoning": "在本章中，虽然言语刻薄，但在关键时刻保护了主角...",
+                "reasoning": "在本章中，虽然言语刻薄，但在关键时刻保护了主角免受森林野兽的攻击，展现了内心的善良。主角的温柔对待也让她感到温暖。",
                 "source_chapter_uid": "{{current_chapter_uid}}"
               }
             }
@@ -255,10 +350,12 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
         }
       }
       // 【关键】这里绝对不应该出现 "char_yumi_player" 作为被更新的主键
+      // 【注意】所有数组都是完整数组，包含旧值+新值，绝不使用operation/values结构
     },
     "storylines": {
       "side_quests": {
         "quest_cure_yukina": {
+          // 【动态字段】会被写入 dynamicState.storylines
           "current_status": "active",
           "current_summary": "从商人张三处得知，'月光草'或许对姐姐的病有帮助，但非常罕见。",
           "history_entry": {
@@ -267,7 +364,25 @@ ${Object.entries(staticMatrices.storylines).flatMap(([_, quests]) =>
              "summary_update": "获得了关于'月光草'的新线索。",
              "reasoning": "与新角色张三的对话，为这条个人任务线注入了新的动力和方向。",
              "source_chapter_uid": "{{current_chapter_uid}}"
-          }
+          },
+          // 【静态字段】会被写入 staticMatrices.storylines（只在需要更新基础信息时才输出）
+          "summary": "寻找治愈妹妹疾病的方法",  // 如果故事线的基础描述需要更新
+          "involved_chars": ["char_yumi_player", "char_yukina_sister", "char_zhangsan_merchant_1a2b"] // 如果参与角色发生变化
+        }
+      },
+      "main_quests": {
+        "quest_reveal_curse_origin": {
+          "current_status": "completed", // 状态变更
+          "current_summary": "成功找到了诅咒的源头，原来是古代遗迹中的邪恶封印。",
+          "history_entry": {
+             "timestamp": "{{engine_generated_timestamp}}",
+             "status_change": "completed",
+             "summary_update": "主线任务已完成，诅咒之谜已解开。",
+             "reasoning": "通过一系列调查和战斗，最终找到了诅咒的真相。",
+             "source_chapter_uid": "{{current_chapter_uid}}"
+          },
+          "title": "诅咒之源", // 可以更新标题
+          "status": "completed" // 静态状态也要同步更新
         }
       }
     }

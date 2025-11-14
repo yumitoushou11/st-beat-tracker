@@ -145,8 +145,16 @@ function renderArchiveCharacters(characters, container) {
 
     container.empty();
 
+    // 添加新建角色按钮
+    const addBtnHtml = `
+        <button class="sbt-add-character-btn" title="手动创建新角色档案">
+            <i class="fa-solid fa-user-plus fa-fw"></i> 新建角色
+        </button>
+    `;
+    container.append(addBtnHtml);
+
     if (!characters || Object.keys(characters).length === 0) {
-        container.html('<p class="sbt-instructions">暂无角色档案。</p>');
+        container.append('<p class="sbt-instructions">暂无角色档案。</p>');
         return;
     }
 
@@ -189,117 +197,105 @@ function renderArchiveCharacters(characters, container) {
  * @description 显示角色详情面板（内嵌展开式）
  * @param {string} charId - 角色ID
  * @param {object} chapterState - 完整的Chapter对象
+ * @param {boolean} editMode - 是否进入编辑模式
+ * @param {boolean} isNew - 是否是新建角色
  */
-function showCharacterDetailModal(charId, chapterState) {
-    const char = chapterState.staticMatrices.characters[charId];
-    if (!char) return;
+function showCharacterDetailModal(charId, chapterState, editMode = false, isNew = false) {
+    let char = chapterState.staticMatrices.characters[charId];
 
-    // 字段名中文映射表
-    const fieldNameMap = {
-        // 性格心理
-        'traits': '性格特质',
-        'values': '价值观',
-        'speech_style': '说话风格',
+    // 如果是新建角色，创建空对象
+    if (isNew) {
+        char = {
+            core: {
+                name: '',
+                identity: '',
+                age: '',
+                gender: '',
+                isProtagonist: false
+            },
+            appearance: '',
+            personality: '',
+            background: '',
+            goals: '',
+            capabilities: '',
+            equipment: '',
+            social: {
+                relationships: {}
+            }
+        };
+    }
 
-        // 背景故事
-        'origin': '出身背景',
-        'education': '教育经历',
-        'key_experiences': '关键经历',
-        'current_situation': '当前状况',
+    if (!char && !isNew) return;
 
-        // 目标与动机
-        'long_term': '长期目标',
-        'short_term': '短期目标',
-        'fears': '恐惧',
-        'desires': '欲望',
+    // 编辑模式状态
+    const isEditMode = editMode || isNew;
 
-        // 能力技能
-        'combat_skills': '战斗技能',
-        'social_skills': '社交技能',
-        'special_abilities': '特殊能力',
-        'weaknesses': '弱点',
-
-        // 装备资源
-        'weapons': '武器',
-        'armor': '护甲',
-        'accessories': '配饰',
-        'possessions': '物品',
-
-        // 社交网络
-        'relationships': '人际关系',
-        'affiliations': '所属组织',
-        'reputation': '声望',
-        'social_status': '社会地位',
-
-        // 经历与成长
-        'visited_locations': '到访地点',
-        'participated_events': '参与事件',
-        'life_milestones': '人生里程碑'
+    // 渲染标签（查看/编辑模式）
+    const renderTag = (value, dataPath = '', index = null, editMode = false) => {
+        if (editMode) {
+            return `<span class="sbt-tag sbt-tag-editable" data-path="${dataPath}" data-index="${index}" contenteditable="true">${value}</span><i class="fa-solid fa-xmark sbt-tag-delete" data-path="${dataPath}" data-index="${index}"></i>`;
+        }
+        return `<span class="sbt-tag">${value}</span>`;
     };
 
-    // 生成可编辑的标签HTML
-    const renderEditableTag = (value, dataPath, index = null) => {
-        const actualIndex = index !== null ? index : '';
-        const deleteBtn = `<i class="fa-solid fa-xmark sbt-tag-delete" data-path="${dataPath}" data-index="${actualIndex}"></i>`;
-        return `<span class="sbt-editable-tag" data-path="${dataPath}" data-index="${actualIndex}" contenteditable="true">${value}</span>${deleteBtn}`;
+    // 渲染添加按钮
+    const renderAddButton = (dataPath) => {
+        return `<button class="sbt-tag-add-btn" data-path="${dataPath}"><i class="fa-solid fa-plus"></i></button>`;
     };
 
-    // 生成添加按钮
-    const renderAddButton = (dataPath, label = '添加') => {
-        return `<button class="sbt-add-tag-btn" data-path="${dataPath}"><i class="fa-solid fa-plus"></i> ${label}</button>`;
+    // 渲染字段容器
+    const renderFieldContainer = (label, content, dataPath = '') => {
+        return `<div class="sbt-field-container" data-path="${dataPath}"><div class="sbt-field-header"><span class="sbt-field-label">${label}</span></div><div class="sbt-field-value">${content}</div></div>`;
     };
 
-    // 通用安全文本处理（支持可编辑标签）
-    const safeText = (value, parentKey = '', basePath = '') => {
-        if (!value) return '暂无信息';
+    // 通用文本处理（查看/编辑模式）
+    const safeText = (value, parentKey = '', basePath = '', depth = 0, inEditMode = false) => {
+        if (!value && !inEditMode) return '<span class="sbt-empty-text">暂无信息</span>';
 
         const currentPath = basePath ? `${basePath}.${parentKey}` : parentKey;
 
-        if (typeof value === 'string') {
-            return `<span class="sbt-editable-text" data-path="${currentPath}" contenteditable="true">${value}</span>`;
+        if (typeof value === 'string' || (inEditMode && !value)) {
+            if (inEditMode) {
+                const textValue = value || '';
+                // 如果文本较长，使用textarea，否则使用contenteditable的div
+                if (textValue.length > 100) {
+                    return `<textarea class="sbt-editable-textarea" data-path="${currentPath}">${textValue}</textarea>`;
+                } else {
+                    return `<div class="sbt-editable-text" data-path="${currentPath}" contenteditable="true">${textValue}</div>`;
+                }
+            }
+            return `<span class="sbt-text-content">${value}</span>`;
         }
 
         if (Array.isArray(value)) {
-            if (value.length === 0) return '暂无';
+            if (value.length === 0 && !inEditMode) return '<span class="sbt-empty-text">暂无</span>';
 
-            // 渲染为可编辑的标签列表
+            // 渲染为标签列表
             let html = '<div class="sbt-tag-list">';
             value.forEach((item, index) => {
                 if (typeof item === 'string') {
-                    html += `<div class="sbt-tag-wrapper">${renderEditableTag(item, currentPath, index)}</div>`;
+                    html += renderTag(item, currentPath, index, inEditMode);
                 } else {
-                    html += `<div class="sbt-tag-wrapper"><span class="sbt-editable-tag" data-path="${currentPath}" data-index="${index}">${safeText(item, '', currentPath)}</span></div>`;
+                    html += `<span class="sbt-tag">${JSON.stringify(item)}</span>`;
                 }
             });
-            html += `<div class="sbt-tag-wrapper">${renderAddButton(currentPath)}</div>`;
+            if (inEditMode) {
+                html += renderAddButton(currentPath);
+            }
             html += '</div>';
             return html;
         }
 
         if (typeof value === 'object') {
-            let result = '';
+            // 紧凑的键值对显示
+            let result = '<div class="sbt-compact-fields">';
             for (const [key, val] of Object.entries(value)) {
-                const displayName = fieldNameMap[key] || key;
-
-                // 对于对象类型的值，提供编辑功能
-                if (typeof val === 'object' && !Array.isArray(val)) {
-                    result += `<div class="sbt-field-group" style="margin-bottom: 8px;">
-                        <div class="sbt-field-label"><strong>${displayName}:</strong></div>
-                        <div class="sbt-field-content">${safeText(val, key, currentPath)}</div>
-                    </div>`;
-                } else if (typeof val === 'string') {
-                    result += `<div class="sbt-field-group" style="margin-bottom: 5px;">
-                        <strong>${displayName}:</strong>
-                        <span class="sbt-editable-text" data-path="${currentPath}.${key}" contenteditable="true">${val}</span>
-                    </div>`;
-                } else {
-                    result += `<div class="sbt-field-group" style="margin-bottom: 8px;">
-                        <div class="sbt-field-label"><strong>${displayName}:</strong></div>
-                        <div class="sbt-field-content">${safeText(val, key, currentPath)}</div>
-                    </div>`;
-                }
+                const displayName = key;
+                const valContent = safeText(val, key, currentPath, depth + 1, inEditMode);
+                result += `<div class="sbt-field-row"><span class="sbt-field-key">${displayName}:</span> ${valContent}</div>`;
             }
-            return result || '暂无信息';
+            result += '</div>';
+            return result;
         }
 
         return String(value);
@@ -342,16 +338,37 @@ function showCharacterDetailModal(charId, chapterState) {
                 const affinityColor = mapValueToHue(affinity);
                 const otherCharName = otherChar?.core?.name || otherChar?.name || otherCharId;
 
-                relationshipsHtml += `
-                    <div class="sbt-character-relationship-card">
-                        <div class="sbt-character-relationship-name">${otherCharName}</div>
-                        <div class="sbt-character-relationship-type">${safeText(relationType)}</div>
-                        <div class="sbt-character-relationship-affinity">对主角好感: ${affinity}</div>
-                        <div class="sbt-character-relationship-affinity-bar">
-                            <div class="sbt-character-relationship-affinity-fill" style="width: ${affinity}%; background-color: ${affinityColor};"></div>
-                        </div>
-                    </div>
-                `;
+                // 获取关系历史记录
+                const historyLog = dynamicRel?.history || [];
+                let historyHtml = '';
+                if (historyLog.length > 0) {
+                    historyHtml = '<div class="sbt-relationship-history"><div class="sbt-relationship-history-title"><i class="fa-solid fa-clock-rotate-left"></i> 关系变化历史</div>';
+                    historyLog.forEach((entry, idx) => {
+                        const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString('zh-CN') : '未知时间';
+                        // 安全处理 change 字段：可能是字符串、数字或空值
+                        let change = entry.change;
+                        if (change === null || change === undefined) {
+                            change = '0';
+                        } else if (typeof change === 'number') {
+                            // 如果是数字，转换为带符号的字符串
+                            change = change > 0 ? `+${change}` : String(change);
+                        } else {
+                            // 如果是字符串，确保正数有 + 号
+                            change = String(change);
+                            if (!change.startsWith('+') && !change.startsWith('-')) {
+                                const numValue = parseFloat(change);
+                                if (!isNaN(numValue) && numValue > 0) {
+                                    change = `+${change}`;
+                                }
+                            }
+                        }
+                        const reasoning = entry.reasoning || '无记录';
+                        historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}</span></div><div class="sbt-history-reasoning">${reasoning}</div></div>`;
+                    });
+                    historyHtml += '</div>';
+                }
+
+                relationshipsHtml += `<div class="sbt-character-relationship-card" data-other-char-id="${otherCharId}"><div class="sbt-character-relationship-name">${otherCharName}</div><div class="sbt-character-relationship-type">${safeText(relationType, '', '', 0, false)}</div><div class="sbt-character-relationship-affinity">对主角好感: ${isEditMode ? `<input type="number" class="sbt-affinity-input" data-from-char="${otherCharId}" data-to-char="${charId}" value="${affinity}" min="0" max="100" />` : affinity}</div><div class="sbt-character-relationship-affinity-bar"><div class="sbt-character-relationship-affinity-fill" style="width: ${affinity}%; background-color: ${affinityColor};"></div></div>${historyHtml}</div>`;
             }
         }
 
@@ -377,16 +394,37 @@ function showCharacterDetailModal(charId, chapterState) {
                 const affinityColor = mapValueToHue(affinity);
                 const targetCharName = targetChar?.core?.name || targetChar?.name || targetCharId;
 
-                relationshipsHtml += `
-                    <div class="sbt-character-relationship-card">
-                        <div class="sbt-character-relationship-name">${targetCharName}</div>
-                        <div class="sbt-character-relationship-type">${safeText(relationType)}</div>
-                        <div class="sbt-character-relationship-affinity">好感度: ${affinity}</div>
-                        <div class="sbt-character-relationship-affinity-bar">
-                            <div class="sbt-character-relationship-affinity-fill" style="width: ${affinity}%; background-color: ${affinityColor};"></div>
-                        </div>
-                    </div>
-                `;
+                // 获取关系历史记录
+                const historyLog = dynamicRel?.history || [];
+                let historyHtml = '';
+                if (historyLog.length > 0) {
+                    historyHtml = '<div class="sbt-relationship-history"><div class="sbt-relationship-history-title"><i class="fa-solid fa-clock-rotate-left"></i> 关系变化历史</div>';
+                    historyLog.forEach((entry, idx) => {
+                        const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString('zh-CN') : '未知时间';
+                        // 安全处理 change 字段：可能是字符串、数字或空值
+                        let change = entry.change;
+                        if (change === null || change === undefined) {
+                            change = '0';
+                        } else if (typeof change === 'number') {
+                            // 如果是数字，转换为带符号的字符串
+                            change = change > 0 ? `+${change}` : String(change);
+                        } else {
+                            // 如果是字符串，确保正数有 + 号
+                            change = String(change);
+                            if (!change.startsWith('+') && !change.startsWith('-')) {
+                                const numValue = parseFloat(change);
+                                if (!isNaN(numValue) && numValue > 0) {
+                                    change = `+${change}`;
+                                }
+                            }
+                        }
+                        const reasoning = entry.reasoning || '无记录';
+                        historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}</span></div><div class="sbt-history-reasoning">${reasoning}</div></div>`;
+                    });
+                    historyHtml += '</div>';
+                }
+
+                relationshipsHtml += `<div class="sbt-character-relationship-card" data-target-char-id="${targetCharId}"><div class="sbt-character-relationship-name">${targetCharName}</div><div class="sbt-character-relationship-type">${safeText(relationType, '', '', 0, false)}</div><div class="sbt-character-relationship-affinity">好感度: ${isEditMode ? `<input type="number" class="sbt-affinity-input" data-from-char="${charId}" data-to-char="${targetCharId}" value="${affinity}" min="0" max="100" />` : affinity}</div><div class="sbt-character-relationship-affinity-bar"><div class="sbt-character-relationship-affinity-fill" style="width: ${affinity}%; background-color: ${affinityColor};"></div></div>${historyHtml}</div>`;
             }
             relationshipsHtml += '</div>';
         } else {
@@ -399,115 +437,35 @@ function showCharacterDetailModal(charId, chapterState) {
         <div class="sbt-character-detail-header">
             <div class="sbt-character-detail-name">
                 <i class="fa-solid fa-user"></i>
-                ${getName()}
+                ${isEditMode ? `<input type="text" class="sbt-name-input" data-path="core.name" value="${getName()}" placeholder="角色名称" />` : getName()}
                 ${isProtagonist ? '<i class="fa-solid fa-crown" style="color: var(--sbt-warning-color);" title="主角"></i>' : ''}
             </div>
             <div class="sbt-character-detail-identity">
-                ${getIdentity()} · ${getAge()} · ${getGender()}
+                ${isEditMode ? `
+                    <input type="text" class="sbt-basic-input" data-path="core.identity" value="${getIdentity()}" placeholder="身份" />
+                    ·
+                    <input type="text" class="sbt-basic-input sbt-small-input" data-path="core.age" value="${getAge()}" placeholder="年龄" />
+                    ·
+                    <input type="text" class="sbt-basic-input sbt-small-input" data-path="core.gender" value="${getGender()}" placeholder="性别" />
+                ` : `${getIdentity()} · ${getAge()} · ${getGender()}`}
+                ${isNew ? ' <span style="color: var(--sbt-warning-color);">· 新建中</span>' : ''}
             </div>
+            <div class="sbt-character-detail-actions">${isEditMode ? `<button class="sbt-save-character-btn" data-char-id="${charId}" data-is-new="${isNew}"><i class="fa-solid fa-save fa-fw"></i> ${isNew ? '创建角色' : '保存修改'}</button><button class="sbt-cancel-edit-btn" data-char-id="${charId}"><i class="fa-solid fa-times fa-fw"></i> 取消</button>${!isNew ? `<button class="sbt-delete-character-btn" data-char-id="${charId}"><i class="fa-solid fa-trash fa-fw"></i> 删除</button>` : ''}` : `<button class="sbt-edit-mode-toggle" data-char-id="${charId}"><i class="fa-solid fa-pen-to-square"></i> 编辑档案</button><button class="sbt-delete-character-btn" data-char-id="${charId}"><i class="fa-solid fa-trash"></i> 删除角色</button>`}</div>
         </div>
 
-        ${char.appearance ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-eye"></i>
-                    外貌特征
-                </div>
-                <div class="sbt-character-detail-section-content">${safeText(char.appearance)}</div>
-            </div>
-        ` : ''}
+        ${char.appearance || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-eye"></i>外貌特征</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.appearance, 'appearance', '', 0, isEditMode)}</div></div></div>` : ''}
+        ${char.personality || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-brain"></i>性格心理</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.personality, 'personality', '', 0, isEditMode)}</div></div></div>` : ''}
+        ${char.background || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-book"></i>背景故事</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.background, 'background', '', 0, isEditMode)}</div></div></div>` : ''}
+        ${char.goals || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-bullseye"></i>目标与动机</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.goals, 'goals', '', 0, isEditMode)}</div></div></div>` : ''}
+        ${char.capabilities || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-wand-sparkles"></i>能力与技能</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.capabilities, 'capabilities', '', 0, isEditMode)}</div></div></div>` : ''}
+        ${char.equipment || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-shield-halved"></i>装备资源</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.equipment, 'equipment', '', 0, isEditMode)}</div></div></div>` : ''}
 
-        ${char.personality ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-brain"></i>
-                    性格心理
-                </div>
-                <div class="sbt-character-detail-section-content">${safeText(char.personality)}</div>
-            </div>
-        ` : ''}
+        <div class="sbt-character-detail-section ${isProtagonist ? 'sbt-protagonist-relationship-section' : ''}"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-users"></i>${relationshipSectionTitle}</div>${relationshipsHtml}</div>
 
-        ${char.background ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-book"></i>
-                    背景故事
-                </div>
-                <div class="sbt-character-detail-section-content">${safeText(char.background)}</div>
-            </div>
-        ` : ''}
+        ${(char.social && (char.social.所属组织 || char.social.声望 || char.social.社会地位 || char.social.affiliations || char.social.reputation || char.social.social_status)) || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-flag"></i>归属与声望</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper"><div class="sbt-compact-fields">${(char.social?.所属组织 || char.social?.affiliations) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">所属组织:</span> ${safeText(char.social?.所属组织 || char.social?.affiliations, 'social.所属组织', '', 0, isEditMode)}</div>` : ''}${(char.social?.声望 || char.social?.reputation) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">声望:</span> ${safeText(char.social?.声望 || char.social?.reputation, 'social.声望', '', 0, isEditMode)}</div>` : ''}${(char.social?.社会地位 || char.social?.social_status) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">社会地位:</span> ${safeText(char.social?.社会地位 || char.social?.social_status, 'social.社会地位', '', 0, isEditMode)}</div>` : ''}</div></div></div></div>` : ''}
+        ${char.experiences || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-clock-rotate-left"></i>经历与成长</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.experiences, 'experiences', '', 0, isEditMode)}</div></div></div>` : ''}
 
-        ${char.goals ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-bullseye"></i>
-                    目标与动机
-                </div>
-                <div class="sbt-character-detail-section-content">${safeText(char.goals)}</div>
-            </div>
-        ` : ''}
-
-        ${char.capabilities ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-wand-sparkles"></i>
-                    能力与技能
-                </div>
-                <div class="sbt-character-detail-section-content">${safeText(char.capabilities)}</div>
-            </div>
-        ` : ''}
-
-        ${char.equipment ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-shield-halved"></i>
-                    装备资源
-                </div>
-                <div class="sbt-character-detail-section-content">${safeText(char.equipment)}</div>
-            </div>
-        ` : ''}
-
-        <div class="sbt-character-detail-section ${isProtagonist ? 'sbt-protagonist-relationship-section' : ''}">
-            <div class="sbt-character-detail-section-title">
-                <i class="fa-solid fa-users"></i>
-                ${relationshipSectionTitle}
-            </div>
-            ${relationshipsHtml}
-        </div>
-
-        ${char.social && (char.social.affiliations || char.social.reputation || char.social.social_status) ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-flag"></i>
-                    归属与声望
-                </div>
-                <div class="sbt-character-detail-section-content">
-                    ${char.social.affiliations ? `<div><strong>所属组织：</strong>${safeText(char.social.affiliations)}</div>` : ''}
-                    ${char.social.reputation ? `<div><strong>声望：</strong>${safeText(char.social.reputation)}</div>` : ''}
-                    ${char.social.social_status ? `<div><strong>社会地位：</strong>${safeText(char.social.social_status)}</div>` : ''}
-                </div>
-            </div>
-        ` : ''}
-
-        ${char.experiences ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-clock-rotate-left"></i>
-                    经历与成长
-                </div>
-                <div class="sbt-character-detail-section-content">${safeText(char.experiences)}</div>
-            </div>
-        ` : ''}
-
-        ${char.secrets ? `
-            <div class="sbt-character-detail-section">
-                <div class="sbt-character-detail-section-title">
-                    <i class="fa-solid fa-key"></i>
-                    秘密信息
-                </div>
-                <div class="sbt-character-detail-section-content">${safeText(char.secrets)}</div>
-            </div>
-        ` : ''}
+        ${char.secrets || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-key"></i>秘密信息</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.secrets, 'secrets', '', 0, isEditMode)}</div></div></div>` : ''}
     `;
 
     // 渲染到内嵌面板并显示
@@ -527,14 +485,23 @@ function showCharacterDetailModal(charId, chapterState) {
  * @param {object} worldviewData - 世界观数据对象
  * @param {string} category - 类别名称
  * @param {JQuery<HTMLElement>} container - 渲染的目标容器
+ * @param {string} categoryKey - 类别的key（如 'locations', 'items'）
  */
-function renderArchiveWorldview(worldviewData, category, container) {
+function renderArchiveWorldview(worldviewData, category, container, categoryKey) {
     if (!container || container.length === 0) return;
 
     container.empty();
 
+    // 添加新建按钮
+    const addBtnHtml = `
+        <button class="sbt-add-worldview-btn" data-category="${categoryKey}" data-category-name="${category}">
+            <i class="fa-solid fa-plus fa-fw"></i> 新建${category}
+        </button>
+    `;
+    container.append(addBtnHtml);
+
     if (!worldviewData || Object.keys(worldviewData).length === 0) {
-        container.html(`<p class="sbt-instructions">暂无${category}记录。</p>`);
+        container.append(`<p class="sbt-instructions">暂无${category}记录。</p>`);
         return;
     }
 
@@ -549,13 +516,90 @@ function renderArchiveWorldview(worldviewData, category, container) {
         }
 
         const itemHtml = `
-            <div class="sbt-archive-item">
-                <div class="sbt-archive-item-title">${item.name || id}</div>
-                <div class="sbt-archive-item-desc">${descText}</div>
+            <div class="sbt-archive-item sbt-worldview-card" data-item-id="${id}" data-category="${categoryKey}">
+                <div class="sbt-worldview-card-content">
+                    <div class="sbt-archive-item-title">${item.name || id}</div>
+                    <div class="sbt-archive-item-desc">${descText}</div>
+                </div>
+                <div class="sbt-worldview-card-actions">
+                    <button class="sbt-worldview-edit-btn" data-item-id="${id}" data-category="${categoryKey}" data-category-name="${category}" title="编辑${category}">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                    </button>
+                </div>
             </div>
         `;
         container.append(itemHtml);
     }
+}
+
+/**
+ * @description 显示世界观词条详情面板（内嵌展开式）
+ * @param {string} itemId - 词条ID
+ * @param {string} category - 类别（如 'locations', 'items'）
+ * @param {string} categoryName - 类别中文名（如 '地点', '物品'）
+ * @param {object} chapterState - 完整的Chapter对象
+ * @param {boolean} editMode - 是否进入编辑模式
+ * @param {boolean} isNew - 是否是新建词条
+ */
+function showWorldviewDetailModal(itemId, category, categoryName, chapterState, editMode = false, isNew = false) {
+    let item = chapterState.staticMatrices.worldview[category]?.[itemId];
+
+    // 如果是新建词条，创建空对象
+    if (isNew) {
+        item = {
+            name: '',
+            description: ''
+        };
+    }
+
+    if (!item && !isNew) return;
+
+    const isEditMode = editMode || isNew;
+
+    // 获取分类图标
+    const getCategoryIcon = () => {
+        const iconMap = {
+            'locations': 'map-location-dot',
+            'items': 'box',
+            'factions': 'flag',
+            'concepts': 'lightbulb',
+            'events': 'clock-rotate-left',
+            'races': 'dragon'
+        };
+        return iconMap[category] || 'file-lines';
+    };
+
+    // 构建详细信息HTML
+    const detailHtml = `
+        <div class="sbt-character-detail-header">
+            <div class="sbt-character-detail-name">
+                <i class="fa-solid fa-${getCategoryIcon()}"></i>
+                ${isEditMode ? `<input type="text" class="sbt-worldview-name-input" data-path="name" value="${item.name || ''}" placeholder="输入${categoryName}名称" />` : (item.name || itemId)}
+            </div>
+            <div class="sbt-character-detail-identity">
+                <i class="fa-solid fa-tag"></i> ${categoryName}${isNew ? ' · 新建中' : ''}
+            </div>
+            <div class="sbt-character-detail-actions">${isEditMode ? `<button class="sbt-save-worldview-item-btn" data-item-id="${itemId}" data-category="${category}" data-is-new="${isNew}"><i class="fa-solid fa-save fa-fw"></i> ${isNew ? '创建' : '保存修改'}</button><button class="sbt-cancel-worldview-edit-btn" data-item-id="${itemId}"><i class="fa-solid fa-times fa-fw"></i> 取消</button>${!isNew ? `<button class="sbt-delete-worldview-item-btn" data-item-id="${itemId}" data-category="${category}"><i class="fa-solid fa-trash fa-fw"></i> 删除</button>` : ''}` : `<button class="sbt-edit-worldview-mode-toggle" data-item-id="${itemId}" data-category="${category}" data-category-name="${categoryName}"><i class="fa-solid fa-pen-to-square"></i> 编辑</button><button class="sbt-delete-worldview-item-btn" data-item-id="${itemId}" data-category="${category}"><i class="fa-solid fa-trash"></i> 删除</button>`}</div>
+        </div>
+
+        <div class="sbt-character-detail-section">
+            <div class="sbt-character-detail-section-title"><i class="fa-solid fa-align-left"></i>详细描述</div>
+            <div class="sbt-character-detail-section-content">${isEditMode ? `<div class="sbt-worldview-edit-wrapper"><textarea class="sbt-worldview-textarea" data-path="description" placeholder="请输入${categoryName}的详细描述信息...&#10;&#10;提示：&#10;- 可以包含外观、特点、历史背景等&#10;- 支持多行文本&#10;- 内容将用于AI角色扮演的参考">${item.description || item.summary || ''}</textarea><div class="sbt-worldview-edit-tips"><i class="fa-solid fa-circle-info"></i><span>编辑完成后记得点击保存按钮</span></div></div>` : `<div class="sbt-worldview-content">${item.description || item.summary ? `<p class="sbt-text-content">${(item.description || item.summary).replace(/\n/g, '<br>')}</p>` : '<p class="sbt-empty-text">暂无描述信息</p>'}</div>`}</div>
+        </div>
+    `;
+
+    // 渲染到内嵌面板并显示
+    const $panel = $('#sbt-worldview-detail-panel');
+    const $content = $('#sbt-worldview-detail-content');
+
+    $content.attr('data-item-id', itemId);
+    $content.attr('data-category', category);
+    $content.attr('data-category-name', categoryName);
+    $content.html(detailHtml);
+    $panel.show();
+
+    // 滚动到详情面板
+    $panel[0]?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 /**
@@ -575,26 +619,31 @@ function renderArchiveStorylines(storylineData, container) {
 
     for (const id in storylineData) {
         const line = storylineData[id];
-        const status = line.status || 'dormant';
+
+        // 【修复】优先使用动态状态，回退到静态
+        const status = line.current_status || line.status || 'dormant';
         const statusText = status === 'active' ? '进行中' : status === 'completed' ? '已完成' : '休眠';
 
-        // 安全地获取描述文本
+        // 【修复】优先显示当前进展摘要，回退到基础摘要
         let descText = '暂无描述';
-        const desc = line.summary || line.description;
+        const desc = line.current_summary || line.summary || line.description;
         if (desc) {
             descText = typeof desc === 'string' ? desc : JSON.stringify(desc);
         }
 
-        const itemHtml = `
-            <div class="sbt-archive-item">
-                <div class="sbt-archive-item-title">
-                    ${line.title || id}
-                    <span class="sbt-archive-status ${status}">${statusText}</span>
-                </div>
-                <div class="sbt-archive-item-desc">${descText}</div>
-                ${line.type ? `<div class="sbt-archive-item-meta">类型: ${line.type}</div>` : ''}
-            </div>
-        `;
+        // 【新增】显示历史记录
+        let historyHtml = '';
+        if (line.history && Array.isArray(line.history) && line.history.length > 0) {
+            historyHtml = '<div class="sbt-storyline-history"><div class="sbt-storyline-history-title">📜 历史变化记录</div>';
+            line.history.slice(-3).reverse().forEach(entry => {  // 只显示最近3条，倒序
+                const timestamp = entry.timestamp || '未知时间';
+                const update = entry.summary_update || entry.status_change || '无更新';
+                historyHtml += `<div class="sbt-storyline-history-entry"><span class="sbt-storyline-timestamp">${timestamp}</span>: ${update}</div>`;
+            });
+            historyHtml += '</div>';
+        }
+
+        const itemHtml = `<div class="sbt-archive-item"><div class="sbt-archive-item-title">${line.title || id}<span class="sbt-archive-status ${status}">${statusText}</span></div><div class="sbt-archive-item-desc">${descText}</div>${line.type ? `<div class="sbt-archive-item-meta">类型: ${line.type}</div>` : ''}${historyHtml}</div>`;
         container.append(itemHtml);
     }
 }
@@ -616,57 +665,80 @@ function updateArchivePanel(chapterState) {
     renderArchiveWorldview(
         chapterState.staticMatrices.worldview.locations,
         '地点',
-        $('#sbt-archive-locations')
+        $('#sbt-archive-locations'),
+        'locations'
     );
 
     renderArchiveWorldview(
         chapterState.staticMatrices.worldview.items,
         '物品',
-        $('#sbt-archive-items')
+        $('#sbt-archive-items'),
+        'items'
     );
 
     renderArchiveWorldview(
         chapterState.staticMatrices.worldview.factions,
         '势力',
-        $('#sbt-archive-factions')
+        $('#sbt-archive-factions'),
+        'factions'
     );
 
     renderArchiveWorldview(
         chapterState.staticMatrices.worldview.concepts,
         '概念',
-        $('#sbt-archive-concepts')
+        $('#sbt-archive-concepts'),
+        'concepts'
     );
 
     renderArchiveWorldview(
         chapterState.staticMatrices.worldview.events,
         '历史事件',
-        $('#sbt-archive-events')
+        $('#sbt-archive-events'),
+        'events'
     );
 
     renderArchiveWorldview(
         chapterState.staticMatrices.worldview.races,
         '种族',
-        $('#sbt-archive-races')
+        $('#sbt-archive-races'),
+        'races'
     );
 
-    // 渲染故事线
+    // 【修复】渲染故事线 - 合并静态和动态数据
+    // 辅助函数：合并故事线的静态和动态数据
+    const mergeStorylineData = (category) => {
+        const staticData = chapterState.staticMatrices.storylines[category] || {};
+        const dynamicData = chapterState.dynamicState.storylines[category] || {};
+        const merged = {};
+
+        // 遍历所有静态故事线
+        for (const id in staticData) {
+            merged[id] = {
+                ...staticData[id],  // 静态字段：title, summary, type, trigger, involved_chars
+                ...dynamicData[id]  // 动态字段：current_status, current_summary, history
+            };
+        }
+
+        return merged;
+    };
+
     renderArchiveStorylines(
-        chapterState.staticMatrices.storylines.main_quests,
+        mergeStorylineData('main_quests'),
         $('#sbt-archive-main-quests')
     );
 
     renderArchiveStorylines(
-        chapterState.staticMatrices.storylines.side_quests,
+        mergeStorylineData('side_quests'),
         $('#sbt-archive-side-quests')
     );
 
     renderArchiveStorylines(
-        chapterState.staticMatrices.storylines.relationship_arcs,
+        mergeStorylineData('relationship_arcs'),
         $('#sbt-archive-relationship-arcs')
     );
 
     renderArchiveStorylines(
-        chapterState.staticMatrices.storylines.personal_arcs,
+        mergeStorylineData('personal_arcs'),
         $('#sbt-archive-personal-arcs')
     );
 }
@@ -740,12 +812,22 @@ export function updateDashboard(chapterState) {
     }
 
     // --- 5. 渲染故事线网络 ---
-    const allStorylines = {
-        ...(chapterState.staticMatrices.storylines.main_quests || {}),
-        ...(chapterState.staticMatrices.storylines.side_quests || {}),
-        ...(chapterState.staticMatrices.storylines.relationship_arcs || {}),
-        ...(chapterState.staticMatrices.storylines.personal_arcs || {})
-    };
+    // 【修复】合并所有分类的静态和动态故事线数据
+    const allStorylines = {};
+    const categories = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
+
+    for (const category of categories) {
+        const staticData = chapterState.staticMatrices.storylines[category] || {};
+        const dynamicData = chapterState.dynamicState.storylines[category] || {};
+
+        for (const id in staticData) {
+            allStorylines[id] = {
+                ...staticData[id],  // 静态字段
+                ...dynamicData[id]  // 动态字段
+            };
+        }
+    }
+
     renderLineMatrix(allStorylines, $('#sbt-line-matrix-list'));
 
     // --- 6. 更新世界档案面板 ---
@@ -814,4 +896,4 @@ function showCharacterDetailPopup(charId, chapterState) {
 }
 
 // 导出新的角色详情弹窗函数，供外部使用
-export { showCharacterDetailModal };
+export { showCharacterDetailModal, showWorldviewDetailModal };

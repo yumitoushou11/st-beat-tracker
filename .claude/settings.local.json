@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(echo:*)",
+      "Bash(\"d:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\\style.css\")"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
