@@ -3,7 +3,8 @@
     "allow": [
       "Bash(echo:*)",
       "Bash(\"d:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\\style.css\")",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
