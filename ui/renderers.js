@@ -389,6 +389,81 @@ function updateArchivePanel(chapterState) {
 }
 
 /**更新整个仪表盘UI，现在传递整个 Chapter 对象 */
+/**
+ * @description [V2.0] 渲染故事大纲 - 宏观叙事弧光列表
+ * @param {object} chapterState - 章节状态对象
+ */
+function renderNarrativeArcs(chapterState) {
+    console.group('[RENDERER-V2-PROBE] 故事大纲渲染流程');
+
+    const container = $('#sbt-arc-list');
+    if (!container || container.length === 0) {
+        console.warn('⚠️ 故事大纲容器未找到');
+        console.groupEnd();
+        return;
+    }
+
+    const activeArcs = chapterState?.meta?.active_narrative_arcs || [];
+    console.log(`检测到 ${activeArcs.length} 条活跃弧光`);
+
+    if (activeArcs.length === 0) {
+        container.html('<p class="sbt-instructions">当前没有活跃的叙事弧光。</p>');
+        console.groupEnd();
+        return;
+    }
+
+    let html = '';
+    activeArcs.forEach((arc, index) => {
+        const arcTitle = arc.title || '未命名弧光';
+        const arcId = arc.arc_id || `arc_${index}`;
+        const currentStage = arc.current_stage || 'unknown';
+        const stageDescription = arc.stage_description || '暂无描述';
+        const longTermGoal = arc.long_term_goal || '暂无目标';
+        const createdAt = arc.created_at ? new Date(arc.created_at).toLocaleDateString('zh-CN') : '未知';
+        const lastUpdated = arc.last_updated ? new Date(arc.last_updated).toLocaleDateString('zh-CN') : '未知';
+
+        html += `
+            <div class="sbt-arc-card" data-arc-id="${arcId}">
+                <div class="sbt-arc-header">
+                    <h6 class="sbt-arc-title">
+                        <i class="fa-solid fa-book fa-fw"></i> ${arcTitle}
+                    </h6>
+                    <div class="sbt-arc-actions">
+                        <button class="sbt-icon-btn sbt-edit-arc-btn" data-arc-id="${arcId}" title="编辑弧光">
+                            <i class="fa-solid fa-edit fa-fw"></i>
+                        </button>
+                        <button class="sbt-icon-btn sbt-delete-arc-btn" data-arc-id="${arcId}" title="删除弧光">
+                            <i class="fa-solid fa-trash fa-fw"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="sbt-arc-body">
+                    <div class="sbt-arc-field">
+                        <strong><i class="fa-solid fa-bullseye fa-fw"></i> 长期目标:</strong>
+                        <p>${longTermGoal}</p>
+                    </div>
+                    <div class="sbt-arc-field">
+                        <strong><i class="fa-solid fa-map-signs fa-fw"></i> 当前阶段:</strong>
+                        <p><span class="sbt-arc-stage-badge">${currentStage}</span></p>
+                    </div>
+                    <div class="sbt-arc-field">
+                        <strong><i class="fa-solid fa-info-circle fa-fw"></i> 阶段描述:</strong>
+                        <p>${stageDescription}</p>
+                    </div>
+                    <div class="sbt-arc-meta">
+                        <span class="sbt-meta-item"><i class="fa-solid fa-calendar-plus fa-fw"></i> 创建: ${createdAt}</span>
+                        <span class="sbt-meta-item"><i class="fa-solid fa-clock fa-fw"></i> 更新: ${lastUpdated}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+
+    container.html(html);
+    console.log('✓ 故事大纲渲染完成');
+    console.groupEnd();
+}
+
 export function updateDashboard(chapterState) {
     if (!chapterState || $('#beat-tracker-component-wrapper').length === 0) return;
 
@@ -449,6 +524,9 @@ export function updateDashboard(chapterState) {
             notesContainer.html('<p class="sbt-instructions">当前章节没有可用的设计笔记。</p>');
         }
     }
+
+    // --- V2.0: 渲染故事大纲 (宏观叙事弧光) ---
+    renderNarrativeArcs(chapterState);
 
     // --- 4. 渲染角色关系图谱 ---
     const relationshipContainer = $('#sbt-character-chart');

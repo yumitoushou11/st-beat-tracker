@@ -36,14 +36,18 @@ export class StoryBeatEngine {
             this.uiSyncRetryTimer = null; // 用于重试的计时器ID
     this.uiSyncRetryCount = 0; // 记录重试次数
     this.status = ENGINE_STATUS.IDLE;
-        this.isConductorActive = false; 
-        this.lastExecutionTimestamp = 0; 
+        this.isConductorActive = false;
+        this.lastExecutionTimestamp = 0;
         this.intelligenceAgent = null;
-        this.architectAgent = null; 
+        this.architectAgent = null;
         this.historianAgent = null;
         this.mainLlmService = null; // 主服务
         this.conductorLlmService = null; // 回合裁判专用服务
-        this.turnConductorAgent = null; 
+        this.turnConductorAgent = null;
+
+        // V2.0: 实体清单缓存
+        this.entityManifestCache = null; // 缓存生成的实体清单
+        this.lastStaticMatricesChecksum = null; // 用于检测 staticMatrices 是否变化
          }
 
     _setStatus(newStatus) {
@@ -124,6 +128,170 @@ export class StoryBeatEngine {
 
         this.info("叙事流引擎已准备就绪。");
     }
+
+    /**
+     * [V2.0 辅助方法] 生成实体清单（带缓存）
+     * 用于TurnConductor进行ID匹配，以及动态上下文召回
+     */
+    _getOrGenerateEntityManifest() {
+        console.group('[ENGINE-V2-PROBE] 实体清单缓存管理');
+
+        if (!this.currentChapter || !this.currentChapter.staticMatrices) {
+            console.warn('⚠️ Chapter 或 staticMatrices 不存在，无法生成清单');
+            console.groupEnd();
+            return { content: '', totalCount: 0 };
+        }
+
+        // 计算当前 staticMatrices 的简单校验和
+        const currentChecksum = simpleHash(JSON.stringify(this.currentChapter.staticMatrices));
+
+        // 如果缓存存在且校验和匹配，直接返回缓存
+        if (this.entityManifestCache && this.lastStaticMatricesChecksum === currentChecksum) {
+            console.log('✓ 缓存命中，直接返回已缓存的实体清单');
+            console.groupEnd();
+            return this.entityManifestCache;
+        }
+
+        // 否则，重新生成清单
+        console.log('✓ 缓存失效或不存在，正在重新生成实体清单...');
+        const manifest = this._generateEntityManifest(this.currentChapter.staticMatrices);
+
+        // 更新缓存
+        this.entityManifestCache = manifest;
+        this.lastStaticMatricesChecksum = currentChecksum;
+
+        console.log(`✓ 清单已生成并缓存，共 ${manifest.totalCount} 条实体`);
+        console.groupEnd();
+
+        return manifest;
+    }
+
+    /**
+     * [V2.0 辅助方法] 从 staticMatrices 生成轻量级实体清单
+     */
+    _generateEntityManifest(staticMatrices) {
+        const manifestLines = [];
+        let count = 0;
+
+        // 1. 角色
+        if (staticMatrices.characters) {
+            for (const charId in staticMatrices.characters) {
+                const char = staticMatrices.characters[charId];
+                const keywords = char.core?.keywords || char.keywords || [];
+                manifestLines.push(`- ${charId}: ${char.core?.name || char.name || '未命名'} (${keywords.join(', ')})`);
+                count++;
+            }
+        }
+
+        // 2. 世界观实体
+        if (staticMatrices.worldview) {
+            ['locations', 'items', 'factions', 'concepts', 'events', 'races'].forEach(category => {
+                if (staticMatrices.worldview[category]) {
+                    for (const entityId in staticMatrices.worldview[category]) {
+                        const entity = staticMatrices.worldview[category][entityId];
+                        const keywords = entity.keywords || [];
+                        const name = entity.name || entity.title || '未命名';
+                        manifestLines.push(`- ${entityId}: ${name} (${keywords.join(', ')})`);
+                        count++;
+                    }
+                }
+            });
+        }
+
+        // 3. 故事线
+        if (staticMatrices.storylines) {
+            ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'].forEach(category => {
+                if (staticMatrices.storylines[category]) {
+                    for (const storylineId in staticMatrices.storylines[category]) {
+                        const storyline = staticMatrices.storylines[category][storylineId];
+                        manifestLines.push(`- ${storylineId}: ${storyline.title || '未命名'}`);
+                        count++;
+                    }
+                }
+            });
+        }
+
+        return {
+            content: manifestLines.join('\n'),
+            totalCount: count
+        };
+    }
+
+    /**
+     * [V2.0 辅助方法] 根据 ID 列表从 staticMatrices 中提取完整实体数据
+     * @param {string[]} entityIds - 实体ID数组
+     * @returns {string} 格式化的实体详细信息
+     */
+    _retrieveEntitiesByIds(entityIds) {
+        console.group('[ENGINE-V2-PROBE] 动态上下文召回');
+        console.log('需要召回的实体ID列表:', entityIds);
+
+        if (!entityIds || entityIds.length === 0) {
+            console.log('✓ 无需召回');
+            console.groupEnd();
+            return '';
+        }
+
+        const staticMatrices = this.currentChapter.staticMatrices;
+        const retrievedEntities = [];
+
+        for (const entityId of entityIds) {
+            let entity = null;
+            let category = '';
+
+            // 1. 在角色中查找
+            if (staticMatrices.characters?.[entityId]) {
+                entity = staticMatrices.characters[entityId];
+                category = 'characters';
+            }
+            // 2. 在世界观中查找
+            else if (staticMatrices.worldview) {
+                for (const worldCategory of ['locations', 'items', 'factions', 'concepts', 'events', 'races']) {
+                    if (staticMatrices.worldview[worldCategory]?.[entityId]) {
+                        entity = staticMatrices.worldview[worldCategory][entityId];
+                        category = `worldview.${worldCategory}`;
+                        break;
+                    }
+                }
+            }
+            // 3. 在故事线中查找
+            else if (staticMatrices.storylines) {
+                for (const storylineCategory of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
+                    if (staticMatrices.storylines[storylineCategory]?.[entityId]) {
+                        entity = staticMatrices.storylines[storylineCategory][entityId];
+                        category = `storylines.${storylineCategory}`;
+                        break;
+                    }
+                }
+            }
+
+            if (entity) {
+                console.log(`✓ 找到实体: ${entityId} (${category})`);
+                retrievedEntities.push({
+                    id: entityId,
+                    category: category,
+                    data: entity
+                });
+            } else {
+                console.warn(`⚠️ 未找到实体: ${entityId}`);
+            }
+        }
+
+        console.log(`✓ 成功召回 ${retrievedEntities.length}/${entityIds.length} 个实体`);
+        console.groupEnd();
+
+        // 格式化输出
+        if (retrievedEntities.length === 0) {
+            return '';
+        }
+
+        const formattedContent = retrievedEntities.map(({ id, category, data }) => {
+            return `### ${id} (${category})\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
+        }).join('\n\n');
+
+        return `# **【实时召回的上下文】**\n以下是玩家提到但未在预加载上下文中的实体：\n\n${formattedContent}`;
+    }
+
 onPromptReady = async (eventData) => {
         const WATCHDOG_DELAY = 1000; // 看门狗延迟，单位：毫秒 (1秒)
     const now = Date.now();
@@ -236,7 +404,7 @@ const instructionPlaceholder = {
             let historicalContext = '';
             if (lastAiMsg) {
                 const historyStartIndex = lastUserMsgIndex - 1;
-                const historyDepth = 10; // 可配置的历史深度
+                const historyDepth = 8; // 可配置的历史深度
                 const history = [];
                 let count = 0;
                 for (let i = historyStartIndex - 1; i >= 0 && count < historyDepth; i--) {
@@ -254,10 +422,16 @@ const instructionPlaceholder = {
 
             lastExchange = historicalContext + lastExchange;
 
-            const conductorContext = { 
-                lastExchange: lastExchange, 
-                    chapterBlueprint: this.currentChapter.chapter_blueprint 
+            // V2.0: 准备 TurnConductor 所需的完整上下文
+            console.group('[ENGINE-V2-PROBE] 准备 TurnConductor 输入上下文');
+            const conductorContext = {
+                lastExchange: lastExchange,
+                chapterBlueprint: this.currentChapter.chapter_blueprint,
+                chapter: this.currentChapter // V2.0: 传递完整的 chapter 实例
             };
+            console.log('✓ chapter 实例已传递（包含 staticMatrices 和 stylistic_archive）');
+            console.groupEnd();
+
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
 
             this.diagnose('[PROBE][CONDUCTOR-DECISION] 收到回合指挥官的完整决策:', JSON.parse(JSON.stringify(conductorDecision)));
@@ -265,20 +439,47 @@ const instructionPlaceholder = {
                 const reason = conductorDecision.decision === 'TRIGGER_EMERGENCY_TRANSITION' ? "【紧急熔断】" : "【常规】";
                 this.info(`PROBE [PENDING-TRANSITION]: 回合指挥官已发出${reason}章节转换的后台密令。`);
                 this.isTransitionPending = true;
-                this.pendingTransitionPayload = { decision: conductorDecision.decision }; 
+                this.pendingTransitionPayload = { decision: conductorDecision.decision };
+            }
+
+            // V2.0: 处理实时上下文召回
+            let dynamicContextInjection = '';
+            if (conductorDecision.realtime_context_ids && conductorDecision.realtime_context_ids.length > 0) {
+                console.group('[ENGINE-V2-PROBE] 实时上下文召回流程');
+                this.info(`检测到 ${conductorDecision.realtime_context_ids.length} 个需要实时召回的实体`);
+                console.log('实体ID列表:', conductorDecision.realtime_context_ids);
+
+                dynamicContextInjection = this._retrieveEntitiesByIds(conductorDecision.realtime_context_ids);
+
+                if (dynamicContextInjection) {
+                    this.info('✓ 动态上下文已生成，将注入到 Prompt');
+                } else {
+                    this.warn('⚠️ 动态上下文生成失败或为空');
+                }
+                console.groupEnd();
+            } else {
+                this.info('[ENGINE-V2] 本回合无需实时上下文召回');
             }
 
 if (this.currentChapter.chapter_blueprint) {
     const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
     instructionPlaceholder.content = `# **【最高优先级：本回合导演微指令 (Turn Instruction)】**\n---\n${formattedInstruction}`;
-    
-    // 【适配】将完整的蓝图对象字符串化后，作为参考资料注入
+
+    // 【V2.0 适配】构建脚本内容，包含蓝图和动态上下文
     const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
-    scriptPlaceholder.content = `# **【参考资料1：本章创作蓝图 (Chapter Blueprint)】**\n---\n\`\`\`json\n${blueprintAsString}\n\`\`\``;
+    let scriptContent = `# **【参考资料1：本章创作蓝图 (Chapter Blueprint)】**\n---\n\`\`\`json\n${blueprintAsString}\n\`\`\``;
+
+    // V2.0: 如果有动态召回的上下文，追加到脚本内容中
+    if (dynamicContextInjection) {
+        scriptContent += `\n\n---\n\n${dynamicContextInjection}`;
+        this.info('✓ 动态上下文已追加到脚本注入内容');
+    }
+
+    scriptPlaceholder.content = scriptContent;
 
     const regularSystemPrompt = this._buildRegularSystemPrompt();
     rulesPlaceholder.content = `# **【参考资料2：通用核心法则与关系指南 (Core Rules & Relationship Guide)】**\n---\n${regularSystemPrompt}`;
-    
+
     this.info("✅ 异步处理完成，已通过优化的三层结构更新指令，注入成功。");
 
 } else {
@@ -799,6 +1000,152 @@ _syncUiWithRetry() {
         if (delta.new_handoff_memo) {
             this.info(" -> 正在更新章节交接备忘录...");
             workingChapter.meta.lastChapterHandoff = delta.new_handoff_memo;
+        }
+
+        // V2.0 步骤四：更新宏观叙事弧光
+        if (delta.updates?.meta?.active_narrative_arcs) {
+            console.group('[ENGINE-V2-PROBE] 宏观叙事弧光更新流程');
+            this.info(" -> 检测到宏观叙事弧光更新请求...");
+
+            if (!workingChapter.meta.active_narrative_arcs) {
+                workingChapter.meta.active_narrative_arcs = [];
+                this.info(" -> 已初始化 meta.active_narrative_arcs 数组");
+            }
+
+            const arcUpdates = delta.updates.meta.active_narrative_arcs;
+            console.log(`收到 ${arcUpdates.length} 条弧光更新`, arcUpdates);
+
+            for (const arcUpdate of arcUpdates) {
+                const existingArcIndex = workingChapter.meta.active_narrative_arcs.findIndex(
+                    arc => arc.arc_id === arcUpdate.arc_id
+                );
+
+                if (existingArcIndex !== -1) {
+                    // 更新现有弧光
+                    const existingArc = workingChapter.meta.active_narrative_arcs[existingArcIndex];
+
+                    if (arcUpdate.impact_type === 'close') {
+                        // 弧光完成，从活跃列表中移除
+                        workingChapter.meta.active_narrative_arcs.splice(existingArcIndex, 1);
+                        this.info(`  ✓ 弧光 ${arcUpdate.arc_id} 已完成，已从活跃列表移除`);
+                    } else {
+                        // 更新弧光状态
+                        if (arcUpdate.current_stage) existingArc.current_stage = arcUpdate.current_stage;
+                        if (arcUpdate.stage_description) existingArc.stage_description = arcUpdate.stage_description;
+                        if (arcUpdate.progression_note) {
+                            if (!existingArc.progression_history) existingArc.progression_history = [];
+                            existingArc.progression_history.push({
+                                timestamp: new Date().toISOString(),
+                                note: arcUpdate.progression_note
+                            });
+                        }
+                        existingArc.last_updated = new Date().toISOString();
+                        this.info(`  ✓ 弧光 ${arcUpdate.arc_id} 已更新 (类型: ${arcUpdate.impact_type || 'progress'})`);
+                    }
+                } else {
+                    // 新弧光，添加到列表
+                    if (arcUpdate.impact_type !== 'close') {
+                        const newArc = {
+                            arc_id: arcUpdate.arc_id,
+                            title: arcUpdate.title || '未命名弧光',
+                            long_term_goal: arcUpdate.long_term_goal || '',
+                            current_stage: arcUpdate.current_stage || 'initial',
+                            stage_description: arcUpdate.stage_description || '',
+                            involved_entities: arcUpdate.involved_entities || [],
+                            created_at: new Date().toISOString(),
+                            last_updated: new Date().toISOString(),
+                            progression_history: arcUpdate.progression_note ? [{
+                                timestamp: new Date().toISOString(),
+                                note: arcUpdate.progression_note
+                            }] : []
+                        };
+                        workingChapter.meta.active_narrative_arcs.push(newArc);
+                        this.info(`  ✓ 新弧光 ${arcUpdate.arc_id} 已添加到活跃列表`);
+                    }
+                }
+            }
+
+            console.log(`当前活跃弧光数量: ${workingChapter.meta.active_narrative_arcs.length}`);
+            console.groupEnd();
+        }
+
+        // V2.0 步骤五：合并文体档案更新
+        if (delta.stylistic_analysis_delta) {
+            console.group('[ENGINE-V2-PROBE] 文体档案合并流程');
+            this.info(" -> 检测到文体档案更新请求...");
+
+            if (!workingChapter.dynamicState.stylistic_archive) {
+                workingChapter.dynamicState.stylistic_archive = {
+                    imagery_and_metaphors: [],
+                    frequent_descriptors: { adjectives: [], adverbs: [] },
+                    sensory_patterns: []
+                };
+                this.info(" -> 已初始化 dynamicState.stylistic_archive");
+            }
+
+            const stylisticDelta = delta.stylistic_analysis_delta;
+            const archive = workingChapter.dynamicState.stylistic_archive;
+
+            // 合并意象和隐喻
+            if (stylisticDelta.new_imagery && Array.isArray(stylisticDelta.new_imagery)) {
+                archive.imagery_and_metaphors.push(...stylisticDelta.new_imagery);
+                this.info(`  ✓ 已添加 ${stylisticDelta.new_imagery.length} 条新意象/隐喻`);
+            }
+
+            // 合并描述词
+            if (stylisticDelta.new_descriptors) {
+                if (stylisticDelta.new_descriptors.adjectives) {
+                    for (const newAdj of stylisticDelta.new_descriptors.adjectives) {
+                        const existing = archive.frequent_descriptors.adjectives.find(
+                            item => item.word === newAdj.word
+                        );
+                        if (existing) {
+                            existing.count += newAdj.count || 1;
+                            existing.overused = existing.count > 5; // 阈值可配置
+                        } else {
+                            archive.frequent_descriptors.adjectives.push(newAdj);
+                        }
+                    }
+                    this.info(`  ✓ 已合并 ${stylisticDelta.new_descriptors.adjectives.length} 条形容词`);
+                }
+
+                if (stylisticDelta.new_descriptors.adverbs) {
+                    for (const newAdv of stylisticDelta.new_descriptors.adverbs) {
+                        const existing = archive.frequent_descriptors.adverbs.find(
+                            item => item.word === newAdv.word
+                        );
+                        if (existing) {
+                            existing.count += newAdv.count || 1;
+                            existing.overused = existing.count > 5;
+                        } else {
+                            archive.frequent_descriptors.adverbs.push(newAdv);
+                        }
+                    }
+                    this.info(`  ✓ 已合并 ${stylisticDelta.new_descriptors.adverbs.length} 条副词`);
+                }
+            }
+
+            // 合并感官模式
+            if (stylisticDelta.new_sensory_patterns && Array.isArray(stylisticDelta.new_sensory_patterns)) {
+                for (const newPattern of stylisticDelta.new_sensory_patterns) {
+                    const existing = archive.sensory_patterns.find(
+                        p => p.type === newPattern.type && p.pattern === newPattern.pattern
+                    );
+                    if (existing) {
+                        existing.used_count = (existing.used_count || 1) + (newPattern.used_count || 1);
+                    } else {
+                        archive.sensory_patterns.push(newPattern);
+                    }
+                }
+                this.info(`  ✓ 已合并 ${stylisticDelta.new_sensory_patterns.length} 条感官模式`);
+            }
+
+            // 记录诊断信息
+            if (stylisticDelta.stylistic_diagnosis) {
+                this.diagnose('[文体诊断]', stylisticDelta.stylistic_diagnosis);
+            }
+
+            console.groupEnd();
         }
 
         this.info("--- 状态更新Delta应用完毕 ---");

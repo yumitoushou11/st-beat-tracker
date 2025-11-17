@@ -707,6 +707,133 @@ $('#extensions-settings-button').after(html);
         deps.toastr.info(`回合裁判模式已 ${isChecked ? '开启' : '关闭'}`, "模式已切换");
     });
 
+    // -- V2.0: 故事大纲 - 新增弧光 --
+    $wrapper.on('click', '.sbt-add-arc-btn', function() {
+        if (!currentChapterState) {
+            deps.toastr.warning('请先开始一个故事', '操作失败');
+            return;
+        }
+
+        // 显示弹窗收集弧光信息
+        const arcTitle = prompt('请输入弧光标题:');
+        if (!arcTitle || !arcTitle.trim()) return;
+
+        const longTermGoal = prompt('请输入长期目标:');
+        const currentStage = prompt('请输入当前阶段标识 (如: initial, development, climax):') || 'initial';
+        const stageDescription = prompt('请输入阶段描述:') || '';
+
+        // 生成弧光ID
+        const timestamp = Date.now().toString(36);
+        const titlePart = arcTitle.trim().replace(/\s+/g, '_').toLowerCase();
+        const arcId = `arc_${titlePart}_${timestamp}`;
+
+        // 确保 meta.active_narrative_arcs 存在
+        if (!currentChapterState.meta) {
+            currentChapterState.meta = {};
+        }
+        if (!currentChapterState.meta.active_narrative_arcs) {
+            currentChapterState.meta.active_narrative_arcs = [];
+        }
+
+        // 创建新弧光
+        const newArc = {
+            arc_id: arcId,
+            title: arcTitle.trim(),
+            long_term_goal: longTermGoal?.trim() || '',
+            current_stage: currentStage.trim(),
+            stage_description: stageDescription.trim(),
+            involved_entities: [],
+            created_at: new Date().toISOString(),
+            last_updated: new Date().toISOString(),
+            progression_history: []
+        };
+
+        currentChapterState.meta.active_narrative_arcs.push(newArc);
+
+        // 保存
+        if (typeof deps.onSaveCharacterEdit === 'function') {
+            deps.onSaveCharacterEdit('narrative_arc_added', currentChapterState);
+        }
+
+        // 触发更新
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        deps.toastr.success(`弧光"${arcTitle}"已创建！`, '创建成功');
+    });
+
+    // -- V2.0: 故事大纲 - 编辑弧光 --
+    $wrapper.on('click', '.sbt-edit-arc-btn', function() {
+        const arcId = $(this).data('arc-id');
+        if (!currentChapterState || !arcId) return;
+
+        const arc = currentChapterState.meta.active_narrative_arcs?.find(a => a.arc_id === arcId);
+        if (!arc) {
+            deps.toastr.error('找不到该弧光', '错误');
+            return;
+        }
+
+        // 显示编辑弹窗
+        const newTitle = prompt('弧光标题:', arc.title);
+        if (newTitle === null) return; // 用户取消
+
+        const newGoal = prompt('长期目标:', arc.long_term_goal);
+        const newStage = prompt('当前阶段:', arc.current_stage);
+        const newStageDesc = prompt('阶段描述:', arc.stage_description);
+
+        // 更新弧光
+        if (newTitle && newTitle.trim()) arc.title = newTitle.trim();
+        if (newGoal !== null) arc.long_term_goal = newGoal.trim();
+        if (newStage !== null) arc.current_stage = newStage.trim();
+        if (newStageDesc !== null) arc.stage_description = newStageDesc.trim();
+        arc.last_updated = new Date().toISOString();
+
+        // 保存
+        if (typeof deps.onSaveCharacterEdit === 'function') {
+            deps.onSaveCharacterEdit('narrative_arc_updated', currentChapterState);
+        }
+
+        // 触发更新
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        deps.toastr.success('弧光已更新！', '更新成功');
+    });
+
+    // -- V2.0: 故事大纲 - 删除弧光 --
+    $wrapper.on('click', '.sbt-delete-arc-btn', function() {
+        const arcId = $(this).data('arc-id');
+        if (!currentChapterState || !arcId) return;
+
+        const arcIndex = currentChapterState.meta.active_narrative_arcs?.findIndex(a => a.arc_id === arcId);
+        if (arcIndex === -1) {
+            deps.toastr.error('找不到该弧光', '错误');
+            return;
+        }
+
+        const arc = currentChapterState.meta.active_narrative_arcs[arcIndex];
+        if (!confirm(`确定要删除弧光"${arc.title}"吗？此操作无法撤销。`)) {
+            return;
+        }
+
+        // 删除弧光
+        currentChapterState.meta.active_narrative_arcs.splice(arcIndex, 1);
+
+        // 保存
+        if (typeof deps.onSaveCharacterEdit === 'function') {
+            deps.onSaveCharacterEdit('narrative_arc_deleted', currentChapterState);
+        }
+
+        // 触发更新
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        deps.toastr.success(`弧光"${arc.title}"已删除`, '删除成功');
+    });
+
     // -- 设置面板: 绑定所有设置相关处理器 --
     bindPasswordToggleHandlers($wrapper);
     bindSettingsSaveHandler($wrapper, deps);

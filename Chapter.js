@@ -63,11 +63,44 @@ export class Chapter {
                     side_quests: {},
                     relationship_arcs: {},
                     personal_arcs: {}
+                },
+                // V2.0: 文体档案库 - 用于追踪已使用的文学元素，实现文体熵增对抗
+                stylistic_archive: {
+                    imagery_and_metaphors: [
+                        // "月光如水", "时间是沙漏", ...
+                    ],
+                    frequent_descriptors: {
+                        adjectives: [
+                            // { word: "冰冷", count: 3 },
+                            // { word: "温暖", count: 2 }
+                        ],
+                        adverbs: [
+                            // { word: "缓缓", count: 4 },
+                            // { word: "骤然", count: 2 }
+                        ]
+                    },
+                    sensory_patterns: [
+                        // { type: "visual", pattern: "光影交错的描写", used_count: 2 },
+                        // { type: "auditory", pattern: "寂静的强调", used_count: 3 }
+                    ]
                 }
             },
             meta: {
                 longTermStorySummary: "故事刚刚开始。",
-                lastChapterHandoff: null
+                lastChapterHandoff: null,
+                // V2.0: 宏观叙事弧光存储区
+                active_narrative_arcs: [
+                    // {
+                    //   arc_id: "arc_xxx",
+                    //   title: "弧光标题",
+                    //   long_term_goal: "长期目标描述",
+                    //   current_stage: "当前阶段标识",
+                    //   stage_description: "阶段详细描述",
+                    //   involved_entities: ["char_xxx", "loc_xxx"], // 涉及的实体ID
+                    //   created_at: "创建时间",
+                    //   last_updated: "最后更新时间"
+                    // }
+                ]
             },
             
             playerNarrativeFocus: "由AI自主创新。",

@@ -1480,3 +1480,145 @@ input:checked + .sbt-slider:before {
     font-weight: 500;
     margin-right: 4px;
 }
+
+/* ============================================
+   V2.0: 故事大纲 - 宏观叙事弧光样式
+   ============================================ */
+
+/* V2.0 徽章 */
+.sbt-v2-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 0.7em;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* 弧光列表头部 */
+.sbt-arc-list-header {
+    margin-bottom: 16px;
+}
+
+.sbt-arc-description {
+    font-size: 0.9em;
+    color: var(--sbt-text-medium);
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background-color: rgba(10, 132, 255, 0.05);
+    border-left: 3px solid var(--sbt-primary-accent);
+    border-radius: 4px;
+}
+
+/* 弧光卡片 */
+.sbt-arc-card {
+    margin-bottom: 16px;
+    padding: 16px;
+    background-color: var(--sbt-card-bg);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.sbt-arc-card:hover {
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.15);
+    transform: translateY(-2px);
+}
+
+/* 弧光卡片头部 */
+.sbt-arc-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--sbt-border-color);
+}
+
+.sbt-arc-title {
+    margin: 0;
+    font-size: 1.1em;
+    font-weight: 600;
+    color: var(--sbt-text-primary);
+}
+
+.sbt-arc-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* 图标按钮 */
+.sbt-icon-btn {
+    padding: 6px 10px;
+    background-color: transparent;
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-medium);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-icon-btn:hover {
+    background-color: rgba(10, 132, 255, 0.1);
+    border-color: var(--sbt-primary-accent);
+    color: var(--sbt-primary-accent);
+}
+
+.sbt-delete-arc-btn:hover {
+    background-color: rgba(255, 69, 58, 0.1);
+    border-color: var(--sbt-danger-color);
+    color: var(--sbt-danger-color);
+}
+
+/* 弧光卡片主体 */
+.sbt-arc-body {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.sbt-arc-field strong {
+    display: block;
+    font-size: 0.9em;
+    color: var(--sbt-text-light);
+    margin-bottom: 4px;
+}
+
+.sbt-arc-field p {
+    margin: 0;
+    font-size: 0.95em;
+    color: var(--sbt-text-primary);
+    line-height: 1.5;
+}
+
+/* 阶段徽章 */
+.sbt-arc-stage-badge {
+    display: inline-block;
+    padding: 4px 10px;
+    font-size: 0.85em;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    border-radius: 12px;
+}
+
+/* 弧光元信息 */
+.sbt-arc-meta {
+    display: flex;
+    gap: 16px;
+    padding-top: 12px;
+    margin-top: 8px;
+    border-top: 1px solid var(--sbt-border-color);
+    font-size: 0.85em;
+    color: var(--sbt-text-light);
+}
+
+.sbt-meta-item i {
+    margin-right: 4px;
+    color: var(--sbt-primary-accent);
+}
+

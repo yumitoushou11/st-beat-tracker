@@ -161,7 +161,7 @@ export class ArchitectAgent extends Agent {
 // architectAgent.js
 
 _createPrompt(context) {
-    const { chapter, firstMessageContent } = context;        
+    const { chapter, firstMessageContent } = context;
             const currentWorldState = deepmerge(
             chapter.staticMatrices,
             chapter.dynamicState
@@ -169,6 +169,13 @@ _createPrompt(context) {
         const longTermStorySummary = chapter?.meta?.longTermStorySummary || "故事刚刚开始。";
         const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
         const isNsfwFocused = playerNarrativeFocus.toLowerCase().startsWith('nsfw:');
+        // V2.0: 提取宏观叙事弧光和文体档案
+        const activeNarrativeArcs = chapter?.meta?.active_narrative_arcs || [];
+        const stylisticArchive = chapter?.dynamicState?.stylistic_archive || {
+            imagery_and_metaphors: [],
+            frequent_descriptors: { adjectives: [], adverbs: [] },
+            sensory_patterns: []
+        };
         let openingSceneContext = "无指定的开场白，请自由创作开篇。";
         let handoffToUse = chapter?.meta?.lastChapterHandoff || { 
             ending_snapshot: "故事从零开始。",
@@ -190,6 +197,33 @@ _createPrompt(context) {
 **身份确认:** 你是一位顶级的、懂得“克制”与“聚焦”艺术的“**叙事建筑师**”。你的任务是设计一个**高度专注的、服务于单一核心情感体验的创作蓝图**。
  --- 【语言与细节规范 (MANDATORY)】 ---
     1.  **语言协议**: 你的所有输出，包括 \`staticMatrices\` 内部的所有字符串值（characters, worldview, storylines），**必须完全使用【简体中文】**。这是一个绝对的要求，不得出现任何英文单词或短语，除非它们是专有名词的原文。
+
+---
+## **第零章：V2.0 "双重奏"创作哲学 (Dual-Horizon Philosophy)**
+---
+### **【【【 核心范式转变：从单一焦点到战略级叙事操作系统 】】】**
+你的创作必须兼顾两个时间维度，这是 V2.0 架构的核心理念：
+
+**1. 短期焦点 (Short-term Focus) - 战术层**
+- **数据来源:** 玩家的 \`playerNarrativeFocus\`
+- **定义:** 本章应给予玩家的**即时情感满足**和**当下体验**
+- **优先级:** 这是你的**主要任务**，必须确保本章能够完整地兑现这个承诺
+
+**2. 长期目标 (Long-term Arcs) - 战略层**
+- **数据来源:** 系统的 \`active_narrative_arcs\`
+- **定义:** 整个故事的**宏观演化方向**和**跨章节的叙事弧光**
+- **作用:** 即使本章不直接推进某条弧光，你也应确保设计不与之冲突，并在可能的情况下**埋下伏笔**
+
+**【执行准则 - 二重奏的平衡艺术】**
+*   **情况A - 高度契合:** 如果玩家焦点与某条长期弧光高度契合（例如：玩家焦点"复仇"，长期弧光"复仇之路"），则**优先服务该弧光的推进**，让本章成为宏观叙事的关键节点。
+*   **情况B - 存在张力:** 如果玩家焦点是"轻松日常"，而长期弧光包含"复仇计划"，则本章应**聚焦日常**，但可通过**细微的环境细节或NPC的不经意言行**，暗示长期弧光的存在（例如：角色接到一通神秘电话后表情微变，但未展开）。
+*   **情况C - 无冲突:** 如果两者无直接关联，正常推进短期焦点即可。
+
+**【强制输出要求】**
+在 \`design_notes.dual_horizon_analysis\` 中，你**必须**明确阐述：
+- 你如何平衡了短期焦点与长期弧光
+- 如果存在张力，你的选择逻辑是什么
+- 你为长期弧光埋下了哪些伏笔（如果有）
 
 ---
 ## **第一章：核心创作哲学与红线禁令 (Core Philosophy & Red Lines)**
@@ -228,15 +262,39 @@ _createPrompt(context) {
 // 2. 你必须在最终输出的 "design_notes.connection_and_hook" 字段中，明确阐述你的开篇节拍是如何无缝衔接这个已有开场白的。
 0.  **【零号情报】开场白场景 (Opening Scene Hand-off):**
     \`\`\`
-    ${openingSceneContext} 
+    ${openingSceneContext}
     \`\`\`
-1.  **导演（玩家）的战术焦点:** \`${playerNarrativeFocus}\`
-2.  **长篇故事梗概:** ${longTermStorySummary}
-3.  **上一章交接备忘录:** ${JSON.stringify(handoffToUse, null, 2)}
-4.  **核心情报：当前世界的完整状态快照:**
+
+1.  **【战术层】玩家的短期焦点 (Short-term Focus):** \`${playerNarrativeFocus}\`
+    - 这是玩家对本章的期待，你必须优先兑现这个承诺。
+
+2.  **【战略层】系统的长期弧光 (Long-term Narrative Arcs):**
+    ${activeNarrativeArcs.length > 0
+      ? `<active_narrative_arcs>
+    ${JSON.stringify(activeNarrativeArcs, null, 2)}
+    </active_narrative_arcs>
+    - 这些是跨章节的宏观故事线，参考"第零章"的双重奏哲学进行平衡处理。`
+      : '当前无活跃的长期弧光。你可以根据故事发展，在本章设计中为未来埋下长期目标的种子。'}
+
+3.  **长篇故事梗概:** ${longTermStorySummary}
+
+4.  **上一章交接备忘录:** ${JSON.stringify(handoffToUse, null, 2)}
+
+5.  **核心情报：当前世界的完整状态快照:**
     <current_world_state>
     ${JSON.stringify(currentWorldState, null, 2)}
     </current_world_state>
+
+6.  **【V2.0 美学档案】已使用的文学元素清单 (Stylistic Archive):**
+    <stylistic_archive>
+    ${JSON.stringify(stylisticArchive, null, 2)}
+    </stylistic_archive>
+
+    **【【【 美学禁令 (Aesthetic Prohibition) 】】】**
+    上述档案记录了你在过往章节中使用过的意象、描述词和感官模式。为了避免美学疲劳，你**必须**：
+    - 在设计高光时刻的艺术指令时，**主动避免**重复使用频次已超过 3 次的描述词或模式
+    - 优先选择**从未使用过**的意象、比喻和感官组合
+    - 在 \`design_notes.aesthetic_innovation_report\` 中，明确阐述你识别出了哪些"高频元素"，以及你如何创新性地避开了它们
 ---
 ## **第三章：强制前置思考：自省式蓝图设计**
 ---
@@ -250,8 +308,14 @@ _createPrompt(context) {
 
 *   **任务**: 像一位经验丰富的电影导演，从下方的【导演镜头速查卡】中，为你定义的核心体验，**选择1-2种最贴切的“镜头”**，并基于此构思一套充满诗意的艺术指令。
 
-*   **【【【 最高创作准则：禁绝重复，拥抱多元 】】】**
-    为了避免美学疲劳，你**必须**在每一章的创作中，有意识地选择**与上一章不同**的镜头组合。你需要在\`design_notes.highlight_design_rationale\`字段中，阐述你为何做出此选择。
+*   **【【【 V2.0 最高创作准则：美学禁令与风格创新 】】】**
+    1.  **查阅档案:** 首先检查 \`stylistic_archive\`（见第二章第6条情报），识别出哪些意象、描述词和感官模式已被频繁使用。
+    2.  **主动规避:** 在设计高光时刻的艺术指令时，**绝对禁止**直接复用频次 ≥ 3 的元素。
+    3.  **创新优先:** 优先使用档案中**从未出现**的新意象、新比喻、新感官组合。
+    4.  **记录创新:** 在 \`design_notes.aesthetic_innovation_report\` 中，明确说明：
+        - 你识别出了哪些"疲劳元素"（例如："'冰冷'已使用 5 次"）
+        - 你选择了哪些全新元素作为替代（例如："改用'凛冽'和'冻结的时间'的意象"）
+        - 为何这些新元素更适合本章的核心体验
 
 ---
 ### **【导演镜头速查卡 (Director's Lens Quick-Card) V1.1】**
@@ -307,29 +371,61 @@ _createPrompt(context) {
     2.  **关于“设定驱动”**: “在本章中，角色们的行为是否首先符合‘普通人’的逻辑？我是如何确保他们的‘特殊性格’只在必要时才被轻微流露的？”
     3.  **关于“叙事线并行”**: “我是否真的只推进了不超过两条故事线？我选择了哪两条？为什么是它们？”
     4.  **关于“悬念前置”与章节收尾**: “我的结尾设计（软着陆/情感悬崖）是否服务于本章的核心情感？**如果我使用了‘情感悬崖’，我是如何确保它只揭示了‘现象’而没有‘解释’，从而将核心的情感爆发完美地保留到下一章的？我为\`endgame_beacons\`设计的条件，是否是一个**没有感情的摄像头**也能判断‘是/否’的、纯粹的物理事件？它是否包含了任何需要‘读心’才能知道的内心状态？**”
-*   **输出:** 将你对这四个问题的详细回答，作为一个完整的报告，填入**全新的**\`design_notes.self_scrutiny_report\`字段中。---
+*   **输出:** 将你对这四个问题的详细回答，作为一个完整的报告，填入**全新的**\`design_notes.self_scrutiny_report\`字段中。
+
+### **第六步：V2.0 情境预取 - 为演绎AI打包上下文 (Context Pre-fetching)**
+*   **任务:** 分析你设计的情节，明确列出演绎AI在执行本章时，**必须**预先了解的关键信息。
+*   **核心思考:**
+    1.  "本章涉及了哪些关键角色？他们的核心性格、历史和当前状态是什么？"
+    2.  "故事发生在哪些地点？这些地点的氛围、历史或特殊规则是什么？"
+    3.  "是否涉及特殊物品、概念、势力或历史事件？它们的定义和当前状态是什么？"
+    4.  "哪些过往的故事线或关系弧光，是理解本章情节的必要前提？"
+
+*   **输出规范:**
+    在 \`chapter_blueprint.chapter_context_ids\` 中，列出所有相关实体的 ID。
+
+    **ID 命名规则（必须与 ECI 系统一致）:**
+    - 角色: \`char_[name]\`
+    - 地点: \`loc_[name]\`
+    - 物品: \`item_[name]\`
+    - 势力: \`faction_[name]\`
+    - 概念: \`concept_[name]\`
+    - 事件: \`event_[name]\`
+    - 故事线: \`quest_[name]\` 或 \`arc_[name]\`
+
+*   **【【【 执行标准 】】】**
+    - **宁可多列，不可遗漏。** 遗漏关键上下文会导致演绎AI产生不一致的行为。
+    - 如果某个实体在 \`current_world_state\` 中不存在，但你认为它应该存在（例如一个新角色），则在 \`chapter_context_ids\` 中使用 \`"NEW:char_[name]"\` 的格式标记，并在 \`design_notes.new_entities_proposal\` 中简要说明其定义和为何需要新增。
+    - **示例:** \`["char_Alice", "char_Bob", "loc_MainHall", "arc_FirstMeeting", "NEW:item_MysteriousLetter"]\`
+
 ---
 ## **第四章：最终输出指令 (Final Output Specification)**
 ---
 你的整个回复**必须**是一个**纯粹的、严格的、单一的JSON对象**。
 
-**【【【 最终输出格式 (MANDATORY V11.0 - SELF-REFLECTIVE BLUEPRINT) 】】】**
+**【【【 最终输出格式 (MANDATORY V2.0 - DUAL-HORIZON BLUEPRINT) 】】】**
 \`\`\`json
 {
   "design_notes": {
+    "dual_horizon_analysis": "[【V2.0 必填】阐述本章如何平衡玩家短期焦点与系统长期弧光。如果两者存在张力，说明你的选择逻辑。如果埋下了伏笔，具体说明。]",
+    "aesthetic_innovation_report": "[【V2.0 必填】列出你从 stylistic_archive 中识别出的高频元素（例如：'冰冷'已使用5次），以及你为本章高光时刻设计的创新性替代方案（例如：改用'凛冽'和'冻结的时间'），并说明为何这些新元素更适合本章核心体验。]",
+    "new_entities_proposal": "[【V2.0 可选】如果 chapter_context_ids 中包含 'NEW:' 前缀的实体，在此简要说明其定义、基本属性和为何需要新增。]",
     "storyline_weaving": "[你对第三步的思考结果]",
     "connection_and_hook": "[关于如何衔接和留下钩子的说明]",
-     "highlight_design_rationale": "[在此阐述你为高光时刻选择了哪个'导演镜头'，以及为什么这个镜头最适合本章的核心情感体验。]",
+    "highlight_design_rationale": "[在此阐述你为高光时刻选择了哪个'导演镜头'，以及为什么这个镜头最适合本章的核心情感体验。]",
     "self_scrutiny_report": {
       "avoiding_thematic_greed": "[你对问题1的回答]",
       "avoiding_setting_driven_performance": "[你对问题2的回答]",
       "avoiding_storyline_overload": "[你对问题3的回答]",
       "avoiding_premature_suspense": "[你对问题4的回答]",
-      "avoiding_premature_suspense_and_ending_design": "[【V12.0 新增】对问题4的回答，包含对结尾设计的反思]"
+      "avoiding_premature_suspense_and_ending_design": "[对问题4的回答，包含对结尾设计的反思]"
     }
   },
   "chapter_blueprint": {
     "title": "[一个简洁、富有诗意的章节名]",
+    "chapter_context_ids": [
+      "[【V2.0 新增】列出本章涉及的所有关键实体ID，例如：'char_Alice', 'loc_MainHall', 'arc_FirstMeeting'。如果需要新增实体，使用 'NEW:' 前缀，例如：'NEW:item_MysteriousLetter']"
+    ],
     "director_brief": {
       "player_narrative_focus": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
       "emotional_arc": "[用一句话，定义本章的核心情感体验曲线。]",

@@ -65,6 +65,9 @@ ${formattedWorldInfo}
         - \`age\`: 年龄或年龄段
         - \`gender\`: 性别
         - \`race_id\`: 种族ID引用 (如: "race_human")
+        - \`keywords\`: **[V2.0 新增]** 关键词索引数组 - 用于快速检索和上下文召回。
+          必须包含：角色的姓名、别名、核心身份、显著特征、职业等所有可能被提及的关键标识。
+          示例: ["雪菜", "姐姐", "银发女子", "虚弱的病人", "刺绣师"]
 
     *   **外貌特征 (appearance)**:
         - 描述角色的外貌、体型、着装风格等视觉特征的字符串或结构化对象
@@ -121,6 +124,11 @@ ${formattedWorldInfo}
         
 2.  **建档 \`staticMatrices.worldview\`:**
     *   将所有非角色的世界观实体，按照 \`locations\`, \`items\`, \`events\` 等分类，分别建档。
+    *   **[V2.0 新增]** 对于 locations（地点）和其他重要实体，也必须生成 \`keywords\` 数组。
+      - 地点的 keywords 应包含：地名、地标特征、常见称呼等。
+        示例: {"loc_hanyu_village": {"name": "羽生村", "keywords": ["羽生村", "村庄", "小村", "家乡"], ...}}
+      - 物品的 keywords 应包含：物品名、类型、显著特征等。
+        示例: {"item_moon_sword": {"name": "月光之剑", "keywords": ["月光之剑", "魔法剑", "发光的剑"], ...}}
 
 3.  **建档 \`staticMatrices.storylines\`:**
     *   识别所有在故事开始前就存在的长期目标或悬而未决的矛盾。
@@ -140,7 +148,8 @@ ${formattedWorldInfo}
           "identity": "年轻的冒险者",
           "age": "17岁",
           "gender": "女",
-          "race_id": "race_human"
+          "race_id": "race_human",
+          "keywords": ["Yumi", "由美", "冒险者", "黑发少女", "妹妹"]
         },
         "appearance": "黑色长发，琥珀色眼睛，身材娇小但充满活力",
         "personality": {
@@ -177,7 +186,8 @@ ${formattedWorldInfo}
           "identity": "Yumi的姐姐",
           "age": "22岁",
           "gender": "女",
-          "race_id": "race_human"
+          "race_id": "race_human",
+          "keywords": ["雪菜", "姐姐", "银发女子", "虚弱的病人", "刺绣师"]
         },
         "appearance": "银白色长发，温柔的浅蓝色眼睛，身体虚弱但气质优雅",
         "personality": {
@@ -215,6 +225,7 @@ ${formattedWorldInfo}
       "locations": {
         "loc_hanyu_village": {
           "name": "羽生村",
+          "keywords": ["羽生村", "村庄", "小村", "家乡"],
           "description": "..."
         }
       },

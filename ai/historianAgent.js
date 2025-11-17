@@ -100,14 +100,21 @@ export class HistorianAgent extends Agent {
      _createPrompt(context) {
         const {
             chapterTranscript,
-            chapter 
+            chapter
         } = context;
-        
+
         // 从Chapter对象中解构出我们需要的所有新旧数据
         const staticMatrices = chapter.staticMatrices;
         const dynamicState = chapter.dynamicState;
         const longTermStorySummary = chapter.meta.longTermStorySummary; // 新路径
         const activeChapterBlueprint = chapter.chapter_blueprint;
+        // V2.0: 提取宏观叙事弧光和文体档案
+        const activeNarrativeArcs = chapter?.meta?.active_narrative_arcs || [];
+        const stylisticArchive = chapter?.dynamicState?.stylistic_archive || {
+            imagery_and_metaphors: [],
+            frequent_descriptors: { adjectives: [], adverbs: [] },
+            sensory_patterns: []
+        };
         // 【探针】生成实体清单前先检查数据
         console.group('[HISTORIAN-PROBE] 生成实体清单');
         console.log('staticMatrices.storylines 结构:', JSON.parse(JSON.stringify(staticMatrices.storylines)));
@@ -164,6 +171,20 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
     <active_chapter_script>
     ${JSON.stringify(activeChapterBlueprint, null, 2)}
     </active_chapter_script>
+
+7.  **【V2.0 战略层】活跃宏观叙事弧光 (Active Narrative Arcs):**
+    <active_narrative_arcs>
+    ${activeNarrativeArcs.length > 0
+      ? JSON.stringify(activeNarrativeArcs, null, 2)
+      : '（当前无活跃的宏观弧光）'}
+    </active_narrative_arcs>
+    *   **作用说明:** 这些是跨越多个章节的战略级叙事目标。你需要评估本章事件对每条弧光的推进作用。
+
+8.  **【V2.0 文体档案库】当前已使用的文学元素 (Stylistic Archive):**
+    <stylistic_archive>
+    ${JSON.stringify(stylisticArchive, null, 2)}
+    </stylistic_archive>
+    *   **作用说明:** 这是文体熵增对抗系统的基础数据。你需要从本章对话中提取新的文学元素，并与已有档案进行对比，识别重复使用的模式。
 
 ---
 **【第二部分：核心方法论 (Core Methodologies)】**
@@ -261,8 +282,52 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
     *   对于\`relationships\`变化，必须遵循方法论二的规则
 
 ### **方法论五：双轨制摘要 (DUAL-TRACK SUMMARY)**
--   **【核心哲学】**: 同时扮演“编年史家”和“战地联络官”。
+-   **【核心哲学】**: 同时扮演"编年史家"和"战地联络官"。
 -   **【输出要求】**: 将更新后的长篇故事梗概填入顶层键 **\`new_long_term_summary\`**，将战术交接指令填入顶层键 **\`new_handoff_memo\`**。
+
+### **方法论六：V2.0 宏观弧光进展评估 (Macro Narrative Arc Progression Analysis)**
+-   **【核心哲学】**: 宏观弧光是跨越多个章节的战略级叙事目标，每个章节都可能对其产生推进、停滞或转折的影响。
+-   **【执行方法】**:
+    1.  **全面审视:** 遍历输入的【活跃宏观叙事弧光】列表中的**每一条**弧光（位于 \`active_narrative_arcs\` 数组中）
+    2.  **证据检索:** 对照【本章完整对话记录】，识别与该弧光相关的事件、对话、角色行为或环境变化
+    3.  **影响判定:** 评估这些证据对弧光的影响类型：
+        - **推进 (progress)**: 弧光向目标前进（如复仇计划获得新线索）
+        - **转折 (turn)**: 弧光发生方向性变化（如复仇目标从个人升级为组织）
+        - **停滞 (stagnation)**: 本章未实质影响该弧光
+        - **危机 (crisis)**: 弧光遭遇重大挫折或威胁
+    4.  **阶段更新建议:** 如果弧光发生显著推进或转折，为其生成 \`current_stage\` 和 \`stage_description\` 的更新建议
+-   **【输出要求】**:
+    *   如果某条弧光在本章有**实质性变化**（推进/转折/危机），则在输出的 **\`updates.meta.active_narrative_arcs\`** 路径下，为其创建更新记录
+    *   **更新字段定义:**
+        - \`arc_id\`: 弧光的唯一标识符（必须与输入的 arc_id 一致）
+        - \`current_stage\`: 更新后的阶段标识（如 "preparation" → "confrontation"）
+        - \`stage_description\`: 对新阶段的详细描述（1-2 句话）
+        - \`progression_note\`: 本章对该弧光的影响说明（必须包含具体证据）
+        - \`impact_type\`: 影响类型（"progress" | "turn" | "crisis"）
+        - \`last_updated\`: 使用占位符 "{{engine_generated_timestamp}}"
+    *   **【关键原则】**: 只输出**有变化**的弧光。如果某条弧光在本章未受影响，则不输出其更新记录
+
+### **方法论七：V2.0 文体考古与熵增对抗 (Stylistic Archaeology & Entropy Resistance)**
+-   **【核心哲学】**: AI生成内容容易陷入"文体惰性"，反复使用相同的意象、形容词和感官模式。通过系统性提取和追踪这些元素，为后续章节提供"避免重复"的参考依据。
+-   **【执行方法 - 三重提取】**:
+    1.  **意象与隐喻提取 (Imagery & Metaphors)**
+        - **定义:** 从【本章完整对话记录】中识别所有**具有诗意或象征意义的描写**
+        - **标准:** 不是直白的描述，而是带有比喻、拟人或象征性的表达
+        - **示例:** "月光如水" → 提取; "月亮很亮" → 不提取
+    2.  **高频描述词统计 (Frequent Descriptors)**
+        - **定义:** 统计本章中**反复出现的形容词和副词**（出现 2 次及以上）
+        - **分类:** \`adjectives\`（形容词）和 \`adverbs\`（副词）
+        - **格式:** \`{ "word": "冰冷", "count": 3, "overused": false }\`
+        - **去重逻辑:** 如果某词在档案中已达到 5 次以上，标注 \`"overused": true\`
+    3.  **感官模式识别 (Sensory Patterns)**
+        - **感官类型:** visual（视觉）, auditory（听觉）, tactile（触觉）, olfactory（嗅觉）, gustatory（味觉）
+        - **识别:** 本章在感官描写上的**主导模式或特殊偏好**
+-   **【输出要求】**:
+    *   在输出的顶层键 **\`stylistic_analysis_delta\`** 中，提供本章提取的所有文学元素
+    *   **必须包含:** \`new_imagery\`, \`new_descriptors\`, \`new_sensory_patterns\`, \`stylistic_diagnosis\`
+    *   **诊断规则:**
+        - 如果某词在本章出现 3 次以上，在 \`stylistic_diagnosis\` 中标注为"高频使用"
+        - 如果某词累计已达 5 次以上，标记 \`overused: true\` 并在诊断中警告
 
 ---
 ## **【第三部分：最终输出指令 (Final Output Specification 】**
@@ -385,12 +450,55 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
           "status": "completed" // 静态状态也要同步更新
         }
       }
+    },
+    "meta": {
+      "active_narrative_arcs": [
+        {
+          "arc_id": "arc_revenge_on_syndicate",
+          "current_stage": "confrontation_preparation",
+          "stage_description": "已确定敌人的藏身地点，正在筹备最终对决",
+          "progression_note": "本章中，主角从神秘商人处获得了敌人总部的地图（证据：对话记录第45-48条），标志着从'信息收集'阶段进入'对决筹备'阶段。",
+          "impact_type": "progress",
+          "last_updated": "{{engine_generated_timestamp}}"
+        }
+      ]
     }
   },
   "new_long_term_summary": "在一个人类与御兽共存的世界里...",
-  "new_handoff_memo": { 
+  "new_handoff_memo": {
       "ending_snapshot": "...",
       "action_handoff": "..."
+  },
+  "stylistic_analysis_delta": {
+    "new_imagery": [
+      "月光如水",
+      "时间是沙漏"
+    ],
+    "new_descriptors": {
+      "adjectives": [
+        { "word": "冰冷", "count": 3, "overused": false },
+        { "word": "神秘", "count": 2, "overused": false }
+      ],
+      "adverbs": [
+        { "word": "缓缓", "count": 4, "overused": true },
+        { "word": "骤然", "count": 2, "overused": false }
+      ]
+    },
+    "new_sensory_patterns": [
+      {
+        "type": "visual",
+        "pattern": "月光与阴影的对比",
+        "used_count": 1,
+        "examples": ["月光如水般倾泻而下，阴影在角落蜷缩"]
+      },
+      {
+        "type": "auditory",
+        "pattern": "寂静的强调",
+        "used_count": 1,
+        "examples": ["只有风声在低语，世界陷入沉默"]
+      }
+    ],
+    "stylistic_diagnosis": "本章视觉描写偏重'光影对比'，副词'缓缓'累计使用已达4次（标记为过度使用），建议后续寻找替代表达如'徐徐'、'悠悠'。新增意象'月光如水'与档案中的'月光如纱'形成系列。"
   }
 }
 \`\`\`

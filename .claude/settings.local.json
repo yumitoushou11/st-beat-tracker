@@ -4,7 +4,10 @@
       "Bash(echo:*)",
       "Bash(\"d:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\\style.css\")",
       "Bash(find:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(dir /B /S \"D:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\")",
+      "Bash(findstr:*)",
+      "Bash(\"D:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\\style.css\")"
     ],
     "deny": [],
     "ask": []
