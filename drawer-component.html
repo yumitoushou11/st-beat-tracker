@@ -318,6 +318,16 @@
                     <div class="sbt-settings-card">
                         <div class="sbt-settings-form">
                             <div class="sbt-form-group">
+                                <label for="sbt-api-provider-select">
+                                    API 提供商模式
+                                    <i class="fa-solid fa-circle-info fa-fw" title="直接调用: 浏览器直接访问API (可能遇到跨域CORS问题)&#10;SillyTavern代理: 通过SillyTavern后端转发 (推荐, 可解决CORS问题)" style="cursor: help;"></i>
+                                </label>
+                                <select id="sbt-api-provider-select" class="sbt-select">
+                                    <option value="direct_openai">直接调用 (Direct Fetch)</option>
+                                    <option value="sillytavern_proxy_openai">SillyTavern 代理 (推荐)</option>
+                                </select>
+                            </div>
+                            <div class="sbt-form-group">
                                 <label for="sbt-api-url-input">API URL</label>
                                 <input type="text" id="sbt-api-url-input" placeholder="例如: https://.../gemini-pro:generateContent">
                             </div>
@@ -350,6 +360,16 @@
 
                     <div class="sbt-settings-card">
                         <div class="sbt-settings-form">
+                            <div class="sbt-form-group">
+                                <label for="sbt-conductor-api-provider-select">
+                                    API 提供商模式
+                                    <i class="fa-solid fa-circle-info fa-fw" title="直接调用: 浏览器直接访问API (可能遇到跨域CORS问题)&#10;SillyTavern代理: 通过SillyTavern后端转发 (推荐, 可解决CORS问题)" style="cursor: help;"></i>
+                                </label>
+                                <select id="sbt-conductor-api-provider-select" class="sbt-select">
+                                    <option value="direct_openai">直接调用 (Direct Fetch)</option>
+                                    <option value="sillytavern_proxy_openai">SillyTavern 代理 (推荐)</option>
+                                </select>
+                            </div>
                             <div class="sbt-form-group">
                                 <label for="sbt-conductor-api-url-input">API URL</label>
                                 <input type="text" id="sbt-conductor-api-url-input" placeholder="例如: https://.../gemini-1.5-flash:generateContent">

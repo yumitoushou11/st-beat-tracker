@@ -30,10 +30,12 @@ function populateSettingsUI() {
         const settings = getApiSettings();
         if (settings) {
             // 填充主API设置
+            $('#sbt-api-provider-select').val(settings.main.apiProvider || 'direct_openai');
             $('#sbt-api-url-input').val(settings.main.apiUrl);
             $('#sbt-api-key-input').val(settings.main.apiKey);
             $('#sbt-model-name-input').val(settings.main.modelName);
             // 填充回合裁判API设置
+            $('#sbt-conductor-api-provider-select').val(settings.conductor.apiProvider || 'direct_openai');
             $('#sbt-conductor-api-url-input').val(settings.conductor.apiUrl);
             $('#sbt-conductor-api-key-input').val(settings.conductor.apiKey);
             $('#sbt-conductor-model-name-input').val(settings.conductor.modelName);
@@ -830,11 +832,13 @@ $('#extensions-settings-button').after(html);
         $wrapper.on('click', '#sbt-save-settings-btn', () => {
             let newSettings = {
                 main: {
+                    apiProvider: String($('#sbt-api-provider-select').val()).trim(),
                     apiUrl: String($('#sbt-api-url-input').val()).trim(),
                     apiKey: String($('#sbt-api-key-input').val()).trim(),
                     modelName: String($('#sbt-model-name-input').val()).trim(),
                 },
                 conductor: {
+                    apiProvider: String($('#sbt-conductor-api-provider-select').val()).trim(),
                     apiUrl: String($('#sbt-conductor-api-url-input').val()).trim(),
                     apiKey: String($('#sbt-conductor-api-key-input').val()).trim(),
                     modelName: String($('#sbt-conductor-model-name-input').val()).trim(),
@@ -845,6 +849,7 @@ $('#extensions-settings-button').after(html);
             if (!newSettings.conductor.apiUrl || !newSettings.conductor.apiKey) {
                 newSettings.conductor = { ...newSettings.main };
                 // 将自动填充后的值更新回UI，让用户看到结果
+                $('#sbt-conductor-api-provider-select').val(newSettings.conductor.apiProvider);
                 $('#sbt-conductor-api-url-input').val(newSettings.conductor.apiUrl);
                 $('#sbt-conductor-api-key-input').val(newSettings.conductor.apiKey);
                 $('#sbt-conductor-model-name-input').val(newSettings.conductor.modelName);
@@ -873,6 +878,7 @@ $('#extensions-settings-button').after(html);
             
             try {
                 const tempConfig = {
+                    apiProvider: String($('#sbt-api-provider-select').val()).trim(),
                     apiUrl: String($('#sbt-api-url-input').val()).trim(),
                     apiKey: String($('#sbt-api-key-input').val()).trim(),
                     modelName: String($('#sbt-model-name-input').val()).trim(),
@@ -900,6 +906,7 @@ $('#extensions-settings-button').after(html);
             
             try {
                 const tempConfig = {
+                    apiProvider: String($('#sbt-conductor-api-provider-select').val()).trim(),
                     apiUrl: String($('#sbt-conductor-api-url-input').val()).trim(),
                     apiKey: String($('#sbt-conductor-api-key-input').val()).trim(),
                     modelName: String($('#sbt-conductor-model-name-input').val()).trim(),
@@ -914,7 +921,7 @@ $('#extensions-settings-button').after(html);
             }
         });
 
-        // -- 设置面板: 测试回合裁判API连接 --
+        // -- 设置面板: 测试回合裁判API连接 (重复代码，待清理) --
         $wrapper.on('click', '#sbt-test-conductor-api-btn', async function() {
             const $btn = $(this);
             const originalText = $btn.html();

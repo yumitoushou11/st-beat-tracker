@@ -1,4 +1,5 @@
 import {EDITOR, USER} from './src/engine-adapter.js';
+import { getRequestHeaders } from '/script.js';
 let ChatCompletionService = undefined;
 try {
     // 动态导入，兼容模块不存在的情况
@@ -10,6 +11,7 @@ try {
 export class LLMApiService {
     constructor(config = {}, dependencies = {}) {
         this.config = {
+            api_provider: config.api_provider || 'direct_openai', // 新增：API提供商策略
             api_url: config.api_url || "",
             api_key: config.api_key || "",
             model_name: config.model_name || "",
@@ -17,7 +19,7 @@ export class LLMApiService {
             max_tokens: config.max_tokens || 63000,
             stream: config.stream || false
         };
-        
+
         this.deps = dependencies;
         this.EDITOR = this.deps.EDITOR;
         this.USER = this.deps.USER;
@@ -29,18 +31,22 @@ export class LLMApiService {
      * @param {object} newConfig - 新的配置项，例如 { apiUrl: "...", apiKey: "..." }
      */
     updateConfig(newConfig) {
+        // API提供商策略
+        if (newConfig.apiProvider !== undefined) this.config.api_provider = newConfig.apiProvider;
+        if (newConfig.api_provider !== undefined) this.config.api_provider = newConfig.api_provider;
+
         if (newConfig.apiUrl !== undefined) this.config.api_url = newConfig.apiUrl;
         if (newConfig.api_url !== undefined) this.config.api_url = newConfig.api_url;
 
         if (newConfig.apiKey !== undefined) this.config.api_key = newConfig.apiKey;
         if (newConfig.api_key !== undefined) this.config.api_key = newConfig.api_key;
-        
+
         if (newConfig.modelName !== undefined) this.config.model_name = newConfig.modelName;
         if (newConfig.model_name !== undefined) this.config.model_name = newConfig.model_name;
 
         if (newConfig.temperature !== undefined) this.config.temperature = newConfig.temperature;
-        
-        console.info("[LLMApiService] 配置已更新。当前URL:", this.config.api_url ? "已设置" : "空");
+
+        console.info("[LLMApiService] 配置已更新。提供商:", this.config.api_provider, "| URL:", this.config.api_url ? "已设置" : "空");
     }
 async testConnection() {
     if (!this.config.api_url || !this.config.api_key) {
@@ -62,13 +68,15 @@ async testConnection() {
 
     } catch (error) {
         console.error("[LLMApiService] 连接测试失败", error);
-        let detail = error.message;
-        if (detail.includes('401')) {
-            detail = '认证失败 (401)。请检查你的 API Key 是否正确。';
-        } else if (detail.includes('404')) {
-            detail = '未找到端点 (404)。请检查你的 API URL 是否正确，特别是对于非官方API，URL需要是完整的。';
-        } else if (detail.includes('Failed to fetch')) {
-            detail = '网络请求失败。请检查你的网络连接、代理设置，或确认API地址是否可以访问。';
+        let detail = error.message || error.toString() || '未知错误';
+        if (detail && typeof detail === 'string') {
+            if (detail.includes('401')) {
+                detail = '认证失败 (401)。请检查你的 API Key 是否正确。';
+            } else if (detail.includes('404')) {
+                detail = '未找到端点 (404)。请检查你的 API URL 是否正确，特别是对于非官方API，URL需要是完整的。';
+            } else if (detail.includes('Failed to fetch')) {
+                detail = '网络请求失败。请检查你的网络连接、代理设置，或确认API地址是否可以访问。';
+            }
         }
         throw new Error(`连接测试失败: ${detail}`);
     }
@@ -138,7 +146,7 @@ async testConnection() {
      * [新] 判断一个错误是否值得重试。
      */
     #isRetryableError(error) {
-        const errorMessage = error.message.toLowerCase();
+        const errorMessage = (error.message || error.toString() || '').toLowerCase();
         if (errorMessage.includes('400') || errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('404')) {
             return false;
         }
@@ -147,7 +155,7 @@ async testConnection() {
 
     /**
      * @private
-     * [新] 将原始的 callLLM 逻辑封装成一个独立的私有方法。
+     * 策略分发器：根据 api_provider 决定使用哪种API调用策略
      * 这个方法只负责执行一次API调用，不关心重试。
      */
     async #executeApiCall(prompt, streamCallback = null) {
@@ -162,83 +170,118 @@ async testConnection() {
         }
 
         this.config.stream = streamCallback !== null;
-        if (USER.IMPORTANT_USER_PRIVACY_DATA.table_proxy_address) {
-            console.log("检测到代理配置，将使用 SillyTavern 内部路由");
-            if (typeof ChatCompletionService === 'undefined' || !ChatCompletionService?.processRequest) {
-                const errorMessage = "当前酒馆版本过低，无法发送自定义请求。请更新你的酒馆版本";
-                this.EDITOR.error(errorMessage); 
-                throw new Error(errorMessage);
-            }
-            try {
-                const requestData = {
-                    stream: this.config.stream,
-                    messages: messages,
-                    max_tokens: this.config.max_tokens,
-                    model: this.config.model_name,
-                    temperature: this.config.temperature,
-                    chat_completion_source: 'openai', 
-                    custom_url: this.config.api_url,
-                    reverse_proxy: USER.IMPORTANT_USER_PRIVACY_DATA.table_proxy_address,
-                    proxy_password: USER.IMPORTANT_USER_PRIVACY_DATA.table_proxy_key || null,
-                };
 
-                if (this.config.stream) {
-                    if (!streamCallback || typeof streamCallback !== 'function') {
-                        throw new Error("流式模式下必须提供有效的streamCallback函数");
-                    }
-                    const streamGenerator = await ChatCompletionService.processRequest(requestData, {}, false); 
-                    let fullResponse = '';
-                    for await (const chunk of streamGenerator()) {
-                        if (chunk.text) {
-                            fullResponse += chunk.text;
-                            streamCallback(chunk.text);
-                        }
-                    }
-                    return this.#cleanResponse(fullResponse);
-                } else {
-                    const responseData = await ChatCompletionService.processRequest(requestData, {}, true); 
-                    if (!responseData || !responseData.content) {
-                        throw new Error("通过内部路由获取响应失败或响应内容为空");
-                    }
-                    return this.#cleanResponse(responseData.content);
-                }
-            } catch (error) {
-                console.error("通过 SillyTavern 内部路由调用 LLM API 错误:", error);
-                throw error;
-            }
-        } else {
-            console.log("未检测到代理配置，将使用直接 fetch");
-            let apiEndpoint = this.config.api_url;
-            if (!apiEndpoint.endsWith("/chat/completions")) {
-                apiEndpoint += "/chat/completions";
-            }
+        // ================== 策略分发器 ==================
+        switch (this.config.api_provider) {
+            case 'sillytavern_proxy_openai':
+                console.log("策略: SillyTavern 代理模式");
+                return this.#callViaSillyTavernProxy(messages, streamCallback);
 
-            const headers = {
-                'Authorization': `Bearer ${this.config.api_key}`,
-                'Content-Type': 'application/json'
-            };
+            case 'direct_openai':
+            default:
+                console.log("策略: 直接 Fetch 模式");
+                return this.#callViaDirectFetch(messages, streamCallback);
+        }
+    }
 
-            const data = {
-                model: this.config.model_name,
+    /**
+     * @private
+     * 策略一：通过 SillyTavern 后端进行代理请求
+     * 此策略可绕过浏览器CORS限制，适用于需要代理的场景
+     * 注意：此方法通过 HTTP 端点调用，与 Amily2 的实现方式一致
+     */
+    async #callViaSillyTavernProxy(messages, streamCallback) {
+        try {
+            const requestData = {
+                stream: this.config.stream,
                 messages: messages,
-                temperature: this.config.temperature,
                 max_tokens: this.config.max_tokens,
-                stream: this.config.stream
+                model: this.config.model_name,
+                temperature: this.config.temperature,
+                chat_completion_source: 'openai',
+                reverse_proxy: this.config.api_url,
+                proxy_password: this.config.api_key || '',
             };
 
-            try {
-                if (this.config.stream) {
-                    if (!streamCallback || typeof streamCallback !== 'function') {
-                        throw new Error("流式模式下必须提供有效的streamCallback函数");
-                    }
-                    return await this.#handleStreamResponse(apiEndpoint, headers, data, streamCallback);
-                } else {
-                    return await this.#handleRegularResponse(apiEndpoint, headers, data);
-                }
-            } catch (error) {
-                console.error("直接调用 LLM API 错误:", error);
-                throw error;
+            console.log('[代理模式调试] 发送到 SillyTavern 后端的参数:', {
+                ...requestData,
+                proxy_password: requestData.proxy_password ? '***已设置***' : '(空)',
+                messages: `${messages.length} 条消息`
+            });
+
+            const response = await fetch('/api/backends/chat-completions/generate', {
+                method: 'POST',
+                 headers: {
+        ...getRequestHeaders(), 
+        'Content-Type': 'application/json'
+    },
+                body: JSON.stringify(requestData)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[代理模式] SillyTavern 后端返回错误:', response.status, errorText);
+                throw new Error(`SillyTavern 后端请求失败 (${response.status}): ${errorText}`);
             }
+
+            const responseData = await response.json();
+            console.log('[代理模式调试] SillyTavern 后端响应:', responseData);
+
+            // 处理响应
+            if (responseData.error) {
+                throw new Error(`API 错误: ${responseData.error.message || JSON.stringify(responseData.error)}`);
+            }
+
+            // 非流式响应
+            const content = responseData.choices?.[0]?.message?.content || responseData.content;
+            if (!content) {
+                throw new Error("通过内部路由获取响应失败或响应内容为空");
+            }
+
+            return this.#cleanResponse(content);
+
+        } catch (error) {
+            console.error("通过 SillyTavern 内部路由调用 LLM API 错误:", error);
+            throw error;
+        }
+    }
+
+    /**
+     * @private
+     * 策略二：直接使用 fetch 进行 API 请求
+     * 注意：此策略可能遇到CORS跨域问题
+     */
+    async #callViaDirectFetch(messages, streamCallback) {
+        let apiEndpoint = this.config.api_url;
+        if (!apiEndpoint.endsWith("/chat/completions")) {
+            apiEndpoint += "/chat/completions";
+        }
+
+        const headers = {
+            'Authorization': `Bearer ${this.config.api_key}`,
+            'Content-Type': 'application/json'
+        };
+
+        const data = {
+            model: this.config.model_name,
+            messages: messages,
+            temperature: this.config.temperature,
+            max_tokens: this.config.max_tokens,
+            stream: this.config.stream
+        };
+
+        try {
+            if (this.config.stream) {
+                if (!streamCallback || typeof streamCallback !== 'function') {
+                    throw new Error("流式模式下必须提供有效的streamCallback函数");
+                }
+                return await this.#handleStreamResponse(apiEndpoint, headers, data, streamCallback);
+            } else {
+                return await this.#handleRegularResponse(apiEndpoint, headers, data);
+            }
+        } catch (error) {
+            console.error("直接调用 LLM API 错误:", error);
+            throw error;
         }
     }
 
