@@ -1622,3 +1622,129 @@ input:checked + .sbt-slider:before {
     color: var(--sbt-primary-accent);
 }
 
+/* ====================================================================
+   [SECTION] 流式输出面板 (Stream Output Panel)
+   ==================================================================== */
+
+/* 流式输出容器 */
+#sbt-conductor-stream-panel {
+    margin-top: 12px;
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 8px;
+    background: var(--sbt-bg-dark);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+#sbt-conductor-stream-panel.collapsed #sbt-stream-content {
+    display: none;
+}
+
+/* 流式面板头部 */
+.sbt-stream-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--sbt-bg-medium);
+    border-bottom: 1px solid var(--sbt-border-color);
+    cursor: pointer;
+    user-select: none;
+}
+
+.sbt-stream-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sbt-stream-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--sbt-text-light);
+}
+
+.sbt-stream-header-title i {
+    color: var(--sbt-primary-accent);
+    font-size: 1.1em;
+}
+
+.sbt-stream-toggle-btn {
+    padding: 4px 10px;
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+    background: transparent;
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-stream-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--sbt-text-light);
+}
+
+/* 流式输出内容区 */
+#sbt-stream-content {
+    max-height: 500px;
+    min-height: 200px;
+    overflow-y: auto;
+    padding: 12px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', 'source-code-pro', monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--sbt-text-light);
+    background: var(--sbt-bg-darker);
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+/* 自定义滚动条样式 */
+#sbt-stream-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+#sbt-stream-content::-webkit-scrollbar-track {
+    background: var(--sbt-bg-dark);
+    border-radius: 4px;
+}
+
+#sbt-stream-content::-webkit-scrollbar-thumb {
+    background: var(--sbt-border-color);
+    border-radius: 4px;
+}
+
+#sbt-stream-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* 流式状态提示 */
+.sbt-stream-status {
+    padding: 8px 12px;
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+    background: var(--sbt-bg-medium);
+    border-top: 1px solid var(--sbt-border-color);
+    text-align: center;
+}
+
+.sbt-stream-status.streaming {
+    color: var(--sbt-primary-accent);
+}
+
+.sbt-stream-status.streaming::before {
+    content: '● ';
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.3;
+    }
+}
+

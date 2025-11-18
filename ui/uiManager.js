@@ -700,12 +700,72 @@ $('#extensions-settings-button').after(html);
     const $conductorToggle = $('#sbt-enable-conductor-toggle');
     const isConductorEnabled = localStorage.getItem('sbt-conductor-enabled') !== 'false';
     $conductorToggle.prop('checked', isConductorEnabled);
-    
+
     $wrapper.on('change', '#sbt-enable-conductor-toggle', function() {
         const isChecked = $(this).is(':checked');
         localStorage.setItem('sbt-conductor-enabled', isChecked);
         deps.toastr.info(`回合裁判模式已 ${isChecked ? '开启' : '关闭'}`, "模式已切换");
     });
+
+    // -- V3.1: 流式显示回合裁判 --
+    const $conductorStreamToggle = $('#sbt-enable-conductor-stream-toggle');
+    const isConductorStreamEnabled = localStorage.getItem('sbt-conductor-stream-enabled') !== 'false';
+    $conductorStreamToggle.prop('checked', isConductorStreamEnabled);
+
+    $wrapper.on('change', '#sbt-enable-conductor-stream-toggle', function() {
+        const isChecked = $(this).is(':checked');
+        localStorage.setItem('sbt-conductor-stream-enabled', isChecked);
+        deps.toastr.info(`流式显示回合裁判分析已 ${isChecked ? '开启' : '关闭'}`, "设置已更新");
+    });
+
+    // -- V3.1: 流式面板折叠/展开 --
+    $wrapper.on('click', '#sbt-stream-toggle', function(e) {
+        e.stopPropagation();
+        const $panel = $('#sbt-conductor-stream-panel');
+        $panel.toggleClass('collapsed');
+        $(this).text($panel.hasClass('collapsed') ? '展开' : '折叠');
+    });
+
+    // -- V3.1: EventBus 监听流式事件 --
+    if (deps.eventBus) {
+        // 流式开始
+        deps.eventBus.on('CONDUCTOR_STREAM_START', () => {
+            const $panel = $('#sbt-conductor-stream-panel');
+            const $content = $('#sbt-stream-content');
+            const $status = $('#sbt-stream-status');
+
+            $panel.show().removeClass('collapsed');
+            $content.empty();
+            $status.text('正在分析...').addClass('streaming');
+
+            deps.info('[StreamUI] 回合裁判流式输出已开始');
+        });
+
+        // 流式块接收 - 直接追加原始内容
+        deps.eventBus.on('CONDUCTOR_STREAM_CHUNK', ({ chunk }) => {
+            const $content = $('#sbt-stream-content');
+            const $status = $('#sbt-stream-status');
+
+            // 直接追加 chunk，不做任何延迟处理
+            $content.append(chunk);
+
+            // 自动滚动到底部
+            $content.scrollTop($content[0].scrollHeight);
+
+            // 更新状态显示当前长度
+            const currentLength = $content.text().length;
+            $status.text(`正在分析... (已接收 ${currentLength} 字符)`);
+        });
+
+        // 流式结束
+        deps.eventBus.on('CONDUCTOR_STREAM_END', () => {
+            const $status = $('#sbt-stream-status');
+            const finalLength = $('#sbt-stream-content').text().length;
+            $status.text(`分析完成 (共 ${finalLength} 字符)`).removeClass('streaming');
+
+            deps.info('[StreamUI] 回合裁判流式输出已结束');
+        });
+    }
 
     // -- V2.0: 故事大纲 - 新增弧光 --
     $wrapper.on('click', '.sbt-add-arc-btn', function() {

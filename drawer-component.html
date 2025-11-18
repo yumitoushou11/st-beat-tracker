@@ -42,6 +42,19 @@
             <!-- ======================= 1. 创作工坊面板 ======================= -->
             <div id="sbt-monitor-panel" class="sbt-tab-panel active">
 
+                <!-- V3.1: 回合裁判流式输出 -->
+                <div id="sbt-conductor-stream-panel" style="display: none;">
+                    <div class="sbt-stream-header">
+                        <div class="sbt-stream-header-title">
+                            <i class="fa-solid fa-satellite-dish"></i>
+                            <span>回合裁判分析过程</span>
+                        </div>
+                        <button class="sbt-stream-toggle-btn" id="sbt-stream-toggle">折叠</button>
+                    </div>
+                    <pre id="sbt-stream-content"></pre>
+                    <div class="sbt-stream-status" id="sbt-stream-status">等待执行...</div>
+                </div>
+
                 <!-- 故事摘要 -->
                 <div class="sbt-library-category">
                     <h5 class="sbt-category-header collapsed">
@@ -282,6 +295,19 @@
                             </div>
                             <div class="sbt-toggle-switch">
                                 <input type="checkbox" id="sbt-enable-conductor-toggle">
+                                <span class="sbt-slider"></span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <div class="sbt-control-card">
+                        <label for="sbt-enable-conductor-stream-toggle" class="sbt-toggle-switch-container">
+                            <div class="sbt-toggle-label">
+                                <span class="sbt-toggle-text">流式显示回合裁判分析</span>
+                                <i class="fa-solid fa-circle-info fa-fw" title="开启后，在回合裁判执行时，将在创作工坊面板实时显示AI的分析过程（原始JSON流），让您在等待时有内容可看。"></i>
+                            </div>
+                            <div class="sbt-toggle-switch">
+                                <input type="checkbox" id="sbt-enable-conductor-stream-toggle">
                                 <span class="sbt-slider"></span>
                             </div>
                         </label>

@@ -33,8 +33,28 @@ export class TurnConductorAgent extends Agent {
         console.log(prompt);
         console.groupEnd();
 
+        // V3.1: 检查是否启用流式显示
+        const isStreamEnabled = localStorage.getItem('sbt-conductor-stream-enabled') !== 'false';
+        let streamCallback = null;
+
+        if (isStreamEnabled && this.deps.eventBus) {
+            this.deps.eventBus.emit('CONDUCTOR_STREAM_START', {});
+
+            streamCallback = (chunk) => {
+                this.deps.eventBus.emit('CONDUCTOR_STREAM_CHUNK', { chunk });
+            };
+        }
+
         try {
-            const responseText = await this.deps.conductorLlmService.callLLM([{ role: 'user', content: prompt }]);
+            const responseText = await this.deps.conductorLlmService.callLLM(
+                [{ role: 'user', content: prompt }],
+                streamCallback
+            );
+
+            if (isStreamEnabled && this.deps.eventBus) {
+                this.deps.eventBus.emit('CONDUCTOR_STREAM_END', {});
+            }
+
             const decision = this.extractJsonFromString(responseText);
 
             // V2.0 探针3：输出结构检查
@@ -92,6 +112,11 @@ export class TurnConductorAgent extends Agent {
             return decision;
 
         } catch (error) {
+            // V3.1: 确保流式结束事件被触发
+            if (isStreamEnabled && this.deps.eventBus) {
+                this.deps.eventBus.emit('CONDUCTOR_STREAM_END', {});
+            }
+
             this.diagnose("--- 叙事守护者AI V8.0 (V2.0) 守护失败 ---", error);
             if (this.toastr) {
                 this.toastr.error(`回合守护失败: ${error.message}`, "守护者AI错误");

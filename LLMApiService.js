@@ -234,6 +234,13 @@ async testConnection() {
                 throw new Error(`SillyTavern 后端请求失败 (${response.status}): ${errorText}`);
             }
 
+            // 检查是否是流式响应
+            if (this.config.stream && streamCallback) {
+                console.log('[代理模式] 处理流式响应...');
+                return await this.#handleProxyStreamResponse(response, streamCallback);
+            }
+
+            // 非流式响应
             const responseData = await response.json();
             console.log('[代理模式调试] SillyTavern 后端响应:', responseData);
 
@@ -242,7 +249,6 @@ async testConnection() {
                 throw new Error(`API 错误: ${responseData.error.message || JSON.stringify(responseData.error)}`);
             }
 
-            // 非流式响应
             const content = responseData.choices?.[0]?.message?.content || responseData.content;
             if (!content) {
                 throw new Error("通过内部路由获取响应失败或响应内容为空");
@@ -253,6 +259,97 @@ async testConnection() {
         } catch (error) {
             console.error("通过 SillyTavern 内部路由调用 LLM API 错误:", error);
             throw error;
+        }
+    }
+
+    /**
+     * @private
+     * 处理 SillyTavern 代理模式的流式响应
+     */
+    async #handleProxyStreamResponse(response, streamCallback) {
+        if (!response.body) {
+            throw new Error("无法获取代理流式响应体");
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let fullResponse = '';
+        let chunkIndex = 0;
+
+        try {
+            console.log('[代理流式] 开始处理流式响应...');
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    console.log('[代理流式] 流式响应完成 (done=true)');
+                    break;
+                }
+
+                const decodedChunk = decoder.decode(value, { stream: true });
+                buffer += decodedChunk;
+                chunkIndex++;
+                console.log(`[代理流式] 收到第 ${chunkIndex} 块，缓冲区长度: ${buffer.length}`);
+
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
+
+                for (const line of lines) {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine === '') continue;
+
+                    try {
+                        if (trimmedLine.startsWith('data: ')) {
+                            const dataStr = trimmedLine.substring(6).trim();
+                            if (dataStr === '[DONE]') {
+                                console.log('[代理流式] 收到 [DONE] 标记');
+                                continue;
+                            }
+
+                            const jsonData = JSON.parse(dataStr);
+
+                            if (jsonData.choices?.[0]?.delta?.content) {
+                                const content = jsonData.choices[0].delta.content;
+                                fullResponse += content;
+                                streamCallback(content);
+                            }
+                        }
+                    } catch (e) {
+                        console.warn("[代理流式] 解析行 JSON 错误:", e, "行内容:", trimmedLine);
+                    }
+                }
+            }
+
+            // 处理最后的缓冲区
+            const finalBufferTrimmed = buffer.trim();
+            if (finalBufferTrimmed) {
+                console.log(`[代理流式] 处理最终缓冲区: "${finalBufferTrimmed}"`);
+                try {
+                    if (finalBufferTrimmed.startsWith('data: ')) {
+                        const dataStr = finalBufferTrimmed.substring(6).trim();
+                        if (dataStr !== '[DONE]') {
+                            const jsonData = JSON.parse(dataStr);
+                            if (jsonData.choices?.[0]?.delta?.content) {
+                                const content = jsonData.choices[0].delta.content;
+                                fullResponse += content;
+                                streamCallback(content);
+                            }
+                        }
+                    }
+                } catch (e) {
+                    console.warn("[代理流式] 处理最终缓冲区错误:", e);
+                }
+            }
+
+            console.log('[代理流式] 流式处理完成。总响应长度:', fullResponse.length);
+            return this.#cleanResponse(fullResponse);
+        } catch (streamError) {
+            console.error('[代理流式] 流式读取错误:', streamError);
+            throw streamError;
+        } finally {
+            console.log('[代理流式] 释放流锁');
+            reader.releaseLock();
         }
     }
 
