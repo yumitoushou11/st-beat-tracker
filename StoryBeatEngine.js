@@ -218,12 +218,37 @@ export class StoryBeatEngine {
     }
 
     /**
-     * [V2.0 辅助方法] 根据 ID 列表从 staticMatrices 中提取完整实体数据
-     * @param {string[]} entityIds - 实体ID数组
-     * @returns {string} 格式化的实体详细信息
+     * [V3.0 新增] 生成并缓存章节级静态上下文
+     * 在章节启动时调用，将 chapter_context_ids 中的所有实体一次性注入
+     * @param {string[]} chapterContextIds - 章节规划的实体ID数组
+     * @returns {string} 格式化的章节级实体详细信息
      */
-    _retrieveEntitiesByIds(entityIds) {
-        console.group('[ENGINE-V2-PROBE] 动态上下文召回');
+    _generateChapterStaticContext(chapterContextIds) {
+        console.group('[ENGINE-V3-PROBE] 章节级静态上下文生成');
+        console.log('章节规划实体ID列表:', chapterContextIds);
+
+        if (!chapterContextIds || chapterContextIds.length === 0) {
+            console.log('✓ 本章无预设实体');
+            console.groupEnd();
+            return '';
+        }
+
+        const contextContent = this._retrieveEntitiesByIdsInternal(chapterContextIds, '章节级静态上下文');
+
+        console.log(`✓ 章节级静态上下文生成完成`);
+        console.groupEnd();
+
+        return contextContent ? `# **【参考资料2：本章核心实体档案 (Chapter Entities Archive)】**\n以下是本章规划涉及的所有关键实体，供你在整个章节中随时参考：\n\n${contextContent}` : '';
+    }
+
+    /**
+     * [V3.0 重构] 内部实体检索方法，被章节级和回合级检索共用
+     * @param {string[]} entityIds - 实体ID数组
+     * @param {string} contextLabel - 上下文标签（用于日志）
+     * @returns {string} 格式化的实体详细信息（不含标题）
+     */
+    _retrieveEntitiesByIdsInternal(entityIds, contextLabel = '上下文') {
+        console.group(`[ENGINE-V3-PROBE] ${contextLabel}召回`);
         console.log('需要召回的实体ID列表:', entityIds);
 
         if (!entityIds || entityIds.length === 0) {
@@ -280,16 +305,48 @@ export class StoryBeatEngine {
         console.log(`✓ 成功召回 ${retrievedEntities.length}/${entityIds.length} 个实体`);
         console.groupEnd();
 
-        // 格式化输出
+        // 格式化输出（仅内容，不含标题）
         if (retrievedEntities.length === 0) {
             return '';
         }
 
-        const formattedContent = retrievedEntities.map(({ id, category, data }) => {
+        return retrievedEntities.map(({ id, category, data }) => {
             return `### ${id} (${category})\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
         }).join('\n\n');
+    }
 
-        return `# **【实时召回的上下文】**\n以下是玩家提到但未在预加载上下文中的实体：\n\n${formattedContent}`;
+    /**
+     * [V3.0 适配] 回合级动态上下文检索（仅检索章节规划外的实体）
+     * @param {string[]} realtimeContextIds - turnConductor 识别的实体ID数组
+     * @returns {string} 格式化的实时召回内容
+     */
+    _retrieveEntitiesByIds(realtimeContextIds) {
+        console.group('[ENGINE-V3-PROBE] 回合级动态上下文召回');
+        console.log('turnConductor 识别的实体ID:', realtimeContextIds);
+
+        if (!realtimeContextIds || realtimeContextIds.length === 0) {
+            console.log('✓ 无需召回');
+            console.groupEnd();
+            return '';
+        }
+
+        // V3.0 新增：过滤掉已在章节级注入的实体
+        const chapterContextIds = this.currentChapter?.chapter_blueprint?.chapter_context_ids || [];
+        const outOfPlanIds = realtimeContextIds.filter(id => !chapterContextIds.includes(id));
+
+        console.log(`章节规划实体: ${chapterContextIds.length} 个`);
+        console.log(`规划外实体: ${outOfPlanIds.length} 个`, outOfPlanIds);
+
+        if (outOfPlanIds.length === 0) {
+            console.log('✓ 所有识别的实体均已在章节级注入，无需额外召回');
+            console.groupEnd();
+            return '';
+        }
+
+        const contextContent = this._retrieveEntitiesByIdsInternal(outOfPlanIds, '回合级动态上下文');
+        console.groupEnd();
+
+        return contextContent ? `# **【参考资料3：本回合额外召回的实体 (Turn-specific Entities)】**\n以下是本回合涉及但未在章节规划中的实体：\n\n${contextContent}` : '';
     }
 
 onPromptReady = async (eventData) => {
@@ -302,19 +359,24 @@ onPromptReady = async (eventData) => {
         this.info('[Guard-MasterSwitch] 流程中止：叙事流引擎总开关已关闭。');
         return;
     }
+
+    // 【优先级1】锁检查 - 必须在任何日志之前进行，防止事件风暴时刷屏
+    if (this.isConductorActive) {
+        // 静默拦截，不输出日志，避免在API错误重试时刷屏
+        return;
+    }
+
+    // 【优先级2】看门狗检查 - 防止短时间内重复触发
+    if (now - this.lastExecutionTimestamp < WATCHDOG_DELAY) {
+        // 静默拦截
+        return;
+    }
+
+    // 通过守卫后才输出诊断日志
     this.diagnose(`PROBE [PROMPT-READY-ENTRY]: onPromptReady 事件触发。当前锁状态: ${this.isConductorActive}`);
     if (this.currentChapter) {
     console.log('%c[SBE DEBUG] Chapter State Snapshot (Before Turn):', 'color: #7f00ff; font-weight: bold;', JSON.parse(JSON.stringify(this.currentChapter)));
 }
-    if (this.isConductorActive) {
-        this.info(`[Guard-Lock] 流程中止：注入处理正在进行中。`);
-        return;
-    }
-
-    if (now - this.lastExecutionTimestamp < WATCHDOG_DELAY) {
-        this.info(`[Guard-Watchdog] 流程中止：距离上次成功注入不足 ${WATCHDOG_DELAY / 1000} 秒，已拦截重复触发。`);
-        return;
-    }
     if (typeof eventData !== 'object' || eventData === null || eventData.dryRun) {
         return;
     }
@@ -333,17 +395,23 @@ const instructionPlaceholder = {
         is_SBT_script: true,
         is_SBT_turn_instruction: true // 1. 回合指令
     };
-    const scriptPlaceholder = { 
-        role: 'system', 
+    const recallPlaceholder = {
+        role: 'system',
+        content: "【SBT 引擎正在编译实时召回上下文...】",
+        is_SBT_script: true,
+        is_SBT_realtime_recall: true // 2. 实时召回（动态）
+    };
+    const scriptPlaceholder = {
+        role: 'system',
         content: "【SBT 引擎正在编译本章剧本...】",
         is_SBT_script: true,
-        is_SBT_chapter_script: true // 2. 章节剧本
+        is_SBT_chapter_script: true // 3. 章节剧本
     };
     const rulesPlaceholder = {
         role: 'system',
         content: "【SBT 引擎正在编译通用法则...】",
         is_SBT_script: true,
-        is_SBT_core_rules: true // 3. 通用法则
+        is_SBT_core_rules: true // 4. 通用法则
     };
 
     const finalChatContext = eventData.chat;
@@ -354,8 +422,9 @@ const instructionPlaceholder = {
     }
    finalChatContext.unshift(rulesPlaceholder);
     finalChatContext.unshift(scriptPlaceholder);
+    finalChatContext.unshift(recallPlaceholder);
     finalChatContext.unshift(instructionPlaceholder);
-    this.info("同步占位完成。即将进入异步处理阶段...");
+    this.info("同步占位完成（4层注入：指令/召回/剧本/法则）。即将进入异步处理阶段...");
 
     try {
         this.info("异步处理流程启动...");
@@ -465,32 +534,43 @@ if (this.currentChapter.chapter_blueprint) {
     const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
     instructionPlaceholder.content = `# **【最高优先级：本回合导演微指令 (Turn Instruction)】**\n---\n${formattedInstruction}`;
 
-    // 【V2.0 适配】构建脚本内容，包含蓝图和动态上下文
-    const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
-    let scriptContent = `# **【参考资料1：本章创作蓝图 (Chapter Blueprint)】**\n---\n\`\`\`json\n${blueprintAsString}\n\`\`\``;
-
-    // V2.0: 如果有动态召回的上下文，追加到脚本内容中
+    // 【V3.1 独立召回层】处理实时召回上下文（规划外实体）
     if (dynamicContextInjection) {
-        scriptContent += `\n\n---\n\n${dynamicContextInjection}`;
-        this.info('✓ 动态上下文已追加到脚本注入内容');
+        recallPlaceholder.content = `# **【参考资料2：实时召回上下文 (Realtime Context Recall)】**\n---\n**说明**: 以下是本回合临时调用的规划外实体档案，用于处理意外出现的角色/地点/物品等。\n\n${dynamicContextInjection}`;
+        this.info('✓ 回合级动态召回已独立注入');
+    } else {
+        // 如果没有动态召回，设置为空占位（可选：也可以完全移除这个placeholder）
+        recallPlaceholder.content = "# **【参考资料2：实时召回上下文 (Realtime Context Recall)】**\n---\n本回合无需额外召回规划外实体。";
+        this.info('○ 本回合无动态召回需求');
+    }
+
+    // 【V3.1 重构】章节剧本只包含蓝图和章节级静态上下文
+    const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
+    let scriptContent = `# **【参考资料3：本章创作蓝图 (Chapter Blueprint)】**\n---\n\`\`\`json\n${blueprintAsString}\n\`\`\``;
+
+    // V3.1: 注入章节级静态上下文（始终存在）
+    const chapterStaticContext = this.currentChapter.cachedChapterStaticContext || '';
+    if (chapterStaticContext) {
+        scriptContent += `\n\n---\n\n${chapterStaticContext}`;
+        this.info('✓ 章节级静态上下文已注入');
     }
 
     scriptPlaceholder.content = scriptContent;
 
     const regularSystemPrompt = this._buildRegularSystemPrompt();
-    rulesPlaceholder.content = `# **【参考资料2：通用核心法则与关系指南 (Core Rules & Relationship Guide)】**\n---\n${regularSystemPrompt}`;
+    rulesPlaceholder.content = `# **【参考资料4：通用核心法则与关系指南 (Core Rules & Relationship Guide)】**\n---\n${regularSystemPrompt}`;
 
-    this.info("✅ 异步处理完成，已通过优化的三层结构更新指令，注入成功。");
+    this.info("✅ [V3.1] 异步处理完成，已通过独立4层注入策略更新指令。");
 
 } else {
     throw new Error("在 onPromptReady 中，currentChapter.chapter_blueprint 为空或无效。");
 }
         } else {
             this.info("裁判模式已关闭。将注入通用剧本和规则，给予AI更高自由度...");
-            
+
             const regularSystemPrompt = this._buildRegularSystemPrompt(); // 包含核心法则和关系指南
    const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
-   
+
             const classicPrompt = [
                 regularSystemPrompt,
                 `# **【第四部分：本章动态剧本 (参考)】**`,
@@ -501,15 +581,18 @@ if (this.currentChapter.chapter_blueprint) {
 
     scriptPlaceholder.content = classicPrompt;
     instructionPlaceholder.content = "【回合裁判已禁用。请根据创作蓝图自由演绎。】";
+    recallPlaceholder.content = "【经典模式下无需实时召回。】";
     this.info("✅ 经典模式注入成功。");
 }
     this.lastExecutionTimestamp = Date.now();
         this.info("[Watchdog] 成功注入，已更新执行时间戳。");
     } catch (error) {
         this.diagnose("在 onPromptReady 异步流程中发生严重错误:", error);
-        // 出错时，将两个占位符都更新为错误信息，避免注入不完整
-        scriptPlaceholder.content = "【SBT 引擎在处理剧本时发生错误。】";
+        // 出错时，将所有占位符都更新为错误信息，避免注入不完整
         instructionPlaceholder.content = "【SBT 引擎在处理指令时发生错误，本次将使用常规Prompt。】";
+        recallPlaceholder.content = "【SBT 引擎在处理召回时发生错误。】";
+        scriptPlaceholder.content = "【SBT 引擎在处理剧本时发生错误。】";
+        rulesPlaceholder.content = "【SBT 引擎在处理法则时发生错误。】";
     } finally {
         this.isConductorActive = false;
         this.info("[Lock] Prompt注入流程执行完毕，会话锁已立即释放。");    }
@@ -1241,11 +1324,15 @@ _syncUiWithRetry() {
             // 6. 规划开篇剧本
             this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
             loadingToast.find('.toast-message').text("建筑师正在构思开篇剧本...");
-            const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);    
+            const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);
             if (architectResult && architectResult.new_chapter_script) {
                 this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
                 this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
-                this.info("GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。");
+
+                // V3.0: 生成并缓存章节级静态上下文
+                const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
+                this.currentChapter.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
+                this.info(`GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
             } else {
                 throw new Error("建筑师未能生成有效的开篇创作蓝图。");
             }
@@ -1416,6 +1503,12 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             const finalChapterState = workingChapter;
             finalChapterState.chapter_blueprint = architectResult.new_chapter_script;
             finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
+
+            // V3.0: 生成并缓存章节级静态上下文
+            const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
+            finalChapterState.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
+            this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
+
             finalChapterState.lastProcessedEventUid = eventUid;
             finalChapterState.checksum = simpleHash(JSON.stringify(finalChapterState) + Date.now());
 

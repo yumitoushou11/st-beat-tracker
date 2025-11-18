@@ -33,10 +33,10 @@ applicationFunctionManager.eventSource.on(applicationFunctionManager.event_types
     stateManager.loadApiSettings();
 
     // 1. 创建引擎实例
-    const engine = new StoryBeatEngine(applicationDependencies);    
+    const engine = new StoryBeatEngine(applicationDependencies);
     await engine.start();
     setTimeout(() => {
-        populateSettingsUI();
+        populateSettingsUI(applicationDependencies);
     }, 0);
     window.storyBeatEngine = engine;
 

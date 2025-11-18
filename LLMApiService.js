@@ -147,9 +147,13 @@ async testConnection() {
      */
     #isRetryableError(error) {
         const errorMessage = (error.message || error.toString() || '').toLowerCase();
+        // 4xx 错误通常是客户端问题，不应重试
         if (errorMessage.includes('400') || errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('404')) {
             return false;
         }
+        // 503 Service Unavailable 可能是临时性服务器问题，可以重试
+        // 但如果是底层服务不可用（如后端 API 未启动），重试也无意义
+        // 我们仍然允许重试，但会快速失败
         return true;
     }
 
@@ -212,7 +216,7 @@ async testConnection() {
             const response = await fetch('/api/backends/chat-completions/generate', {
                 method: 'POST',
                  headers: {
-        ...getRequestHeaders(), 
+        ...getRequestHeaders(),
         'Content-Type': 'application/json'
     },
                 body: JSON.stringify(requestData)
@@ -221,6 +225,12 @@ async testConnection() {
             if (!response.ok) {
                 const errorText = await response.text();
                 console.error('[代理模式] SillyTavern 后端返回错误:', response.status, errorText);
+
+                // 针对 503 错误提供更友好的提示
+                if (response.status === 503) {
+                    throw new Error(`后端服务暂时不可用 (503)。可能原因:\n1. 目标 API 服务器未启动或过载\n2. SillyTavern 后端与目标 API 之间的连接问题\n3. API 配置错误 (请检查 URL: ${this.config.api_url})`);
+                }
+
                 throw new Error(`SillyTavern 后端请求失败 (${response.status}): ${errorText}`);
             }
 
