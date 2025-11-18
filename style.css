@@ -1498,6 +1498,282 @@ input:checked + .sbt-slider:before {
     vertical-align: middle;
 }
 
+/* V3.0 徽章 */
+.sbt-v3-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 0.7em;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+    border-radius: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+/* =========================== V3.0: 关系图谱样式 =========================== */
+
+.sbt-relationship-graph-desc {
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    background-color: rgba(17, 153, 142, 0.08);
+    border-left: 3px solid #11998e;
+    border-radius: 4px;
+    line-height: 1.4;
+}
+
+.sbt-relationship-graph-desc i {
+    color: #11998e;
+    margin-right: 4px;
+}
+
+/* 关系边卡片 */
+.sbt-relationship-edge-card {
+    background-color: var(--sbt-card-bg);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.sbt-relationship-edge-card:hover {
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.sbt-relationship-edge-card.reunion-pending {
+    border-left: 3px solid #f39c12;
+}
+
+.sbt-relationship-edge-card.first-meeting-pending {
+    border-left: 3px solid #3498db;
+}
+
+/* 关系边头部 */
+.sbt-relationship-edge-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 12px;
+    cursor: pointer;
+}
+
+.sbt-relationship-edge-header:hover {
+    background-color: var(--sbt-hover-bg);
+}
+
+.sbt-relationship-participants {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    font-size: 0.95em;
+}
+
+.sbt-relationship-participants i {
+    color: var(--sbt-primary-accent);
+}
+
+.sbt-relationship-type-badge {
+    font-size: 0.75em;
+    padding: 2px 8px;
+    background-color: var(--sbt-input-bg);
+    border-radius: 4px;
+    color: var(--sbt-text-medium);
+}
+
+/* 关系边指标区 */
+.sbt-relationship-indicators {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* 关系边详情 */
+.sbt-relationship-edge-details {
+    padding: 12px;
+    border-top: 1px solid var(--sbt-border-color);
+    font-size: 0.9em;
+    display: none;
+}
+
+.sbt-relationship-edge-details.expanded {
+    display: block;
+}
+
+.sbt-relationship-detail-row {
+    display: flex;
+    margin-bottom: 8px;
+}
+
+.sbt-relationship-detail-row:last-child {
+    margin-bottom: 0;
+}
+
+.sbt-relationship-detail-label {
+    width: 100px;
+    flex-shrink: 0;
+    color: var(--sbt-text-medium);
+    font-size: 0.85em;
+}
+
+.sbt-relationship-detail-value {
+    flex: 1;
+    color: var(--sbt-text-primary);
+}
+
+/* 情感权重指示器 */
+.sbt-emotional-weight-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sbt-emotional-weight-track {
+    flex: 1;
+    height: 6px;
+    background-color: var(--sbt-input-bg);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.sbt-emotional-weight-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.sbt-emotional-weight-fill.weight-low {
+    background-color: #95a5a6;
+}
+
+.sbt-emotional-weight-fill.weight-medium {
+    background-color: #3498db;
+}
+
+.sbt-emotional-weight-fill.weight-high {
+    background-color: #e74c3c;
+}
+
+.sbt-emotional-weight-fill.weight-critical {
+    background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+
+.sbt-emotional-weight-value {
+    font-weight: 600;
+    font-size: 0.85em;
+    min-width: 30px;
+    text-align: right;
+}
+
+/* 时间线状态标签 */
+.sbt-timeline-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.75em;
+    font-weight: 500;
+}
+
+.sbt-timeline-status.reunion-pending {
+    background-color: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
+}
+
+.sbt-timeline-status.first-meeting {
+    background-color: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+}
+
+.sbt-timeline-status.active {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.sbt-timeline-status.separated {
+    background-color: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+}
+
+/* 未解决张力标签 */
+.sbt-unresolved-tensions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.sbt-tension-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    background-color: rgba(155, 89, 182, 0.15);
+    color: #9b59b6;
+    border-radius: 4px;
+    font-size: 0.8em;
+}
+
+/* 重大事件列表 */
+.sbt-major-events-list {
+    margin-top: 8px;
+}
+
+.sbt-major-event-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px dashed var(--sbt-border-color);
+    font-size: 0.85em;
+}
+
+.sbt-major-event-item:last-child {
+    border-bottom: none;
+}
+
+.sbt-major-event-icon {
+    color: var(--sbt-primary-accent);
+    margin-top: 2px;
+}
+
+.sbt-major-event-content {
+    flex: 1;
+}
+
+.sbt-major-event-impact {
+    font-size: 0.8em;
+    color: var(--sbt-text-medium);
+}
+
+/* 关系图谱统计信息 */
+.sbt-relationship-stats {
+    display: flex;
+    gap: 16px;
+    padding: 10px 12px;
+    background-color: var(--sbt-input-bg);
+    border-radius: 6px;
+    margin-bottom: 12px;
+    font-size: 0.85em;
+}
+
+.sbt-relationship-stat-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sbt-relationship-stat-item i {
+    color: var(--sbt-primary-accent);
+}
+
+.sbt-relationship-stat-value {
+    font-weight: 600;
+}
+
 /* 弧光列表头部 */
 .sbt-arc-list-header {
     margin-bottom: 16px;

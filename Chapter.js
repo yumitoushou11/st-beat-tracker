@@ -46,6 +46,32 @@ export class Chapter {
                     side_quests: {},      // 书架: 所有支线任务 (quest_*)
                     relationship_arcs: {},// 书架: 所有关系弧光 (arc_*)
                     personal_arcs: {}     // 书架: 所有个人弧光 (arc_*)
+                },
+                // V3.0: 关系图谱 - 用于追踪角色间关系及其时间线和叙事状态
+                // 这是平台化叙事引擎的核心数据结构，支持关系里程碑事件的系统化处理
+                relationship_graph: {
+                    edges: [
+                        // 关系边示例结构:
+                        // {
+                        //   id: "rel_yumi_rofi",                    // 关系唯一ID
+                        //   participants: ["char_yumi", "char_rofi"], // 关系参与者ID数组
+                        //   type: "childhood_friends",              // 关系类型 (childhood_friends/family/romantic/rivals/etc.)
+                        //   emotional_weight: 8,                    // 情感权重 (0-10, 影响叙事优先级)
+                        //
+                        //   timeline: {
+                        //     established: "childhood",             // 关系建立时间 (childhood/recent/unknown/specific_date)
+                        //     last_interaction: null,               // 最后互动章节 (null=故事中未互动, 章节ID)
+                        //     separation_duration: "years",         // 分离时长 (days/weeks/months/years/unknown)
+                        //     reunion_pending: true                 // 是否等待重逢 (true/false)
+                        //   },
+                        //
+                        //   narrative_status: {
+                        //     first_scene_together: false,          // 是否已在故事中首次同框
+                        //     major_events: [],                     // 故事中的重大关系事件记录
+                        //     unresolved_tension: ["未言说的暗恋"] // 未解决的情感张力/冲突
+                        //   }
+                        // }
+                    ]
                 }
             },
             dynamicState: {

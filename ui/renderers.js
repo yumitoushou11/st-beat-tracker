@@ -98,9 +98,15 @@ function renderCharacterRelationships(chapterState, container) {
         const newAffinity = parseInt(dynamicRel?.current_affinity ?? staticRel?.affinity ?? 0, 10);
         const cardSummaryText = staticRel?.description || "关系尚未建立";
         const historyLog = dynamicRel?.history || [];
-        const tooltipText = historyLog.length > 0
-            ? historyLog.map(entry => `(好感 ${entry.change || 'N/A'}) ${entry.reasoning}`).join('\n---\n')
-            : "暂无详细互动记录。";
+
+        // V3.1: 使用latest_reasoning字段显示最新的史官推理，而不是遍历整个history
+        const latestReasoning = dynamicRel?.latest_reasoning?.reasoning || "";
+        const tooltipText = latestReasoning
+            ? `【最新变化】\n(好感 ${dynamicRel.latest_reasoning.change || 'N/A'}) ${latestReasoning}\n\n【历史记录】\n` +
+              historyLog.map(entry => `${entry.timestamp}: 好感${entry.change || '0'} → ${entry.final_affinity}`).join('\n')
+            : historyLog.length > 0
+                ? historyLog.map(entry => `${entry.timestamp}: 好感${entry.change || '0'} → ${entry.final_affinity}`).join('\n')
+                : "暂无详细互动记录。";
 
         // 获取角色名字（兼容新旧结构）
         const charName = char?.core?.name || char?.name || charId;
@@ -294,6 +300,204 @@ function renderArchiveStorylines(storylineData, container) {
 }
 
 /**
+ * @description [V3.0] 渲染关系图谱
+ * @param {object} chapterState - 完整的Chapter对象
+ */
+function renderRelationshipGraph(chapterState) {
+    const container = $('#sbt-relationship-graph-container');
+    if (!container || container.length === 0) return;
+
+    container.empty();
+
+    const relationshipGraph = chapterState?.staticMatrices?.relationship_graph;
+    const edges = relationshipGraph?.edges || [];
+
+    if (edges.length === 0) {
+        container.html('<p class="sbt-instructions">暂无关系图谱数据。创世后将自动生成角色关系网络。</p>');
+        return;
+    }
+
+    // 获取角色名称映射
+    const characters = chapterState.staticMatrices.characters || {};
+    const getCharName = (charId) => {
+        const char = characters[charId];
+        return char?.core?.name || char?.name || charId.replace('char_', '');
+    };
+
+    // 统计信息
+    const reunionPendingCount = edges.filter(e => e.timeline?.reunion_pending).length;
+    const firstMeetingCount = edges.filter(e => !e.narrative_status?.first_scene_together).length;
+
+    // 渲染统计信息
+    const statsHtml = `
+        <div class="sbt-relationship-stats">
+            <div class="sbt-relationship-stat-item">
+                <i class="fa-solid fa-link"></i>
+                <span>关系总数: <span class="sbt-relationship-stat-value">${edges.length}</span></span>
+            </div>
+            <div class="sbt-relationship-stat-item">
+                <i class="fa-solid fa-clock-rotate-left" style="color: #f39c12;"></i>
+                <span>待重逢: <span class="sbt-relationship-stat-value">${reunionPendingCount}</span></span>
+            </div>
+            <div class="sbt-relationship-stat-item">
+                <i class="fa-solid fa-handshake" style="color: #3498db;"></i>
+                <span>待初识: <span class="sbt-relationship-stat-value">${firstMeetingCount}</span></span>
+            </div>
+        </div>
+    `;
+    container.append(statsHtml);
+
+    // 渲染每条关系边
+    edges.forEach((edge, index) => {
+        const participant1 = getCharName(edge.participants[0]);
+        const participant2 = getCharName(edge.participants[1]);
+
+        // 关系类型翻译
+        const typeTranslations = {
+            'childhood_friends': '童年玩伴',
+            'family_siblings': '兄弟姐妹',
+            'family_parent': '父母子女',
+            'romantic_interest': '恋慕关系',
+            'rivals': '竞争对手',
+            'mentor_student': '师生关系',
+            'allies': '盟友关系',
+            'enemies': '敌对关系',
+            'colleagues': '同事关系',
+            'friends': '朋友关系'
+        };
+        const typeText = typeTranslations[edge.type] || edge.type || '未知关系';
+
+        // 分离时长翻译
+        const separationTranslations = {
+            'none': '无分离',
+            'days': '数天',
+            'weeks': '数周',
+            'months': '数月',
+            'years': '数年',
+            'unknown': '未知'
+        };
+        const separationText = separationTranslations[edge.timeline?.separation_duration] || edge.timeline?.separation_duration || '未知';
+
+        // 计算情感权重等级
+        const weight = edge.emotional_weight || 0;
+        let weightClass = 'weight-low';
+        if (weight >= 9) weightClass = 'weight-critical';
+        else if (weight >= 7) weightClass = 'weight-high';
+        else if (weight >= 4) weightClass = 'weight-medium';
+
+        // 确定卡片样式
+        let cardClass = 'sbt-relationship-edge-card';
+        if (edge.timeline?.reunion_pending) cardClass += ' reunion-pending';
+        else if (!edge.narrative_status?.first_scene_together) cardClass += ' first-meeting-pending';
+
+        // 时间线状态标签
+        let timelineStatusHtml = '';
+        if (edge.timeline?.reunion_pending) {
+            timelineStatusHtml = '<span class="sbt-timeline-status reunion-pending"><i class="fa-solid fa-clock-rotate-left"></i> 待重逢</span>';
+        } else if (!edge.narrative_status?.first_scene_together) {
+            timelineStatusHtml = '<span class="sbt-timeline-status first-meeting"><i class="fa-solid fa-handshake"></i> 待初识</span>';
+        } else if (edge.timeline?.separation_duration === 'none') {
+            timelineStatusHtml = '<span class="sbt-timeline-status active"><i class="fa-solid fa-check"></i> 活跃</span>';
+        } else {
+            timelineStatusHtml = '<span class="sbt-timeline-status separated"><i class="fa-solid fa-user-clock"></i> 分离中</span>';
+        }
+
+        // 未解决张力标签
+        let tensionsHtml = '';
+        const tensions = edge.narrative_status?.unresolved_tension || [];
+        if (tensions.length > 0) {
+            tensionsHtml = '<div class="sbt-unresolved-tensions">';
+            tensions.forEach(tension => {
+                tensionsHtml += `<span class="sbt-tension-tag">${tension}</span>`;
+            });
+            tensionsHtml += '</div>';
+        }
+
+        // 重大事件列表
+        let eventsHtml = '';
+        const events = edge.narrative_status?.major_events || [];
+        if (events.length > 0) {
+            eventsHtml = '<div class="sbt-major-events-list">';
+            events.forEach(event => {
+                const impact = event.emotional_impact || 0;
+                eventsHtml += `
+                    <div class="sbt-major-event-item">
+                        <i class="fa-solid fa-bookmark sbt-major-event-icon"></i>
+                        <div class="sbt-major-event-content">
+                            ${event.event}
+                            <div class="sbt-major-event-impact">情感冲击: ${impact}/10</div>
+                        </div>
+                    </div>
+                `;
+            });
+            eventsHtml += '</div>';
+        }
+
+        const cardHtml = `
+            <div class="${cardClass}" data-edge-id="${edge.id}">
+                <div class="sbt-relationship-edge-header">
+                    <div class="sbt-relationship-participants">
+                        <i class="fa-solid fa-heart"></i>
+                        <span>${participant1}</span>
+                        <i class="fa-solid fa-arrows-left-right" style="opacity: 0.5; font-size: 0.8em;"></i>
+                        <span>${participant2}</span>
+                    </div>
+                    <div class="sbt-relationship-indicators">
+                        ${timelineStatusHtml}
+                        <span class="sbt-relationship-type-badge">${typeText}</span>
+                    </div>
+                </div>
+                <div class="sbt-relationship-edge-details" id="edge-details-${index}">
+                    <div class="sbt-relationship-detail-row">
+                        <div class="sbt-relationship-detail-label">情感权重</div>
+                        <div class="sbt-relationship-detail-value">
+                            <div class="sbt-emotional-weight-bar">
+                                <div class="sbt-emotional-weight-track">
+                                    <div class="sbt-emotional-weight-fill ${weightClass}" style="width: ${weight * 10}%;"></div>
+                                </div>
+                                <span class="sbt-emotional-weight-value">${weight}/10</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="sbt-relationship-detail-row">
+                        <div class="sbt-relationship-detail-label">建立时间</div>
+                        <div class="sbt-relationship-detail-value">${edge.timeline?.established || '未知'}</div>
+                    </div>
+                    <div class="sbt-relationship-detail-row">
+                        <div class="sbt-relationship-detail-label">分离时长</div>
+                        <div class="sbt-relationship-detail-value">${separationText}</div>
+                    </div>
+                    <div class="sbt-relationship-detail-row">
+                        <div class="sbt-relationship-detail-label">最后互动</div>
+                        <div class="sbt-relationship-detail-value">${edge.timeline?.last_interaction || '故事开始前'}</div>
+                    </div>
+                    ${tensions.length > 0 ? `
+                    <div class="sbt-relationship-detail-row">
+                        <div class="sbt-relationship-detail-label">未解张力</div>
+                        <div class="sbt-relationship-detail-value">${tensionsHtml}</div>
+                    </div>
+                    ` : ''}
+                    ${events.length > 0 ? `
+                    <div class="sbt-relationship-detail-row">
+                        <div class="sbt-relationship-detail-label">重大事件</div>
+                        <div class="sbt-relationship-detail-value">${eventsHtml}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        `;
+        container.append(cardHtml);
+    });
+
+    // 添加点击展开/折叠功能
+    container.on('click', '.sbt-relationship-edge-header', function() {
+        const card = $(this).closest('.sbt-relationship-edge-card');
+        const details = card.find('.sbt-relationship-edge-details');
+        details.toggleClass('expanded');
+    });
+}
+
+/**
  * @description 更新世界档案面板
  * @param {Chapter} chapterState - 完整的Chapter对象
  */
@@ -305,6 +509,9 @@ function updateArchivePanel(chapterState) {
         chapterState.staticMatrices.characters,
         $('#sbt-archive-characters')
     );
+
+    // V3.0: 渲染关系图谱
+    renderRelationshipGraph(chapterState);
 
     // 渲染世界观元素
     renderArchiveWorldview(

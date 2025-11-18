@@ -126,6 +126,32 @@
                     </div>
                 </div>
 
+                <!-- V3.0: 关系图谱 -->
+                <div class="sbt-library-section">
+                    <h4 class="sbt-library-title">
+                        <i class="fa-solid fa-diagram-project fa-fw"></i> 关系图谱 <span class="sbt-v3-badge">V3.0</span>
+                    </h4>
+
+                    <p class="sbt-relationship-graph-desc">
+                        <i class="fa-solid fa-info-circle fa-fw"></i>
+                        追踪角色间的关系状态、时间线和叙事进展。系统会自动检测重逢、初识等关系里程碑事件。
+                    </p>
+
+                    <!-- 关系图谱详情展开区域 -->
+                    <div id="sbt-relationship-detail-panel" class="sbt-character-detail-panel" style="display: none;">
+                        <div class="sbt-character-detail-close">
+                            <button id="sbt-close-relationship-detail" class="sbt-secondary-btn">
+                                <i class="fa-solid fa-times fa-fw"></i> 关闭详情
+                            </button>
+                        </div>
+                        <div id="sbt-relationship-detail-content"></div>
+                    </div>
+
+                    <div id="sbt-relationship-graph-container" class="sbt-library-shelf">
+                        <p class="sbt-instructions">暂无关系图谱数据。</p>
+                    </div>
+                </div>
+
                 <!-- 世界观图书馆 -->
                 <div class="sbt-library-section">
                     <h4 class="sbt-library-title">

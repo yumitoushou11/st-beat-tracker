@@ -295,6 +295,71 @@ _createPrompt(context) {
     - 在设计高光时刻的艺术指令时，**主动避免**重复使用频次已超过 3 次的描述词或模式
     - 优先选择**从未使用过**的意象、比喻和感官组合
     - 在 \`design_notes.aesthetic_innovation_report\` 中，明确阐述你识别出了哪些"高频元素"，以及你如何创新性地避开了它们
+
+7.  **【V3.0 关系图谱】关系里程碑事件扫描 (Relationship Milestone Detection):**
+    <relationship_graph>
+    ${JSON.stringify(currentWorldState.relationship_graph || { edges: [] }, null, 2)}
+    </relationship_graph>
+
+    **【【【 关系图谱分析准则 (CRITICAL) 】】】**
+    这是平台化叙事引擎的核心功能。关系图谱为你提供了角色关系的时间线和叙事状态，你**必须**在设计章节时查询并利用这些数据。
+
+    **强制扫描流程:**
+
+    **步骤1: 识别本章涉及的角色**
+    - 基于上一章交接备忘录、玩家焦点和开场白，确定本章会出场的所有角色ID
+
+    **步骤2: 查询关系边**
+    - 在 \`relationship_graph.edges\` 中，查找所有 \`participants\` 包含本章角色的关系边
+    - 对于每条关系边，检查以下关键字段：
+
+    **步骤3: 识别关系里程碑事件**
+    对于每条关系边，应用以下检测规则：
+
+    **A. 重逢事件检测 (Reunion Detection)**
+    - 如果 \`timeline.last_interaction == null\` 且 \`timeline.reunion_pending == true\`
+    - 如果 \`timeline.separation_duration == "years"\` 且 \`emotional_weight >= 7\`
+    - **触发条件:** 这两个角色将在本章首次同框
+    - **叙事权重:** 这是一个**高优先级叙事里程碑**，通常需要独立的节拍或场景
+
+    **B. 重要初识检测 (Significant First Meeting)**
+    - 如果 \`narrative_status.first_scene_together == false\` 且 \`emotional_weight >= 6\`
+    - **触发条件:** 这两个角色将在故事中首次见面
+    - **叙事权重:** 根据 emotional_weight 决定处理方式（7+需要重点描写，6可简化）
+
+    **C. 未解决张力检测 (Unresolved Tension)**
+    - 检查 \`narrative_status.unresolved_tension\` 数组
+    - 如果存在内容（如["未言说的暗恋", "误会"]），这些是潜在的叙事燃料
+    - **处理方式:** 可作为高光时刻的情感基础，或作为对话的潜台词
+
+    **步骤4: 设计决策**
+    对于每个检测到的里程碑事件，你必须做出明确的设计决策：
+
+    **选项A: 作为核心节拍**
+    - 如果该事件的 emotional_weight >= 8，且与玩家焦点契合
+    - 为其分配独立的 plot_beat，设计专门的场景和高光时刻
+
+    **选项B: 融入现有节拍**
+    - 如果该事件的 emotional_weight 为 6-7，或不是本章主焦点
+    - 在相关节拍的场景指令中，添加对该事件的适度描写
+    - 例如: "在进入屋内后，镜头应捕捉Yumi看到Rofi时眼中一闪而过的惊讶"
+
+    **选项C: 延迟处理**
+    - 如果本章已有明确的核心体验，且该事件会造成主题冲突
+    - 可以让角色在本章结尾"看到"对方，但不互动（情感悬崖）
+    - 将完整的重逢场景留给下一章
+
+    **【强制输出要求】**
+    在 \`design_notes.relationship_milestone_analysis\` 中，你**必须**输出：
+    - 你扫描到了哪些关系边
+    - 识别出了哪些里程碑事件（重逢/初识/张力）
+    - 对每个事件做出了什么设计决策（核心节拍/融入/延迟）
+    - 如果选择延迟，解释为什么以及如何为下一章铺垫
+
+    **【关键原则】**
+    - **灵活性优先:** 不是所有重逢都需要独立章节，根据 emotional_weight 和玩家焦点灵活处理
+    - **避免过度强调:** 两天不见不需要特殊处理，只有 separation_duration >= "months" 且 emotional_weight >= 7 才考虑重点处理
+    - **尊重玩家焦点:** 如果玩家焦点是"轻松日常"，即使有重逢事件，也应以轻松方式处理，避免过度戏剧化
 ---
 ## **第三章：强制前置思考：自省式蓝图设计**
 ---

@@ -827,7 +827,23 @@ _syncUiWithRetry() {
                                 targetRel.current_affinity = relUpdate.current_affinity;
                             }
                             if (relUpdate.history_entry) {
-                                targetRel.history.push(relUpdate.history_entry);
+                                // V3.1: 只保留最新的完整reasoning，避免UI过长
+                                // 将完整的reasoning存储到latest_reasoning字段（替换模式）
+                                targetRel.latest_reasoning = relUpdate.history_entry;
+
+                                // 在history中只保留简化的数值变化记录（可选：限制长度）
+                                const simplifiedEntry = {
+                                    timestamp: relUpdate.history_entry.timestamp,
+                                    change: relUpdate.history_entry.change,
+                                    final_affinity: relUpdate.history_entry.final_affinity,
+                                    source_chapter_uid: relUpdate.history_entry.source_chapter_uid
+                                };
+                                targetRel.history.push(simplifiedEntry);
+
+                                // 限制history长度，只保留最近10条数值记录
+                                if (targetRel.history.length > 10) {
+                                    targetRel.history = targetRel.history.slice(-10);
+                                }
                             }
                         }
                     }
@@ -848,7 +864,23 @@ _syncUiWithRetry() {
                                 targetRel.current_affinity = relUpdate.current_affinity;
                             }
                             if (relUpdate.history_entry) {
-                                targetRel.history.push(relUpdate.history_entry);
+                                // V3.1: 只保留最新的完整reasoning，避免UI过长
+                                // 将完整的reasoning存储到latest_reasoning字段（替换模式）
+                                targetRel.latest_reasoning = relUpdate.history_entry;
+
+                                // 在history中只保留简化的数值变化记录（可选：限制长度）
+                                const simplifiedEntry = {
+                                    timestamp: relUpdate.history_entry.timestamp,
+                                    change: relUpdate.history_entry.change,
+                                    final_affinity: relUpdate.history_entry.final_affinity,
+                                    source_chapter_uid: relUpdate.history_entry.source_chapter_uid
+                                };
+                                targetRel.history.push(simplifiedEntry);
+
+                                // 限制history长度，只保留最近10条数值记录
+                                if (targetRel.history.length > 10) {
+                                    targetRel.history = targetRel.history.slice(-10);
+                                }
                             }
                         }
                     }
@@ -1014,8 +1046,25 @@ _syncUiWithRetry() {
                             dynamicUpdated = true;
                         }
                         if (storylineUpdate.history_entry) {
-                            dynamicStoryline.history.push(storylineUpdate.history_entry);
-                            this.info(`    ✓ 已添加历史记录条目`);
+                            // V3.1: 只保留最新的完整reasoning，避免UI过长
+                            // 将完整的reasoning存储到latest_reasoning字段（替换模式）
+                            dynamicStoryline.latest_reasoning = storylineUpdate.history_entry;
+
+                            // 在history中只保留简化的状态变化记录（可选：限制长度）
+                            const simplifiedEntry = {
+                                timestamp: storylineUpdate.history_entry.timestamp,
+                                status_change: storylineUpdate.history_entry.status_change,
+                                summary_update: storylineUpdate.history_entry.summary_update,
+                                source_chapter_uid: storylineUpdate.history_entry.source_chapter_uid
+                            };
+                            dynamicStoryline.history.push(simplifiedEntry);
+
+                            // 限制history长度，只保留最近10条记录
+                            if (dynamicStoryline.history.length > 10) {
+                                dynamicStoryline.history = dynamicStoryline.history.slice(-10);
+                            }
+
+                            this.info(`    ✓ 已添加历史记录条目（简化版）`);
                             dynamicUpdated = true;
                         }
 
@@ -1152,7 +1201,84 @@ _syncUiWithRetry() {
             console.groupEnd();
         }
 
-        // V2.0 步骤五：合并文体档案更新
+        // V3.0 步骤五：处理关系图谱更新 (Relationship Graph Updates)
+        if (delta.relationship_updates && Array.isArray(delta.relationship_updates)) {
+            console.group('[ENGINE-V3-PROBE] 关系图谱更新流程');
+            this.info(" -> 检测到关系图谱更新请求...");
+
+            // 确保relationship_graph存在
+            if (!workingChapter.staticMatrices.relationship_graph) {
+                workingChapter.staticMatrices.relationship_graph = { edges: [] };
+                this.info(" -> 已初始化 staticMatrices.relationship_graph");
+            }
+
+            const relationshipUpdates = delta.relationship_updates;
+            console.log(`收到 ${relationshipUpdates.length} 条关系边更新`, relationshipUpdates);
+
+            for (const relUpdate of relationshipUpdates) {
+                const { relationship_id, updates } = relUpdate;
+
+                // 查找对应的关系边
+                const edgeIndex = workingChapter.staticMatrices.relationship_graph.edges.findIndex(
+                    edge => edge.id === relationship_id
+                );
+
+                if (edgeIndex === -1) {
+                    this.warn(`警告：尝试更新不存在的关系边 ${relationship_id}，跳过此更新`);
+                    continue;
+                }
+
+                const edge = workingChapter.staticMatrices.relationship_graph.edges[edgeIndex];
+                console.log(`正在更新关系边: ${relationship_id}`, updates);
+
+                // 应用更新 - 使用点标记法路径
+                for (const [path, value] of Object.entries(updates)) {
+                    const keys = path.split('.');
+                    let target = edge;
+
+                    // 遍历到倒数第二层
+                    for (let i = 0; i < keys.length - 1; i++) {
+                        const key = keys[i];
+                        if (!target[key]) {
+                            target[key] = {};
+                        }
+                        target = target[key];
+                    }
+
+                    // 设置最终值
+                    const finalKey = keys[keys.length - 1];
+                    target[finalKey] = value;
+
+                    this.info(`  ✓ 已更新 ${relationship_id}.${path}`);
+                }
+
+                // 处理占位符替换
+                const currentChapterUid = workingChapter.uid;
+
+                function replacePlaceholders(obj) {
+                    if (typeof obj === 'string') {
+                        return obj.replace(/\{\{current_chapter_uid\}\}/g, currentChapterUid);
+                    } else if (Array.isArray(obj)) {
+                        return obj.map(replacePlaceholders);
+                    } else if (obj && typeof obj === 'object') {
+                        const result = {};
+                        for (const [key, value] of Object.entries(obj)) {
+                            result[key] = replacePlaceholders(value);
+                        }
+                        return result;
+                    }
+                    return obj;
+                }
+
+                workingChapter.staticMatrices.relationship_graph.edges[edgeIndex] = replacePlaceholders(edge);
+                this.info(`  ✅ 关系边 ${relationship_id} 更新完成`);
+            }
+
+            console.log(`关系图谱当前边数: ${workingChapter.staticMatrices.relationship_graph.edges.length}`);
+            console.groupEnd();
+        }
+
+        // V2.0 步骤六：合并文体档案更新
         if (delta.stylistic_analysis_delta) {
             console.group('[ENGINE-V2-PROBE] 文体档案合并流程');
             this.info(" -> 检测到文体档案更新请求...");

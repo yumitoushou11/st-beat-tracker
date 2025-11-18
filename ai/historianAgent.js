@@ -307,7 +307,66 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
         - \`last_updated\`: 使用占位符 "{{engine_generated_timestamp}}"
     *   **【关键原则】**: 只输出**有变化**的弧光。如果某条弧光在本章未受影响，则不输出其更新记录
 
-### **方法论七：V2.0 文体考古与熵增对抗 (Stylistic Archaeology & Entropy Resistance)**
+### **方法论七：V3.0 关系图谱状态更新 (Relationship Graph State Updates)**
+-   **【核心哲学】**: 关系图谱是平台化叙事引擎的核心，用于追踪角色关系的时间线和叙事状态。每个章节结束后，必须更新相关关系边的状态。
+-   **【执行方法 - 三步更新流程】**:
+    1.  **识别活跃关系 (Identify Active Relationships)**
+        - 从【本章完整对话记录】中，识别所有在本章中有实际互动的角色对
+        - 在 \`staticMatrices.relationship_graph.edges\` 中，查找对应的关系边
+
+    2.  **时间线更新 (Timeline Updates)**
+        - 对于每条活跃的关系边，必须更新以下时间线字段：
+        - \`timeline.last_interaction\`: 更新为当前章节标识（使用占位符 "{{current_chapter_uid}}"）
+        - \`timeline.separation_duration\`: 如果两人见面，重置为 "none"
+        - \`timeline.reunion_pending\`: 如果两人见面且之前为 true，更新为 false
+
+    3.  **叙事状态更新 (Narrative Status Updates)**
+        - \`narrative_status.first_scene_together\`: 如果两人在本章首次同框，更新为 true
+        - \`narrative_status.major_events\`: 如果本章发生重大关系事件，添加事件记录
+          格式: \`{ "chapter": "{{current_chapter_uid}}", "event": "事件描述", "emotional_impact": 1-10 }\`
+        - \`narrative_status.unresolved_tension\`: 根据本章情节更新
+          - 如果某个张力被解决（如暗恋被表白），从数组中移除
+          - 如果产生新的张力（如误会、冲突），添加到数组
+
+-   **【更新触发规则】**:
+    - **必须更新**: 两个角色在本章有**直接对话或身体接触**
+    - **可选更新**: 两个角色在同一场景但未直接互动（根据情节重要性判断）
+    - **不需更新**: 两个角色未在本章出现，或只是被提及
+
+-   **【输出要求】**:
+    *   在输出的 **\`relationship_updates\`** 顶层键中，为每条需要更新的关系边创建记录
+    *   **必须包含字段:**
+        - \`relationship_id\`: 关系边的唯一ID（必须与 staticMatrices.relationship_graph.edges 中的 id 一致）
+        - \`updates\`: 包含需要更新的字段及其新值的对象
+    *   **更新格式示例:**
+        \`\`\`json
+        {
+          "relationship_id": "rel_yumi_rofi",
+          "updates": {
+            "timeline.last_interaction": "{{current_chapter_uid}}",
+            "timeline.separation_duration": "none",
+            "timeline.reunion_pending": false,
+            "narrative_status.first_scene_together": true,
+            "narrative_status.major_events": [
+              ...旧事件,
+              {
+                "chapter": "{{current_chapter_uid}}",
+                "event": "风雪中的重逢",
+                "emotional_impact": 9
+              }
+            ],
+            "narrative_status.unresolved_tension": ["未言说的暗恋"] // 移除了"数年未见的思念"
+          }
+        }
+        \`\`\`
+
+-   **【关键原则】**:
+    - **精确触发**: 只更新确实在本章有互动的关系边
+    - **完整性**: 对于 major_events，必须输出完整数组（包含旧事件+新事件）
+    - **证据驱动**: 所有更新必须基于【本章完整对话记录】中的具体证据
+    - **占位符**: 所有时间戳和章节UID使用占位符，由引擎自动替换
+
+### **方法论八：V2.0 文体考古与熵增对抗 (Stylistic Archaeology & Entropy Resistance)**
 -   **【核心哲学】**: AI生成内容容易陷入"文体惰性"，反复使用相同的意象、形容词和感官模式。通过系统性提取和追踪这些元素，为后续章节提供"避免重复"的参考依据。
 -   **【执行方法 - 三重提取】**:
     1.  **意象与隐喻提取 (Imagery & Metaphors)**
@@ -464,6 +523,23 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
       ]
     }
   },
+  "relationship_updates": [
+    {
+      "relationship_id": "rel_yumi_neph",
+      "updates": {
+        "timeline.last_interaction": "{{current_chapter_uid}}",
+        "timeline.separation_duration": "none",
+        "narrative_status.first_scene_together": true,
+        "narrative_status.major_events": [
+          {
+            "chapter": "{{current_chapter_uid}}",
+            "event": "森林遭遇战后建立信任",
+            "emotional_impact": 7
+          }
+        ]
+      }
+    }
+  ],
   "new_long_term_summary": "在一个人类与御兽共存的世界里...",
   "new_handoff_memo": {
       "ending_snapshot": "...",

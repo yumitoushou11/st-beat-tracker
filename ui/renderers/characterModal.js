@@ -149,22 +149,45 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
                 const affinityColor = mapValueToHue(affinity);
                 const otherCharName = otherChar?.core?.name || otherChar?.name || otherCharId;
 
-                // 获取关系历史记录
+                // V3.1: 获取关系历史记录（简化版）和最新推理
                 const historyLog = dynamicRel?.history || [];
+                const latestReasoning = dynamicRel?.latest_reasoning;
                 let historyHtml = '';
+
+                // 首先显示最新的完整推理（如果存在）
+                if (latestReasoning) {
+                    const timestamp = latestReasoning.timestamp ? new Date(latestReasoning.timestamp).toLocaleString('zh-CN') : '未知时间';
+                    let change = latestReasoning.change;
+                    if (change === null || change === undefined) {
+                        change = '0';
+                    } else if (typeof change === 'number') {
+                        change = change > 0 ? `+${change}` : String(change);
+                    } else {
+                        change = String(change);
+                        if (!change.startsWith('+') && !change.startsWith('-')) {
+                            const numValue = parseFloat(change);
+                            if (!isNaN(numValue) && numValue > 0) {
+                                change = `+${change}`;
+                            }
+                        }
+                    }
+                    const reasoning = latestReasoning.reasoning || '无记录';
+                    historyHtml += '<div class="sbt-relationship-history"><div class="sbt-relationship-history-title"><i class="fa-solid fa-lightbulb"></i> 最新变化推理</div>';
+                    historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}</span></div><div class="sbt-history-reasoning">${reasoning}</div></div>`;
+                    historyHtml += '</div>';
+                }
+
+                // 然后显示简化的历史记录（只有时间和数值）
                 if (historyLog.length > 0) {
-                    historyHtml = '<div class="sbt-relationship-history"><div class="sbt-relationship-history-title"><i class="fa-solid fa-clock-rotate-left"></i> 关系变化历史</div>';
+                    historyHtml += '<div class="sbt-relationship-history"><div class="sbt-relationship-history-title"><i class="fa-solid fa-clock-rotate-left"></i> 历史数值记录</div>';
                     historyLog.forEach((entry, idx) => {
                         const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString('zh-CN') : '未知时间';
-                        // 安全处理 change 字段：可能是字符串、数字或空值
                         let change = entry.change;
                         if (change === null || change === undefined) {
                             change = '0';
                         } else if (typeof change === 'number') {
-                            // 如果是数字，转换为带符号的字符串
                             change = change > 0 ? `+${change}` : String(change);
                         } else {
-                            // 如果是字符串，确保正数有 + 号
                             change = String(change);
                             if (!change.startsWith('+') && !change.startsWith('-')) {
                                 const numValue = parseFloat(change);
@@ -173,8 +196,8 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
                                 }
                             }
                         }
-                        const reasoning = entry.reasoning || '无记录';
-                        historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}</span></div><div class="sbt-history-reasoning">${reasoning}</div></div>`;
+                        const finalAffinity = entry.final_affinity !== undefined ? ` → ${entry.final_affinity}` : '';
+                        historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}${finalAffinity}</span></div></div>`;
                     });
                     historyHtml += '</div>';
                 }
@@ -205,22 +228,45 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
                 const affinityColor = mapValueToHue(affinity);
                 const targetCharName = targetChar?.core?.name || targetChar?.name || targetCharId;
 
-                // 获取关系历史记录
+                // V3.1: 获取关系历史记录（简化版）和最新推理
                 const historyLog = dynamicRel?.history || [];
+                const latestReasoning = dynamicRel?.latest_reasoning;
                 let historyHtml = '';
+
+                // 首先显示最新的完整推理（如果存在）
+                if (latestReasoning) {
+                    const timestamp = latestReasoning.timestamp ? new Date(latestReasoning.timestamp).toLocaleString('zh-CN') : '未知时间';
+                    let change = latestReasoning.change;
+                    if (change === null || change === undefined) {
+                        change = '0';
+                    } else if (typeof change === 'number') {
+                        change = change > 0 ? `+${change}` : String(change);
+                    } else {
+                        change = String(change);
+                        if (!change.startsWith('+') && !change.startsWith('-')) {
+                            const numValue = parseFloat(change);
+                            if (!isNaN(numValue) && numValue > 0) {
+                                change = `+${change}`;
+                            }
+                        }
+                    }
+                    const reasoning = latestReasoning.reasoning || '无记录';
+                    historyHtml += '<div class="sbt-relationship-history"><div class="sbt-relationship-history-title"><i class="fa-solid fa-lightbulb"></i> 最新变化推理</div>';
+                    historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}</span></div><div class="sbt-history-reasoning">${reasoning}</div></div>`;
+                    historyHtml += '</div>';
+                }
+
+                // 然后显示简化的历史记录（只有时间和数值）
                 if (historyLog.length > 0) {
-                    historyHtml = '<div class="sbt-relationship-history"><div class="sbt-relationship-history-title"><i class="fa-solid fa-clock-rotate-left"></i> 关系变化历史</div>';
+                    historyHtml += '<div class="sbt-relationship-history"><div class="sbt-relationship-history-title"><i class="fa-solid fa-clock-rotate-left"></i> 历史数值记录</div>';
                     historyLog.forEach((entry, idx) => {
                         const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString('zh-CN') : '未知时间';
-                        // 安全处理 change 字段：可能是字符串、数字或空值
                         let change = entry.change;
                         if (change === null || change === undefined) {
                             change = '0';
                         } else if (typeof change === 'number') {
-                            // 如果是数字，转换为带符号的字符串
                             change = change > 0 ? `+${change}` : String(change);
                         } else {
-                            // 如果是字符串，确保正数有 + 号
                             change = String(change);
                             if (!change.startsWith('+') && !change.startsWith('-')) {
                                 const numValue = parseFloat(change);
@@ -229,8 +275,8 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
                                 }
                             }
                         }
-                        const reasoning = entry.reasoning || '无记录';
-                        historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}</span></div><div class="sbt-history-reasoning">${reasoning}</div></div>`;
+                        const finalAffinity = entry.final_affinity !== undefined ? ` → ${entry.final_affinity}` : '';
+                        historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}${finalAffinity}</span></div></div>`;
                     });
                     historyHtml += '</div>';
                 }

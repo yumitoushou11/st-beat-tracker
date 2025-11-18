@@ -134,7 +134,98 @@ ${formattedWorldInfo}
     *   识别所有在故事开始前就存在的长期目标或悬而未决的矛盾。
     *   根据其性质，归入 \`main_quests\`, \`side_quests\`, \`relationship_arcs\` 等分类中。
 
---- 【第三部分：最终输出结构协议 (MANDATORY V2.0 - ECI MODEL)】 ---
+4.  **[V3.0 新增] 构建 \`staticMatrices.relationship_graph\`:**
+    *   这是平台化叙事引擎的核心数据结构，用于系统化处理关系里程碑事件（重逢、初识、告白等）。
+
+    **【关系图谱构建规则】**
+
+    **何时创建关系边:**
+    对于任何两个角色，如果他们之间存在以下类型的关系，你**必须**创建一条关系边：
+    - 血缘/法律关系（父母、子女、兄弟姐妹、配偶、恋人）
+    - 长期社交关系（童年玩伴、朋友、同事、师生、宿敌）
+    - 故事线定义的关系（单恋对象、复仇目标、盟友）
+    - 情感权重 ≥ 6 的任何关系
+
+    **关系边数据结构:**
+    每条关系边必须包含以下字段：
+
+    *   \`id\`: 关系唯一ID，格式为 "rel_角色1ID去掉前缀_角色2ID去掉前缀"
+        例如: char_yumi_player + char_rofi_hunter → "rel_yumi_rofi"
+
+    *   \`participants\`: 关系参与者ID数组，必须是两个角色ID
+        例如: ["char_yumi_player", "char_rofi_hunter"]
+
+    *   \`type\`: 关系类型，使用英文下划线命名
+        常见类型: "childhood_friends", "family_siblings", "romantic_interest", "rivals", "mentor_student", "allies", "enemies"
+
+    *   \`emotional_weight\`: 情感权重 (0-10整数)
+        - 0-3: 普通熟人、路人
+        - 4-6: 重要关系（好友、同事）
+        - 7-8: 非常重要（挚友、暗恋对象、重要家人）
+        - 9-10: 生命中最重要的人
+
+    *   \`timeline\`: 时间线对象，必须包含：
+        - \`established\`: 关系建立时间
+          可用值: "childhood"（童年）, "youth"（青少年）, "recent"（近期）, "years_ago"（数年前）, "unknown"（未知）, 或具体描述
+
+        - \`last_interaction\`: 最后互动时间
+          **推断规则**:
+          - 如果世界书说"童年玩伴"但没提最近的联系 → 设为 null
+          - 如果说"最近见过" → 设为 "recent"
+          - 如果说"数年未见" → 设为 null
+          - 如果是家人且同居 → 设为 "daily"
+
+        - \`separation_duration\`: 分离时长
+          可用值: "none"（未分离）, "days"（数天）, "weeks"（数周）, "months"（数月）, "years"（数年）, "unknown"（未知）
+          **推断规则**: 基于 last_interaction 推断，如果last_interaction为null且不是家人，通常为"years"
+
+        - \`reunion_pending\`: 是否等待重逢 (true/false)
+          **推断规则**:
+          - 如果 last_interaction 为 null 且 emotional_weight ≥ 6 → true
+          - 如果 separation_duration 为 "years" 且 emotional_weight ≥ 7 → true
+          - 其他情况 → false
+
+    *   \`narrative_status\`: 叙事状态对象，必须包含：
+        - \`first_scene_together\`: 是否已在故事中首次同框 (true/false)
+          **初始化规则**: 如果这是故事开端（创世时） → 始终设为 false
+
+        - \`major_events\`: 故事中的重大关系事件记录（数组）
+          **初始化规则**: 创世时始终设为空数组 []
+
+        - \`unresolved_tension\`: 未解决的情感张力/冲突（字符串数组）
+          **推断规则**: 从角色的 secrets 字段、goals.恐惧、goals.欲望 中提取
+          示例: ["未言说的暗恋", "误会尚未解开", "愧疚感", "嫉妒"]
+
+    **【关系图谱示例】**
+    假设有童年玩伴 Yumi 和 Rofi，Rofi 暗恋 Yumi 但数年未见：
+
+    \`\`\`json
+    {
+      "id": "rel_yumi_rofi",
+      "participants": ["char_yumi_player", "char_rofi_hunter"],
+      "type": "childhood_friends",
+      "emotional_weight": 8,
+      "timeline": {
+        "established": "childhood",
+        "last_interaction": null,
+        "separation_duration": "years",
+        "reunion_pending": true
+      },
+      "narrative_status": {
+        "first_scene_together": false,
+        "major_events": [],
+        "unresolved_tension": ["未言说的暗恋", "数年未见的思念"]
+      }
+    }
+    \`\`\`
+
+    **【关键推断原则】**
+    - **时间线推断**: 仔细阅读角色背景和世界书，推断他们最后一次互动的时间
+    - **情感张力提取**: 从 secrets、goals、background 中寻找未解决的情感线索
+    - **重逢标记**: 如果分离时间长且情感权重高，必须标记 reunion_pending: true
+    - **双向一致性**: 关系是双向的，不要重复创建（只需创建一条边）
+
+--- 【第三部分：最终输出结构协议 (MANDATORY V3.0 - ECI MODEL)】 ---
 你的整个回复必须是一个单一的JSON对象，其结构必须严格遵守以下格式。
 
 \`\`\`json
@@ -247,6 +338,27 @@ ${formattedWorldInfo}
         }
       },
       "side_quests": {}
+    },
+    "relationship_graph": {
+      "edges": [
+        {
+          "id": "rel_yumi_xuecai",
+          "participants": ["char_yumi_player", "char_xuecai_sister"],
+          "type": "family_siblings",
+          "emotional_weight": 10,
+          "timeline": {
+            "established": "childhood",
+            "last_interaction": "daily",
+            "separation_duration": "none",
+            "reunion_pending": false
+          },
+          "narrative_status": {
+            "first_scene_together": false,
+            "major_events": [],
+            "unresolved_tension": ["担心姐姐的病情", "不想让姐姐担心自己"]
+          }
+        }
+      ]
     }
   }
 }
@@ -291,11 +403,17 @@ ${formattedWorldInfo}
                 potentialJsonString = responseText;
             }
         }
-           const initialData = repairAndParseJson(potentialJsonString, this);            if (!initialData || !initialData.staticMatrices || 
-                !initialData.staticMatrices.characters || 
-                !initialData.staticMatrices.worldview || 
+           const initialData = repairAndParseJson(potentialJsonString, this);            if (!initialData || !initialData.staticMatrices ||
+                !initialData.staticMatrices.characters ||
+                !initialData.staticMatrices.worldview ||
                 !initialData.staticMatrices.storylines) {
                 throw new Error("AI未能返回包含有效 'staticMatrices' (及其全部分类 'characters', 'worldview', 'storylines') 的JSON。");
+            }
+
+            // V3.0: 向后兼容性处理 - 如果AI未生成relationship_graph，创建空结构
+            if (!initialData.staticMatrices.relationship_graph) {
+                this.diagnose("[V3.0兼容] AI未生成relationship_graph，使用空结构");
+                initialData.staticMatrices.relationship_graph = { edges: [] };
             }
 
             this.info("智能情报官AI 分析完成，ECI原子化静态数据库已建立。");
