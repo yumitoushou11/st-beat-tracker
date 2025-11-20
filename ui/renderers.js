@@ -681,18 +681,22 @@ function renderChapterBlueprint(blueprint) {
         return '<p class="sbt-instructions">当前没有激活的创作蓝图。</p>';
     }
 
-    // 节拍类型映射
+    // V4.2 节拍类型映射（扩展）
     const beatTypeMap = {
         'Action': '动作',
         'Dialogue Scene': '对话',
-        'Transition': '过渡'
+        'Transition': '过渡',
+        'Internal Transition': '内部转场',
+        'Reflection': '反思'
     };
 
-    // 节拍类型样式类映射
+    // V4.2 节拍类型样式类映射（扩展）
     const beatTypeClassMap = {
         'Action': 'action',
         'Dialogue Scene': 'dialogue',
-        'Transition': 'transition'
+        'Transition': 'transition',
+        'Internal Transition': 'internal-transition',
+        'Reflection': 'reflection'
     };
 
     let html = '';

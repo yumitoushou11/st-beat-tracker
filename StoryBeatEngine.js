@@ -543,12 +543,20 @@ const instructionPlaceholder = {
 
 if (this.currentChapter.chapter_blueprint) {
     // 【V3.2 重构】第1层：最高优先级微指令（放在最前面，独立强调）
+    // 【V4.1 增强】添加强化负面约束
     const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
+    const strictNarrativeConstraints = this._buildStrictNarrativeConstraints(
+        conductorDecision.analysis.current_beat,
+        conductorDecision.micro_instruction
+    );
+
     instructionPlaceholder.content = [
         `╔═══════════════════════════════════════════════════════════════════════╗`,
         `║                   【最高优先级：本回合导演微指令】                    ║`,
         `║                      (Turn-Level Micro Instruction)                  ║`,
         `╚═══════════════════════════════════════════════════════════════════════╝`,
+        ``,
+        strictNarrativeConstraints,
         ``,
         `⚠️ **【强制性指令】** 以下微指令具有最高优先级，必须在本回合严格执行：`,
         ``,
@@ -601,10 +609,22 @@ if (this.currentChapter.chapter_blueprint) {
     console.groupEnd();
 
     // 【V3.2 重构】第3层：本章创作蓝图（纯净版，不再包含实体档案）
-    const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
+    // 【V4.1 增强】实现剧本动态掩码（信息迷雾）
+    const currentBeat = conductorDecision.analysis.current_beat;
+    const maskedBlueprint = this._applyBlueprintMask(
+        this.currentChapter.chapter_blueprint,
+        currentBeat
+    );
+
+    const blueprintAsString = JSON.stringify(maskedBlueprint, null, 2);
     const scriptContent = [
         `# **【第3层：本章创作蓝图】**`,
         `## (Chapter Blueprint)`,
+        ``,
+        `⚠️ **【信息迷雾协议】** 剧本已根据当前进度进行动态掩码处理`,
+        `- 已完成的节拍：标记为【已完成】`,
+        `- 当前执行节拍：完整展示并高亮标记`,
+        `- 未来节拍：内容已屏蔽，状态为【待解锁】`,
         ``,
         `\`\`\`json`,
         blueprintAsString,
@@ -613,7 +633,18 @@ if (this.currentChapter.chapter_blueprint) {
     ].join('\n');
 
     scriptPlaceholder.content = scriptContent;
-    this.info('✓ 第3层创作蓝图已注入');
+    this.info(`✓ 第3层创作蓝图已注入（当前节拍: ${currentBeat}，已应用动态掩码）`);
+
+    // V4.1 调试：验证掩码效果
+    console.group('[ENGINE-V4.1-DEBUG] 剧本动态掩码验证');
+    console.log('当前节拍:', currentBeat);
+    console.log('原始节拍数量:', this.currentChapter.chapter_blueprint.plot_beats?.length || 0);
+    console.log('掩码后节拍结构:');
+    maskedBlueprint.plot_beats?.forEach((beat, idx) => {
+        console.log(`  节拍${idx + 1}: ${beat.status} - ${beat.description?.substring(0, 50) || beat.summary?.substring(0, 50) || '内容已屏蔽'}...`);
+    });
+    console.log('终章信标状态:', maskedBlueprint.endgame_beacons?.[0]?.substring(0, 50) || '无');
+    console.groupEnd();
 
     // V3.0 调试：验证第3层内容
     console.group('[ENGINE-V3-DEBUG] 第3层蓝图内容验证');
@@ -744,6 +775,108 @@ _formatMicroInstruction(instruction) {
     formattedString += `*   **信息壁垒 (Hold):** ${narrative_hold || '无。'}`;
 
     return formattedString.trim();
+}
+
+/**
+ * V4.1: 构建强化负面约束（方案三：Prompt强化）
+ * 使用系统级别的强制拦截网，确保AI无法越界
+ */
+_buildStrictNarrativeConstraints(currentBeat, microInstruction) {
+    const scopeLimit = microInstruction?.scope_limit || '未定义';
+    const narrativeHold = microInstruction?.narrative_hold || '';
+
+    let constraints = [
+        `### 🛑 绝对叙事禁令 (NARRATIVE STOP-SIGNS)`,
+        `你是一名严格遵守剧本进度的演员。`,
+        ``,
+        `1. **当前进度锁定:** 你目前仅处于 **${currentBeat}**。`,
+        `2. **禁止越界:** 绝对禁止描写当前节拍之后的内容。`,
+        `3. **信息封锁:** 下一刻会发生什么（其他角色的行动、未来的剧情）对你来说是**未知**的。`,
+        `4. **物理终点:** 你的描写必须在 **"${scopeLimit}"** 这一动作完成后**立即终止**。`,
+        ``
+    ];
+
+    // 如果有信息壁垒，额外强调
+    if (narrativeHold && narrativeHold.trim() !== '' && narrativeHold !== '无' && narrativeHold !== '无。') {
+        constraints.push(`5. **剧透隔离:** ${narrativeHold}`);
+        constraints.push(``);
+    }
+
+    constraints.push(`### ✅ 本回合唯一任务`);
+    constraints.push(`${microInstruction?.narrative_goal || '按照当前节拍自由演绎。'}`);
+    constraints.push(``);
+    constraints.push(`───────────────────────────────────────────────────────────────────────`);
+
+    return constraints.join('\n');
+}
+
+/**
+ * V4.1: 应用剧本动态掩码（方案二：信息迷雾）
+ * 根据当前节拍进度，屏蔽未来节拍的详细内容
+ */
+_applyBlueprintMask(blueprint, currentBeat) {
+    if (!blueprint || !blueprint.plot_beats) {
+        return blueprint;
+    }
+
+    // 深拷贝蓝图，避免修改原始数据
+    const maskedBlueprint = JSON.parse(JSON.stringify(blueprint));
+
+    // 解析当前节拍索引
+    let currentBeatIndex = -1;
+    let isEndgame = false;
+
+    if (currentBeat.includes('【终章】')) {
+        isEndgame = true;
+        currentBeatIndex = maskedBlueprint.plot_beats.length; // 所有节拍都已完成
+    } else {
+        // 尝试从 "【节拍X】" 中提取索引
+        const match = currentBeat.match(/【节拍(\d+)】/);
+        if (match) {
+            currentBeatIndex = parseInt(match[1]) - 1; // 转换为0-based索引
+        }
+    }
+
+    // 如果无法识别当前节拍，保守处理：只显示第一个节拍
+    if (currentBeatIndex === -1) {
+        this.warn(`⚠️ 无法解析当前节拍: ${currentBeat}，默认显示第一个节拍`);
+        currentBeatIndex = 0;
+    }
+
+    // 遍历节拍并应用掩码
+    maskedBlueprint.plot_beats = maskedBlueprint.plot_beats.map((beat, index) => {
+        if (index < currentBeatIndex) {
+            // 过去的节拍：标记为已完成
+            return {
+                beat_id: beat.beat_id,
+                status: "【已完成】",
+                summary: beat.description || '该节拍已完成'
+            };
+        } else if (index === currentBeatIndex) {
+            // 当前节拍：完全展示并高亮标记
+            return {
+                ...beat,
+                status: "【⚠️ 当前执行目标 ⚠️】",
+                _instruction: "FOCUS HERE: 你的所有描写必须且只能服务于此节拍。禁止推进到下一节拍。"
+            };
+        } else {
+            // 未来的节拍：物理屏蔽内容
+            return {
+                beat_id: beat.beat_id,
+                status: "【待解锁】",
+                description: "【数据删除 - 此时不可见】",
+                type: "Unknown",
+                _note: "此节拍内容已被系统屏蔽，你无法访问"
+            };
+        }
+    });
+
+    // 屏蔽终章信标（除非已经到达终局）
+    if (!isEndgame && maskedBlueprint.endgame_beacons) {
+        maskedBlueprint.endgame_beacons = ["【数据删除 - 仅在最后节拍解锁】"];
+    }
+
+    return maskedBlueprint;
 }
 /**带有智能重试机制的UI同步器。如果失败，则会在有限次数内自动重试。*/
 _syncUiWithRetry() {

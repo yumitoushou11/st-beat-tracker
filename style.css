@@ -2278,6 +2278,17 @@ input:checked + .sbt-slider:before {
     color: #FF9F0A;
 }
 
+/* V4.2 新增节拍类型样式 */
+.sbt-beat-type-badge.internal-transition {
+    background-color: rgba(191, 90, 242, 0.2);
+    color: #BF5AF2;
+}
+
+.sbt-beat-type-badge.reflection {
+    background-color: rgba(94, 92, 230, 0.2);
+    color: #5E5CE6;
+}
+
 /* 高光时刻卡片 */
 .sbt-highlight-card {
     background-color: var(--sbt-bg-darker);
