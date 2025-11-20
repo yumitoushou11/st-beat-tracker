@@ -671,25 +671,244 @@ function renderNarrativeArcs(chapterState) {
     console.groupEnd();
 }
 
+/**
+ * @description [V3.5] 渲染章节剧本 - 分层卡片式布局
+ * @param {object} blueprint - 章节剧本对象
+ * @returns {string} HTML字符串
+ */
+function renderChapterBlueprint(blueprint) {
+    if (!blueprint || typeof blueprint !== 'object') {
+        return '<p class="sbt-instructions">当前没有激活的创作蓝图。</p>';
+    }
+
+    // 节拍类型映射
+    const beatTypeMap = {
+        'Action': '动作',
+        'Dialogue Scene': '对话',
+        'Transition': '过渡'
+    };
+
+    // 节拍类型样式类映射
+    const beatTypeClassMap = {
+        'Action': 'action',
+        'Dialogue Scene': 'dialogue',
+        'Transition': 'transition'
+    };
+
+    let html = '';
+
+    // === 第1层：章节概览卡片 ===
+    html += '<div class="sbt-blueprint-overview-card">';
+    html += '<div class="sbt-blueprint-section-title">';
+    html += '<i class="fa-solid fa-book-open"></i> 章节概览';
+    html += '</div>';
+
+    // 章节标题
+    if (blueprint.title) {
+        html += `<div class="sbt-blueprint-field">
+            <div class="sbt-blueprint-field-label">章节标题</div>
+            <div class="sbt-blueprint-field-value" contenteditable="true" data-field="title">${blueprint.title}</div>
+        </div>`;
+    }
+
+    // 情感弧光
+    if (blueprint.emotional_arc) {
+        html += `<div class="sbt-blueprint-field">
+            <div class="sbt-blueprint-field-label">情感弧光</div>
+            <div class="sbt-blueprint-field-value" contenteditable="true" data-field="emotional_arc">${blueprint.emotional_arc}</div>
+        </div>`;
+    }
+
+    // 核心冲突
+    if (blueprint.core_conflict) {
+        html += `<div class="sbt-blueprint-field">
+            <div class="sbt-blueprint-field-label">核心冲突</div>
+            <div class="sbt-blueprint-field-value" contenteditable="true" data-field="core_conflict">${blueprint.core_conflict}</div>
+        </div>`;
+    }
+
+    html += '</div>'; // 结束概览卡片
+
+    // === 第2层：情节节拍列表 ===
+    if (blueprint.plot_beats && Array.isArray(blueprint.plot_beats) && blueprint.plot_beats.length > 0) {
+        html += '<div class="sbt-blueprint-section">';
+        html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
+        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon"></i>';
+        html += '<i class="fa-solid fa-list-ol"></i> 情节节拍';
+        html += `<span class="sbt-beat-count">${blueprint.plot_beats.length} 个节拍</span>`;
+        html += '</div>';
+        html += '<div class="sbt-blueprint-section-content">';
+
+        blueprint.plot_beats.forEach((beat, index) => {
+            const beatNum = index + 1;
+            const beatType = beat.type || 'Action';
+            const beatTypeChinese = beatTypeMap[beatType] || beatType;
+            const beatTypeClass = beatTypeClassMap[beatType] || 'action';
+            const isHighlight = beat.is_highlight || false;
+
+            html += `<div class="sbt-beat-card ${isHighlight ? 'highlight' : ''}" data-beat-index="${index}">`;
+
+            // 节拍头部
+            html += '<div class="sbt-beat-header">';
+            html += `<span class="sbt-beat-number">${beatNum}</span>`;
+            html += `<span class="sbt-beat-type-badge ${beatTypeClass}">${beatTypeChinese}</span>`;
+            if (isHighlight) {
+                html += '<i class="fa-solid fa-star sbt-highlight-star" title="高光节拍"></i>';
+            }
+            html += '</div>';
+
+            // 节拍描述
+            if (beat.description) {
+                html += `<div class="sbt-beat-description" contenteditable="true" data-beat-index="${index}" data-field="description">${beat.description}</div>`;
+            }
+
+            // 对话场景的退出条件
+            if (beatType === 'Dialogue Scene' && beat.exit_condition) {
+                html += `<div class="sbt-beat-exit-condition">
+                    <i class="fa-solid fa-door-open"></i>
+                    <span>退出条件：</span>
+                    <span contenteditable="true" data-beat-index="${index}" data-field="exit_condition">${beat.exit_condition}</span>
+                </div>`;
+            }
+
+            html += '</div>'; // 结束节拍卡片
+        });
+
+        html += '</div>'; // 结束section-content
+        html += '</div>'; // 结束section
+    }
+
+    // === 第3层：高光时刻设计 ===
+    if (blueprint.highlight_moment_design) {
+        const highlight = blueprint.highlight_moment_design;
+        html += '<div class="sbt-blueprint-section">';
+        html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
+        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon"></i>';
+        html += '<i class="fa-solid fa-star"></i> 高光时刻设计';
+        html += '</div>';
+        html += '<div class="sbt-blueprint-section-content">';
+        html += '<div class="sbt-highlight-card">';
+
+        // 高光类型
+        if (highlight.type) {
+            html += `<div class="sbt-blueprint-field">
+                <div class="sbt-blueprint-field-label"><i class="fa-solid fa-tag"></i> 高光类型</div>
+                <div class="sbt-blueprint-field-value" contenteditable="true" data-field="highlight_moment_design.type">${highlight.type}</div>
+            </div>`;
+        }
+
+        // 目标节拍
+        if (highlight.target_beat !== undefined) {
+            html += `<div class="sbt-blueprint-field">
+                <div class="sbt-blueprint-field-label"><i class="fa-solid fa-bullseye"></i> 目标节拍</div>
+                <div class="sbt-blueprint-field-value">节拍 ${highlight.target_beat + 1}</div>
+            </div>`;
+        }
+
+        // 设计意图
+        if (highlight.design_rationale) {
+            html += `<div class="sbt-blueprint-field">
+                <div class="sbt-blueprint-field-label"><i class="fa-solid fa-lightbulb"></i> 设计意图</div>
+                <div class="sbt-blueprint-field-value" contenteditable="true" data-field="highlight_moment_design.design_rationale">${highlight.design_rationale}</div>
+            </div>`;
+        }
+
+        html += '</div>'; // 结束highlight-card
+        html += '</div>'; // 结束section-content
+        html += '</div>'; // 结束section
+    }
+
+    // === 第4层：终章信标 ===
+    if (blueprint.endgame_beacons && Array.isArray(blueprint.endgame_beacons) && blueprint.endgame_beacons.length > 0) {
+        html += '<div class="sbt-blueprint-section">';
+        html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
+        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon"></i>';
+        html += '<i class="fa-solid fa-flag-checkered"></i> 终章信标';
+        html += `<span class="sbt-beat-count">${blueprint.endgame_beacons.length} 个信标</span>`;
+        html += '</div>';
+        html += '<div class="sbt-blueprint-section-content">';
+
+        blueprint.endgame_beacons.forEach((beacon, index) => {
+            html += `<div class="sbt-beacon-item">
+                <i class="fa-solid fa-circle-dot"></i>
+                <span contenteditable="true" data-beacon-index="${index}">${beacon}</span>
+            </div>`;
+        });
+
+        html += '</div>'; // 结束section-content
+        html += '</div>'; // 结束section
+    }
+
+    // === 导演简报 (如果存在) ===
+    if (blueprint.director_brief) {
+        html += '<div class="sbt-blueprint-section">';
+        html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
+        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon"></i>';
+        html += '<i class="fa-solid fa-bullhorn"></i> 导演简报';
+        html += '</div>';
+        html += '<div class="sbt-blueprint-section-content">';
+        html += `<div class="sbt-blueprint-field-value" contenteditable="true" data-field="director_brief">${blueprint.director_brief}</div>`;
+        html += '</div>'; // 结束section-content
+        html += '</div>'; // 结束section
+    }
+
+    return html;
+}
+
 export function updateDashboard(chapterState) {
     if (!chapterState || $('#beat-tracker-component-wrapper').length === 0) return;
 
-    // --- 1. 渲染故事摘要 (不变) ---
-    const summaryContainer = $('#sbt-story-summary-content'); 
+    // --- 1. 【V3.6 革新】渲染双轨制故事摘要（编年史+衔接点） ---
+    const summaryContainer = $('#sbt-story-summary-content');
     if(summaryContainer.length > 0) {
-        summaryContainer.text(chapterState.longTermStorySummary || "暂无故事摘要。");
+        const longTermSummary = chapterState.meta?.longTermStorySummary || chapterState.longTermStorySummary || "暂无故事摘要。";
+        const handoffMemo = chapterState.meta?.lastChapterHandoff;
+
+        let html = '';
+
+        // 第一部分：编年史家视角（概要）
+        html += '<div class="sbt-summary-section">';
+        html += '<div class="sbt-summary-section-title">';
+        html += '<i class="fa-solid fa-book"></i> 故事梗概';
+        html += '</div>';
+        html += `<div class="sbt-summary-content">${longTermSummary}</div>`;
+        html += '</div>';
+
+        // 第二部分：章节交接备忘录（衔接点）
+        if (handoffMemo && typeof handoffMemo === 'object') {
+            html += '<div class="sbt-summary-section sbt-handoff-section">';
+            html += '<div class="sbt-summary-section-title">';
+            html += '<i class="fa-solid fa-link"></i> 章节衔接点';
+            html += '<span class="sbt-handoff-badge">关键</span>';
+            html += '</div>';
+
+            // 结束快照
+            if (handoffMemo.ending_snapshot) {
+                html += '<div class="sbt-handoff-block">';
+                html += '<div class="sbt-handoff-block-title"><i class="fa-solid fa-camera"></i> 结束快照</div>';
+                html += `<div class="sbt-handoff-content">${handoffMemo.ending_snapshot}</div>`;
+                html += '</div>';
+            }
+
+            // 动作交接
+            if (handoffMemo.action_handoff) {
+                html += '<div class="sbt-handoff-block">';
+                html += '<div class="sbt-handoff-block-title"><i class="fa-solid fa-arrow-right"></i> 下章起点</div>';
+                html += `<div class="sbt-handoff-content sbt-action-handoff">${handoffMemo.action_handoff}</div>`;
+                html += '</div>';
+            }
+
+            html += '</div>'; // 结束handoff-section
+        }
+
+        summaryContainer.html(html);
     }
 
-    // --- 2. 【革新】渲染全新的“创作蓝图”对象 ---
-    const scriptContainer = $('#sbt-active-script-content'); 
+    // --- 2. 【V3.5 革新】渲染章节剧本 - 使用新的卡片式布局 ---
+    const scriptContainer = $('#sbt-active-script-content');
     if(scriptContainer.length > 0) {
-        if (chapterState.chapter_blueprint && typeof chapterState.chapter_blueprint === 'object') {
-            // 使用 JSON.stringify 将对象格式化为带缩进的字符串，并放入 <pre><code> 标签中
-            const blueprintString = JSON.stringify(chapterState.chapter_blueprint, null, 2);
-            scriptContainer.html(`<pre><code>${blueprintString}</code></pre>`);
-        } else {
-            scriptContainer.html('<p class="sbt-instructions">当前没有激活的创作蓝图。</p>');
-        }
+        const blueprintHtml = renderChapterBlueprint(chapterState.chapter_blueprint);
+        scriptContainer.html(blueprintHtml);
     }
 
     // --- 3. 【革新】渲染全新的“自省式”设计笔记 ---
@@ -735,6 +954,9 @@ export function updateDashboard(chapterState) {
     // --- V2.0: 渲染故事大纲 (宏观叙事弧光) ---
     renderNarrativeArcs(chapterState);
 
+    // --- V4.0: 渲染叙事控制塔 ---
+    renderNarrativeControlTower(chapterState);
+
     // --- 4. 渲染角色关系图谱 ---
     const relationshipContainer = $('#sbt-character-chart');
     if (relationshipContainer.length > 0) {
@@ -762,6 +984,148 @@ export function updateDashboard(chapterState) {
 
     // --- 6. 更新世界档案面板 ---
     updateArchivePanel(chapterState);
+}
+
+/**
+ * V4.0 渲染叙事控制塔
+ */
+function renderNarrativeControlTower(chapterState) {
+    const tower = chapterState?.meta?.narrative_control_tower;
+    if (!tower) return;
+
+    // === 1. 渲染节奏指令 ===
+    const directiveContainer = $('#sbt-rhythm-directive-content');
+    if (directiveContainer.length > 0) {
+        const directive = tower.rhythm_directive;
+        let html = '';
+
+        // 强制约束
+        if (directive.mandatory_constraints && directive.mandatory_constraints.length > 0) {
+            html += '<div class="sbt-rhythm-constraint">';
+            html += '<div class="sbt-rhythm-label"><i class="fa-solid fa-ban"></i> 强制约束</div>';
+            directive.mandatory_constraints.forEach(c => {
+                const label = c === 'cooldown_required' ? '强制冷却' :
+                              c === 'spotlight_forbidden' ? '禁用聚光灯' : c;
+                html += `<span class="sbt-constraint-badge">${label}</span>`;
+            });
+            html += '</div>';
+        }
+
+        // 建议章节类型
+        html += '<div class="sbt-rhythm-field">';
+        html += '<span class="sbt-rhythm-label"><i class="fa-solid fa-theater-masks"></i> 建议类型:</span>';
+        html += `<span class="sbt-rhythm-value">${directive.suggested_chapter_type || 'Scene'}</span>`;
+        html += '</div>';
+
+        // 强度范围
+        html += '<div class="sbt-rhythm-field">';
+        html += '<span class="sbt-rhythm-label"><i class="fa-solid fa-heart-pulse"></i> 强度范围:</span>';
+        html += `<span class="sbt-rhythm-value">${directive.intensity_range?.min || 1} ~ ${directive.intensity_range?.max || 10}</span>`;
+        html += '</div>';
+
+        // 即将触发的阈值
+        if (directive.impending_thresholds && directive.impending_thresholds.length > 0) {
+            html += '<div class="sbt-rhythm-threshold">';
+            html += '<div class="sbt-rhythm-label"><i class="fa-solid fa-triangle-exclamation"></i> 阈值预警</div>';
+            directive.impending_thresholds.forEach(t => {
+                html += `<div class="sbt-threshold-item">${t.storyline_id}: ${t.threshold} (${t.progress}% → ${t.trigger_at}%)</div>`;
+            });
+            html += '</div>';
+        }
+
+        // 节奏错位机会
+        if (directive.rhythm_dissonance_opportunities && directive.rhythm_dissonance_opportunities.length > 0) {
+            html += '<div class="sbt-rhythm-opportunity">';
+            html += '<div class="sbt-rhythm-label"><i class="fa-solid fa-lightbulb"></i> 错位机会</div>';
+            directive.rhythm_dissonance_opportunities.forEach(opp => {
+                html += `<div class="sbt-opportunity-item">${opp.description}</div>`;
+            });
+            html += '</div>';
+        }
+
+        if (!html) {
+            html = '<p class="sbt-instructions">当前无特殊节奏约束</p>';
+        }
+
+        directiveContainer.html(html);
+    }
+
+    // === 2. 渲染故事线进度 ===
+    const progressContainer = $('#sbt-storyline-progress-content');
+    if (progressContainer.length > 0) {
+        const storylines = tower.storyline_progress;
+        const entries = Object.entries(storylines || {});
+
+        if (entries.length === 0) {
+            progressContainer.html('<p class="sbt-instructions">暂无活跃故事线</p>');
+        } else {
+            let html = '';
+            entries.forEach(([id, data]) => {
+                const progress = data.current_progress || 0;
+                const stage = data.current_stage || 'unknown';
+                const hue = mapValueToHue(progress, 0, 100);
+
+                html += '<div class="sbt-storyline-progress-item">';
+                html += `<div class="sbt-progress-header">`;
+                html += `<span class="sbt-progress-title">${id}</span>`;
+                html += `<span class="sbt-progress-percent">${progress}%</span>`;
+                html += `</div>`;
+                html += `<div class="sbt-progress-bar-wrapper">`;
+                html += `<div class="sbt-progress-bar" style="width: ${progress}%; background-color: hsl(${hue}, 70%, 50%);"></div>`;
+                html += `</div>`;
+                html += `<div class="sbt-progress-meta">`;
+                html += `<span class="sbt-progress-stage">阶段: ${stage}</span>`;
+                if (data.last_increment) {
+                    html += `<span class="sbt-progress-delta">上章: +${data.last_increment}%</span>`;
+                }
+                html += `</div>`;
+                html += '</div>';
+            });
+            progressContainer.html(html);
+        }
+    }
+
+    // === 3. 渲染情感强度曲线 ===
+    const curveContainer = $('#sbt-intensity-curve-content');
+    if (curveContainer.length > 0) {
+        const intensity = tower.recent_chapters_intensity || [];
+
+        if (intensity.length === 0) {
+            curveContainer.html('<p class="sbt-instructions">暂无章节数据</p>');
+        } else {
+            let html = '<div class="sbt-intensity-chart">';
+
+            intensity.forEach((chapter, index) => {
+                const value = chapter.emotional_intensity || 5;
+                const type = chapter.chapter_type || 'Scene';
+                const hue = mapValueToHue(value, 1, 10);
+                const height = (value / 10) * 100;
+
+                html += '<div class="sbt-intensity-bar-wrapper">';
+                html += `<div class="sbt-intensity-bar" style="height: ${height}%; background-color: hsl(${hue}, 70%, 50%);" title="${type}: ${value}/10"></div>`;
+                html += `<div class="sbt-intensity-label">${index + 1}</div>`;
+                html += '</div>';
+            });
+
+            html += '</div>';
+
+            // 上一章信息
+            if (tower.last_chapter_rhythm) {
+                const last = tower.last_chapter_rhythm;
+                html += '<div class="sbt-last-rhythm">';
+                html += `<div class="sbt-last-rhythm-item">上章类型: <strong>${last.chapter_type}</strong></div>`;
+                html += `<div class="sbt-last-rhythm-item">情感强度: <strong>${last.emotional_intensity}/10</strong></div>`;
+                if (last.requires_cooldown) {
+                    html += `<div class="sbt-last-rhythm-item sbt-cooldown-required">`;
+                    html += `<i class="fa-solid fa-snowflake"></i> 需要冷却`;
+                    html += `</div>`;
+                }
+                html += '</div>';
+            }
+
+            curveContainer.html(html);
+        }
+    }
 }
 
 // 导出模态框函数，供外部使用

@@ -109,6 +109,7 @@ export class Chapter {
                         // { type: "visual", pattern: "光影交错的描写", used_count: 2 },
                         // { type: "auditory", pattern: "寂静的强调", used_count: 3 }
                     ]
+                    // 注意：叙事技法冷却状态已移至 meta.narrative_control_tower.device_cooldowns
                 }
             },
             meta: {
@@ -126,7 +127,95 @@ export class Chapter {
                     //   created_at: "创建时间",
                     //   last_updated: "最后更新时间"
                     // }
-                ]
+                ],
+                // V4.0: 叙事控制塔 (Narrative Control Tower) - 一体化节奏管理系统
+                // 所有节奏相关决策的统一数据源
+                narrative_control_tower: {
+
+                    // === 第一层：微观节奏（章节级）===
+                    // 最近5章的情感强度曲线
+                    recent_chapters_intensity: [
+                        // { chapter_uid: "chap_01", emotional_intensity: 8, chapter_type: "Scene" }
+                    ],
+                    // 上一章的节奏评估（由史官生成）
+                    last_chapter_rhythm: null,
+
+                    // === 第二层：中观节奏（故事线级）===
+                    // 各故事线的量化进度追踪
+                    storyline_progress: {
+                        // "quest_main_001": {
+                        //   current_progress: 45,  // 0-100
+                        //   current_stage: "fun_and_games",  // 当前叙事阶段
+                        //   pacing_curve: "hero_journey",  // 节奏曲线模板
+                        //   last_increment: 5,  // 上一章推进量
+                        //   threshold_alerts: []  // 即将触发的阈值事件
+                        // },
+                        // "arc_romance_yumi": {
+                        //   current_progress: 68,
+                        //   current_stage: "deepening",
+                        //   tension_level: 30,  // 张力/虐心值
+                        //   threshold_alerts: ["approaching_confession"]  // 接近告白阈值
+                        // }
+                    },
+
+                    // === 第三层：宏观节奏（全局故事结构）===
+                    global_story_phase: {
+                        phase: "setup",  // setup | catalyst | debate | fun_and_games | midpoint | bad_guys_close_in | all_is_lost | dark_night | finale
+                        phase_description: "故事刚刚开始，处于建立阶段",
+                        overall_progress: 0,  // 0-100，整体故事进度
+                        distance_to_climax: "far"  // far | medium | near | at_climax | falling_action
+                    },
+
+                    // === 第四层：叙事技法冷却状态 ===
+                    device_cooldowns: {
+                        spotlight_protocol: {
+                            last_usage_chapter_uid: null,
+                            recent_usage_count: 0,
+                            usage_history: []
+                        },
+                        time_dilation: {
+                            last_usage_chapter_uid: null,
+                            recent_usage_count: 0,
+                            usage_history: []
+                        }
+                    },
+
+                    // === 契诃夫之枪注册表 ===
+                    chekhov_guns: {
+                        // "item_strange_key": {
+                        //   status: "loaded",  // loaded | fired
+                        //   intro_chapter: "chap_01",
+                        //   description: "神秘的黑色钥匙",
+                        //   intended_payoff: "用于打开地下室密室",
+                        //   payoff_chapter: null
+                        // }
+                    },
+
+                    // === 统一决策输出：节奏指令 (Rhythm Directive) ===
+                    // 这是建筑师AI唯一需要读取的"最终指令"
+                    // 由引擎层根据上述所有数据计算生成
+                    rhythm_directive: {
+                        // 本章的强制约束
+                        mandatory_constraints: [
+                            // "cooldown_required",  // 强制冷却
+                            // "spotlight_forbidden"  // 聚光灯禁用
+                        ],
+                        // 建议的章节类型
+                        suggested_chapter_type: "Scene",  // Scene | Sequel | Hybrid
+                        // 允许的情感强度范围
+                        intensity_range: { min: 1, max: 10 },
+                        // 即将触发的阈值事件
+                        impending_thresholds: [
+                            // { storyline_id: "quest_main", threshold: "midpoint", progress: 48, trigger_at: 50 }
+                        ],
+                        // 错位节奏机会（用于戏剧张力）
+                        rhythm_dissonance_opportunities: [
+                            // { description: "主线85%即将高潮，但感情线40%尚未深化，可考虑利用主线压力催熟感情线" }
+                        ],
+                        // 生成时间戳
+                        generated_at: null
+                    }
+                }
             },
             
             playerNarrativeFocus: "由AI自主创新。",

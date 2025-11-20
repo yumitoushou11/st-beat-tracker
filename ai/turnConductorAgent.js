@@ -276,12 +276,39 @@ ${JSON.stringify(activeChapterBlueprint.chapter_context_ids || [], null, 2)}
 你必须严格按照以下流程思考，并将结果填入最终的JSON输出。
 ### **第一步：定位目标节拍 (Locate Target Beat)**
 *   **任务:** 在所有分析开始之前，你必须首先确定本回合需要执行的目标节拍。
-*   **定位方法论 (绝对强制):**
-    1.  **顺序扫描:** 从\`chapter_blueprint.plot_beats\`数组的第一个元素开始，逐一检查。
-    2.  **比对历史:** 将每个\`plot_beat\`的\`description\`与【最新战况】进行比对，判断该节拍是否**已经完成**。
-    3.  **寻找当前:** 你要找的是**第一个尚未完成**的\`plot_beat\`。一旦找到，立即将其作为本回合的\`current_beat\`，并停止扫描。
-    4.  **终点航行逻辑:** 如果你扫描完**所有**的\`plot_beats\`，发现它们**全部都已完成**，那么，本回合的\`current_beat\`将自动被设定为一个**概念上的、最后的“终章节拍”**。
-        *   **执行:** 在这种情况下，你**必须**将\`endgame_beacons\`数组中的**第一个信标文本**，当作这个“终章节拍”的\`description\`来使用。
+*   **【V3.4 完全重写】定位方法论 (严格执行以下流程):**
+
+    **步骤1: 顺序扫描所有节拍，标记完成状态**
+    - 从\`plot_beats\`数组的第一个元素开始，逐一检查
+    - 将每个\`plot_beat\`的\`description\`与【最新战况】中**AI的最后一次回应**进行比对
+    - 标记每个节拍为"已完成"或"未完成"
+
+    **步骤2: 统计完成情况**
+    - 计算总节拍数量（例如：4个节拍）
+    - 计算已完成的节拍数量（例如：4个已完成）
+    - 找出第一个未完成的节拍（如果有）
+
+    **步骤3: 【关键判断】根据完成情况决定当前状态**
+
+    **情况A: 存在未完成的节拍**
+    - 将第一个未完成的节拍作为\`current_beat\`
+    - 在第三步决策时，输出\`decision: "CONTINUE"\`
+    - **示例：** 如果节拍1、2已完成，节拍3未完成 → \`current_beat = "节拍3"\`，\`decision = "CONTINUE"\`
+
+    **情况B: 所有节拍都已完成（【【【这是终点！】】】）**
+    - **【V3.4 关键】** 这种情况意味着：上一回合AI已经完成了最后一个\`plot_beat\`的内容
+    - **【V3.4 预判】** 因此，本回合AI应该输出\`endgame_beacons\`中描述的"终章信标"内容
+    - **执行以下步骤：**
+        1. 将\`current_beat\`设定为一个**特殊值**：\`"【终章】: " + endgame_beacons[0]\`
+        2. **【关键】** 在第三步决策时，你**必须**输出\`decision: "TRIGGER_TRANSITION"\`（而不是CONTINUE！）
+    - **示例：** 如果有4个节拍，且4个都已完成 → \`current_beat = "【终章】: 当Yumi的视线在客厅中移动，并最终与Rofi的视线交汇后。"\`，\`decision = "TRIGGER_TRANSITION"\`
+
+    **【V3.4 防错检查清单】**
+    在输出JSON之前，请自我检查：
+    - [ ] 我是否正确统计了\`plot_beats\`的总数？
+    - [ ] 我是否逐一检查了每个节拍的完成状态？
+    - [ ] 如果所有节拍都已完成，我是否将\`decision\`设为\`"TRIGGER_TRANSITION"\`？
+    - [ ] 如果所有节拍都已完成，我的\`current_beat\`是否以"【终章】"开头？
 ### **第二步：演绎复盘与叙事健康度检查 (Performance Review & Narrative Health Check)**
 *   **任务:** 综合分析【最新战况】中的**“玩家行动 + AI回应”**这个完整的交互回合，以评估整体的叙事健康度。
 
@@ -305,12 +332,31 @@ ${JSON.stringify(activeChapterBlueprint.chapter_context_ids || [], null, 2)}
     *   **输出:** 在\`analysis\`字段中，明确标注\`narrative_pacing\`。
 
 ### **第三步：决策 (Decision)**
-*   **任务:** 基于第一步的完整评估，决定本回合的干预等级。
-*   **决策树 :**
-    1.  **叙事是否已损毁？** (健康度检查结果为【已损毁】?) -> \`decision: "TRIGGER_EMERGENCY_TRANSITION"\`
-    2.  **是否已抵达终点？** (\`endgame_beacons\`满足?) -> \`decision: "TRIGGER_TRANSITION"\`
-    3.  **是否需要性能校准？** (常规评分低于3分?) -> \`decision: "CALIBRATE"\`
-    4.  **以上皆否？** -> \`decision: "CONTINUE"\`
+*   **任务:** 基于第一步和第二步的完整评估，决定本回合的干预等级。
+*   **【V3.4 重写】决策树 (严格按优先级顺序判断):**
+
+    **1. 叙事是否已损毁？**
+    - 检查：健康度检查结果为【已损毁】?
+    - 如果是 → \`decision: "TRIGGER_EMERGENCY_TRANSITION"\`
+
+    **2. 【V3.4 关键修复】是否已抵达终点？**
+    - **【简单判断】** 检查你在第一步中设定的\`current_beat\`值：
+        - 如果\`current_beat\`以\`"【终章】"\`开头 → **这意味着所有节拍已完成！**
+        - **【强制决策】** 你**必须**立即输出 \`decision: "TRIGGER_TRANSITION"\`
+    - **【反例警告】** 如果你在第一步中发现所有节拍都已完成，但在这一步却输出了\`decision: "CONTINUE"\`，这是**严重错误**！
+    - **【效果说明】** 这样做的结果是：系统会在AI输出完终章信标内容后，在**同一回合内**立即触发章节转换。
+
+    **3. 是否需要性能校准？**
+    - 检查：常规评分低于3分?
+    - 如果是 → \`decision: "CALIBRATE"\`
+
+    **4. 以上皆否？**
+    - \`decision: "CONTINUE"\`
+
+    **【V3.4 最终检查】**
+    在输出JSON之前，验证你的决策逻辑：
+    - 如果\`current_beat\`包含"【终章】" → \`decision\`**必须**是\`"TRIGGER_TRANSITION"\`
+    - 如果\`current_beat\`是普通节拍（如"【节拍4】"） → \`decision\`应该是\`"CONTINUE"\`或\`"CALIBRATE"\`
 ### **第四步：构建“微指令” (Construct the "Whisper")**
 *   **任务:** 根据第二步的决策和第一步的节奏诊断，构建\`micro_instruction\`对象。
 *   **构建规则:**

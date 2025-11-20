@@ -235,10 +235,20 @@ export class StoryBeatEngine {
 
         const contextContent = this._retrieveEntitiesByIdsInternal(chapterContextIds, '章节级静态上下文');
 
-        console.log(`✓ 章节级静态上下文生成完成`);
+        const finalContent = contextContent ? [
+            ``,
+            `### 📂 章节级核心实体档案 (Chapter-Level Entity Archive)`,
+            ``,
+            `以下是本章规划涉及的核心实体。这些实体在整个章节中始终可用，你可以随时引用：`,
+            ``,
+            contextContent
+        ].join('\n') : '';
+
+        console.log(`✓ 章节级静态上下文生成完成，长度: ${finalContent.length} 字符`);
+        console.log('生成的内容预览（前200字符）:', finalContent.substring(0, 200));
         console.groupEnd();
 
-        return contextContent ? `# **【参考资料2：本章核心实体档案 (Chapter Entities Archive)】**\n以下是本章规划涉及的所有关键实体，供你在整个章节中随时参考：\n\n${contextContent}` : '';
+        return finalContent;
     }
 
     /**
@@ -346,7 +356,8 @@ export class StoryBeatEngine {
         const contextContent = this._retrieveEntitiesByIdsInternal(outOfPlanIds, '回合级动态上下文');
         console.groupEnd();
 
-        return contextContent ? `# **【参考资料3：本回合额外召回的实体 (Turn-specific Entities)】**\n以下是本回合涉及但未在章节规划中的实体：\n\n${contextContent}` : '';
+        // V3.2: 返回时不带标题，因为外层会统一添加
+        return contextContent;
     }
 
 onPromptReady = async (eventData) => {
@@ -531,36 +542,96 @@ const instructionPlaceholder = {
             }
 
 if (this.currentChapter.chapter_blueprint) {
+    // 【V3.2 重构】第1层：最高优先级微指令（放在最前面，独立强调）
     const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
-    instructionPlaceholder.content = `# **【最高优先级：本回合导演微指令 (Turn Instruction)】**\n---\n${formattedInstruction}`;
+    instructionPlaceholder.content = [
+        `╔═══════════════════════════════════════════════════════════════════════╗`,
+        `║                   【最高优先级：本回合导演微指令】                    ║`,
+        `║                      (Turn-Level Micro Instruction)                  ║`,
+        `╚═══════════════════════════════════════════════════════════════════════╝`,
+        ``,
+        `⚠️ **【强制性指令】** 以下微指令具有最高优先级，必须在本回合严格执行：`,
+        ``,
+        formattedInstruction,
+        ``,
+        `───────────────────────────────────────────────────────────────────────`
+    ].join('\n');
 
-    // 【V3.1 独立召回层】处理实时召回上下文（规划外实体）
-    if (dynamicContextInjection) {
-        recallPlaceholder.content = `# **【参考资料2：实时召回上下文 (Realtime Context Recall)】**\n---\n**说明**: 以下是本回合临时调用的规划外实体档案，用于处理意外出现的角色/地点/物品等。\n\n${dynamicContextInjection}`;
-        this.info('✓ 回合级动态召回已独立注入');
+    // 【V3.2 重构】第2层：双轨召回档案（章节级 + 回合级）
+    const chapterStaticContext = this.currentChapter.cachedChapterStaticContext || '';
+
+    let recallContent = [
+        `# **【第2层：召回档案】**`,
+        `## (Entity Recall: Chapter-Level & Turn-Level)`,
+        ``
+    ];
+
+    // 第2A部分：章节级静态实体（始终注入）
+    if (chapterStaticContext) {
+        recallContent.push(chapterStaticContext);
+        this.info('✓ 章节级静态实体已注入到第2层');
     } else {
-        // 如果没有动态召回，设置为空占位（可选：也可以完全移除这个placeholder）
-        recallPlaceholder.content = "# **【参考资料2：实时召回上下文 (Realtime Context Recall)】**\n---\n本回合无需额外召回规划外实体。";
+        recallContent.push(`📋 本章无预设核心实体。`);
+        recallContent.push(``);
+    }
+
+    // 第2B部分：回合级动态实体（按需注入）
+    if (dynamicContextInjection) {
+        recallContent.push(``);
+        recallContent.push(`---`);
+        recallContent.push(``);
+        recallContent.push(`### 📌 本回合额外召回 (Turn-Specific Recall)`);
+        recallContent.push(``);
+        recallContent.push(`以下是本回合涉及的**规划外**实体档案（未在章节规划中，但本回合需要）：`);
+        recallContent.push(``);
+        recallContent.push(dynamicContextInjection);
+        this.info('✓ 回合级动态召回已注入到第2层');
+    } else {
         this.info('○ 本回合无动态召回需求');
     }
 
-    // 【V3.1 重构】章节剧本只包含蓝图和章节级静态上下文
-    const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
-    let scriptContent = `# **【参考资料3：本章创作蓝图 (Chapter Blueprint)】**\n---\n\`\`\`json\n${blueprintAsString}\n\`\`\``;
+    recallPlaceholder.content = recallContent.join('\n');
 
-    // V3.1: 注入章节级静态上下文（始终存在）
-    const chapterStaticContext = this.currentChapter.cachedChapterStaticContext || '';
-    if (chapterStaticContext) {
-        scriptContent += `\n\n---\n\n${chapterStaticContext}`;
-        this.info('✓ 章节级静态上下文已注入');
-    }
+    // V3.0 调试：验证第2层召回内容
+    console.group('[ENGINE-V3-DEBUG] 第2层召回内容验证');
+    console.log('recallContent 总长度:', recallPlaceholder.content.length);
+    console.log('是否包含章节级实体档案:', recallPlaceholder.content.includes('📂 章节级核心实体档案'));
+    console.log('是否包含char_yumi_pc:', recallPlaceholder.content.includes('char_yumi_pc'));
+    console.log('是否包含本回合额外召回:', recallPlaceholder.content.includes('本回合额外召回'));
+    console.groupEnd();
+
+    // 【V3.2 重构】第3层：本章创作蓝图（纯净版，不再包含实体档案）
+    const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
+    const scriptContent = [
+        `# **【第3层：本章创作蓝图】**`,
+        `## (Chapter Blueprint)`,
+        ``,
+        `\`\`\`json`,
+        blueprintAsString,
+        `\`\`\``,
+        ``
+    ].join('\n');
 
     scriptPlaceholder.content = scriptContent;
+    this.info('✓ 第3层创作蓝图已注入');
 
+    // V3.0 调试：验证第3层内容
+    console.group('[ENGINE-V3-DEBUG] 第3层蓝图内容验证');
+    console.log('scriptContent 总长度:', scriptContent.length);
+    console.log('蓝图包含plot_beats:', scriptContent.includes('plot_beats'));
+    console.log('蓝图包含endgame_beacons:', scriptContent.includes('endgame_beacons'));
+    console.groupEnd();
+
+    // 【V3.2 重构】第4层：通用核心法则与关系指南
     const regularSystemPrompt = this._buildRegularSystemPrompt();
-    rulesPlaceholder.content = `# **【参考资料4：通用核心法则与关系指南 (Core Rules & Relationship Guide)】**\n---\n${regularSystemPrompt}`;
+    rulesPlaceholder.content = [
+        `# **【第4层：通用核心法则与关系指南】**`,
+        `## (Core Rules & Relationship Guide)`,
+        ``,
+        regularSystemPrompt
+    ].join('\n');
 
-    this.info("✅ [V3.1] 异步处理完成，已通过独立4层注入策略更新指令。");
+    this.info("✅ [V3.2] 异步处理完成，已通过优化的4层注入策略更新指令。");
 
 } else {
     throw new Error("在 onPromptReady 中，currentChapter.chapter_blueprint 为空或无效。");
@@ -1357,8 +1428,267 @@ _syncUiWithRetry() {
             console.groupEnd();
         }
 
+        // V4.0 步骤七：更新叙事控制塔 (Narrative Control Tower)
+        if (delta.rhythm_assessment || delta.storyline_progress_deltas) {
+            this._updateNarrativeControlTower(workingChapter, delta);
+        }
+
         this.info("--- 状态更新Delta应用完毕 ---");
         return workingChapter;
+    }
+
+    /**
+     * V4.0 叙事控制塔统一更新方法
+     * 整合所有节奏相关数据到 narrative_control_tower
+     * @param {Chapter} workingChapter - 当前章节实例
+     * @param {object} delta - 史官生成的增量数据
+     */
+    _updateNarrativeControlTower(workingChapter, delta) {
+        console.group('[ENGINE-V4] 叙事控制塔更新流程');
+        this.info(" -> 开始更新叙事控制塔...");
+
+        // 确保 narrative_control_tower 存在
+        if (!workingChapter.meta.narrative_control_tower) {
+            workingChapter.meta.narrative_control_tower = {
+                recent_chapters_intensity: [],
+                last_chapter_rhythm: null,
+                storyline_progress: {},
+                global_story_phase: {
+                    phase: "setup",
+                    phase_description: "故事刚刚开始，处于建立阶段",
+                    overall_progress: 0,
+                    distance_to_climax: "far"
+                },
+                device_cooldowns: {
+                    spotlight_protocol: {
+                        last_usage_chapter_uid: null,
+                        recent_usage_count: 0,
+                        usage_history: []
+                    },
+                    time_dilation: {
+                        last_usage_chapter_uid: null,
+                        recent_usage_count: 0,
+                        usage_history: []
+                    }
+                },
+                chekhov_guns: {},
+                rhythm_directive: {
+                    mandatory_constraints: [],
+                    suggested_chapter_type: "Scene",
+                    intensity_range: { min: 1, max: 10 },
+                    impending_thresholds: [],
+                    rhythm_dissonance_opportunities: [],
+                    generated_at: null
+                }
+            };
+            this.info(" -> 已初始化 narrative_control_tower");
+        }
+
+        const tower = workingChapter.meta.narrative_control_tower;
+        const rhythmData = delta.rhythm_assessment;
+
+        // === 第一层：微观节奏更新 ===
+        if (rhythmData) {
+            // 添加本章的情感强度记录
+            const intensityRecord = {
+                chapter_uid: workingChapter.uid,
+                emotional_intensity: rhythmData.emotional_intensity || 5,
+                chapter_type: rhythmData.chapter_type || "Scene"
+            };
+            tower.recent_chapters_intensity.push(intensityRecord);
+            this.info(`  ✓ [微观] 添加章节记录: intensity=${intensityRecord.emotional_intensity}, type=${intensityRecord.chapter_type}`);
+
+            // 只保留最近5章
+            if (tower.recent_chapters_intensity.length > 5) {
+                tower.recent_chapters_intensity = tower.recent_chapters_intensity.slice(-5);
+            }
+
+            // 保存本章节奏评估
+            tower.last_chapter_rhythm = {
+                chapter_type: rhythmData.chapter_type,
+                chapter_type_reasoning: rhythmData.chapter_type_reasoning || "",
+                emotional_intensity: rhythmData.emotional_intensity,
+                intensity_reasoning: rhythmData.intensity_reasoning || "",
+                requires_cooldown: rhythmData.requires_cooldown || false,
+                cooldown_reasoning: rhythmData.cooldown_reasoning || "",
+                narrative_devices_used: rhythmData.narrative_devices_used || {},
+                device_usage_details: rhythmData.device_usage_details || ""
+            };
+            this.info(`  ✓ [微观] 保存 last_chapter_rhythm`);
+
+            // === 第四层：叙事技法冷却状态更新 ===
+            if (rhythmData.narrative_devices_used) {
+                const cooldowns = tower.device_cooldowns;
+
+                if (rhythmData.narrative_devices_used.spotlight_protocol) {
+                    cooldowns.spotlight_protocol.last_usage_chapter_uid = workingChapter.uid;
+                    cooldowns.spotlight_protocol.usage_history.push({
+                        chapter_uid: workingChapter.uid,
+                        emotional_weight: rhythmData.emotional_intensity,
+                        trigger_reason: rhythmData.device_usage_details
+                    });
+                    // 计算最近5章使用次数
+                    cooldowns.spotlight_protocol.recent_usage_count = cooldowns.spotlight_protocol.usage_history
+                        .filter(h => tower.recent_chapters_intensity.some(c => c.chapter_uid === h.chapter_uid))
+                        .length;
+                    // 保留最近10条
+                    if (cooldowns.spotlight_protocol.usage_history.length > 10) {
+                        cooldowns.spotlight_protocol.usage_history = cooldowns.spotlight_protocol.usage_history.slice(-10);
+                    }
+                    this.info(`  ✓ [冷却] 更新 spotlight_protocol (recent_count=${cooldowns.spotlight_protocol.recent_usage_count})`);
+                }
+
+                if (rhythmData.narrative_devices_used.time_dilation) {
+                    cooldowns.time_dilation.last_usage_chapter_uid = workingChapter.uid;
+                    cooldowns.time_dilation.usage_history.push({
+                        chapter_uid: workingChapter.uid,
+                        emotional_weight: rhythmData.emotional_intensity,
+                        trigger_reason: rhythmData.device_usage_details
+                    });
+                    cooldowns.time_dilation.recent_usage_count = cooldowns.time_dilation.usage_history
+                        .filter(h => tower.recent_chapters_intensity.some(c => c.chapter_uid === h.chapter_uid))
+                        .length;
+                    if (cooldowns.time_dilation.usage_history.length > 10) {
+                        cooldowns.time_dilation.usage_history = cooldowns.time_dilation.usage_history.slice(-10);
+                    }
+                    this.info(`  ✓ [冷却] 更新 time_dilation (recent_count=${cooldowns.time_dilation.recent_usage_count})`);
+                }
+            }
+        }
+
+        // === 第二层：中观节奏更新（故事线进度）===
+        if (delta.storyline_progress_deltas && Array.isArray(delta.storyline_progress_deltas)) {
+            const progressDeltas = delta.storyline_progress_deltas;
+            this.info(`  -> [中观] 处理 ${progressDeltas.length} 条故事线进度更新`);
+
+            for (const pd of progressDeltas) {
+                const { storyline_id, previous_progress, progress_delta, new_progress,
+                        delta_reasoning, threshold_crossed, new_stage } = pd;
+
+                if (!tower.storyline_progress[storyline_id]) {
+                    tower.storyline_progress[storyline_id] = {
+                        current_progress: 0,
+                        current_stage: "unknown",
+                        pacing_curve: "default",
+                        last_increment: 0,
+                        threshold_alerts: []
+                    };
+                }
+
+                const sp = tower.storyline_progress[storyline_id];
+                sp.current_progress = new_progress;
+                sp.last_increment = progress_delta;
+
+                if (new_stage) {
+                    sp.current_stage = new_stage;
+                }
+
+                // 处理阈值跨越
+                if (threshold_crossed) {
+                    this.info(`  ✓ [中观] ${storyline_id}: 跨越阈值 "${threshold_crossed}" (${previous_progress}% -> ${new_progress}%)`);
+                } else {
+                    this.info(`  ✓ [中观] ${storyline_id}: 进度 +${progress_delta}% (${new_progress}%)`);
+                }
+            }
+        }
+
+        // === 生成节奏指令 (Rhythm Directive) ===
+        this._calculateRhythmDirective(workingChapter);
+
+        console.log('[V4] 控制塔状态:', {
+            recent_intensity: tower.recent_chapters_intensity,
+            storyline_progress: tower.storyline_progress,
+            rhythm_directive: tower.rhythm_directive
+        });
+        console.groupEnd();
+    }
+
+    /**
+     * V4.0 节奏指令计算器
+     * 综合所有控制塔数据，生成建筑师AI的唯一决策输入
+     * @param {Chapter} workingChapter - 当前章节实例
+     */
+    _calculateRhythmDirective(workingChapter) {
+        const tower = workingChapter.meta.narrative_control_tower;
+        const directive = tower.rhythm_directive;
+
+        // 重置指令
+        directive.mandatory_constraints = [];
+        directive.impending_thresholds = [];
+        directive.rhythm_dissonance_opportunities = [];
+
+        // === 冷却约束检查 ===
+        const lastRhythm = tower.last_chapter_rhythm;
+        if (lastRhythm?.requires_cooldown) {
+            directive.mandatory_constraints.push("cooldown_required");
+            directive.intensity_range = { min: 1, max: 5 };
+            directive.suggested_chapter_type = "Sequel";
+            this.info(`  ✓ [指令] 强制冷却: 上一章需要冷却`);
+        } else {
+            directive.intensity_range = { min: 1, max: 10 };
+            directive.suggested_chapter_type = "Scene";
+        }
+
+        // 聚光灯协议使用频率检查
+        const spotlightCooldown = tower.device_cooldowns.spotlight_protocol;
+        if (spotlightCooldown.recent_usage_count >= 2) {
+            directive.mandatory_constraints.push("spotlight_forbidden");
+            this.info(`  ✓ [指令] 聚光灯禁用: 最近5章已使用 ${spotlightCooldown.recent_usage_count} 次`);
+        }
+
+        // === 阈值预警检查 ===
+        for (const [storylineId, progress] of Object.entries(tower.storyline_progress)) {
+            const thresholds = [
+                { value: 15, name: "inciting_incident" },
+                { value: 25, name: "first_turning_point" },
+                { value: 50, name: "midpoint" },
+                { value: 75, name: "climax_approach" },
+                { value: 90, name: "resolution" }
+            ];
+
+            for (const threshold of thresholds) {
+                // 检查是否即将触发（差距在10%以内）
+                if (progress.current_progress < threshold.value &&
+                    progress.current_progress >= threshold.value - 10) {
+                    directive.impending_thresholds.push({
+                        storyline_id: storylineId,
+                        threshold: threshold.name,
+                        progress: progress.current_progress,
+                        trigger_at: threshold.value
+                    });
+                }
+            }
+        }
+
+        // === 节奏错位机会检测 ===
+        const progressEntries = Object.entries(tower.storyline_progress);
+        if (progressEntries.length >= 2) {
+            // 找出进度最高和最低的故事线
+            let maxProgress = { id: null, value: 0 };
+            let minProgress = { id: null, value: 100 };
+
+            for (const [id, p] of progressEntries) {
+                if (p.current_progress > maxProgress.value) {
+                    maxProgress = { id, value: p.current_progress };
+                }
+                if (p.current_progress < minProgress.value) {
+                    minProgress = { id, value: p.current_progress };
+                }
+            }
+
+            // 如果差距超过40%，存在节奏错位机会
+            const gap = maxProgress.value - minProgress.value;
+            if (gap >= 40) {
+                directive.rhythm_dissonance_opportunities.push({
+                    description: `${maxProgress.id}(${maxProgress.value}%)进度领先，${minProgress.id}(${minProgress.value}%)滞后${gap}%，可利用主线压力催化滞后线`
+                });
+                this.info(`  ✓ [指令] 检测到节奏错位机会: ${gap}% 差距`);
+            }
+        }
+
+        // 时间戳
+        directive.generated_at = new Date().toISOString();
+        this.info(`  ✓ [指令] rhythm_directive 已生成`);
     }
 
     onStateChange = () => {
@@ -1457,7 +1787,11 @@ _syncUiWithRetry() {
 
                 // V3.0: 生成并缓存章节级静态上下文
                 const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
+                console.group('[ENGINE-V3-DEBUG] GENESIS - 章节上下文缓存');
+                console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
                 this.currentChapter.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
+                console.log('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
+                console.groupEnd();
                 this.info(`GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
             } else {
                 throw new Error("建筑师未能生成有效的开篇创作蓝图。");
@@ -1632,7 +1966,11 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
 
             // V3.0: 生成并缓存章节级静态上下文
             const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
+            console.group('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
+            console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
             finalChapterState.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
+            console.log('缓存后 cachedChapterStaticContext 长度:', finalChapterState.cachedChapterStaticContext?.length || 0);
+            console.groupEnd();
             this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
 
             finalChapterState.lastProcessedEventUid = eventUid;

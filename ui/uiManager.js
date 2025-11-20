@@ -6,6 +6,7 @@ import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { showNsfwProposalPopup, showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
 import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers } from './settings/settingsUI.js';
+import * as staticDataManager from '../src/StaticDataManager.js';
 
 const deps = {
     onReanalyzeWorldbook: () => console.warn("onReanalyzeWorldbook not injected"),
@@ -98,6 +99,134 @@ $('#extensions-settings-button').after(html);
         const $content = $header.next('.sbt-library-items');
         $header.toggleClass('collapsed');
         $content.toggleClass('collapsed');
+    });
+
+    // -- [V3.5] 章节剧本: 折叠/展开交互 --
+    $wrapper.on('click', '.sbt-blueprint-section-title.sbt-collapsible', function() {
+        const $title = $(this);
+        const $section = $title.closest('.sbt-blueprint-section');
+        const $content = $section.find('.sbt-blueprint-section-content');
+        const $icon = $title.find('.sbt-collapse-icon');
+
+        // 切换展开/折叠状态
+        $content.toggleClass('collapsed');
+        $icon.toggleClass('collapsed');
+    });
+
+    // -- [V3.5] 章节剧本: 编辑功能 --
+    // 处理概览字段编辑（title, emotional_arc, core_conflict）
+    $wrapper.on('blur', '.sbt-blueprint-field-value[contenteditable="true"]', function() {
+        const $field = $(this);
+        const fieldPath = $field.data('field');
+        const newValue = $field.text().trim();
+
+        if (!currentChapterState || !fieldPath) return;
+
+        // 更新chapter_blueprint中的对应字段
+        const pathParts = fieldPath.split('.');
+        let target = currentChapterState.chapter_blueprint;
+
+        // 导航到目标对象
+        for (let i = 0; i < pathParts.length - 1; i++) {
+            if (!target[pathParts[i]]) {
+                target[pathParts[i]] = {};
+            }
+            target = target[pathParts[i]];
+        }
+
+        // 更新最终字段
+        const finalKey = pathParts[pathParts.length - 1];
+        const oldValue = target[finalKey];
+
+        if (oldValue !== newValue) {
+            target[finalKey] = newValue;
+
+            // 保存并触发更新
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                deps.onSaveCharacterEdit('blueprint_updated', currentChapterState);
+            }
+
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            }
+
+            deps.toastr.success(`已更新"${fieldPath}"`, '保存成功');
+        }
+    });
+
+    // 处理节拍描述编辑
+    $wrapper.on('blur', '.sbt-beat-description[contenteditable="true"]', function() {
+        const $field = $(this);
+        const beatIndex = parseInt($field.data('beat-index'), 10);
+        const newValue = $field.text().trim();
+
+        if (!currentChapterState || isNaN(beatIndex)) return;
+
+        const beat = currentChapterState.chapter_blueprint?.plot_beats?.[beatIndex];
+        if (beat && beat.description !== newValue) {
+            beat.description = newValue;
+
+            // 保存并触发更新
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                deps.onSaveCharacterEdit('blueprint_updated', currentChapterState);
+            }
+
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            }
+
+            deps.toastr.success(`已更新节拍 ${beatIndex + 1}`, '保存成功');
+        }
+    });
+
+    // 处理节拍退出条件编辑
+    $wrapper.on('blur', '.sbt-beat-exit-condition span[contenteditable="true"]', function() {
+        const $field = $(this);
+        const beatIndex = parseInt($field.data('beat-index'), 10);
+        const newValue = $field.text().trim();
+
+        if (!currentChapterState || isNaN(beatIndex)) return;
+
+        const beat = currentChapterState.chapter_blueprint?.plot_beats?.[beatIndex];
+        if (beat && beat.exit_condition !== newValue) {
+            beat.exit_condition = newValue;
+
+            // 保存并触发更新
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                deps.onSaveCharacterEdit('blueprint_updated', currentChapterState);
+            }
+
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            }
+
+            deps.toastr.success(`已更新节拍 ${beatIndex + 1} 的退出条件`, '保存成功');
+        }
+    });
+
+    // 处理终章信标编辑
+    $wrapper.on('blur', '.sbt-beacon-item span[contenteditable="true"]', function() {
+        const $field = $(this);
+        const beaconIndex = parseInt($field.data('beacon-index'), 10);
+        const newValue = $field.text().trim();
+
+        if (!currentChapterState || isNaN(beaconIndex)) return;
+
+        const beacons = currentChapterState.chapter_blueprint?.endgame_beacons;
+        if (beacons && beacons[beaconIndex] !== newValue) {
+            beacons[beaconIndex] = newValue;
+
+            // 保存并触发更新
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                deps.onSaveCharacterEdit('blueprint_updated', currentChapterState);
+            }
+
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            }
+
+            deps.toastr.success(`已更新终章信标 ${beaconIndex + 1}`, '保存成功');
+        }
     });
 
     // -- 世界档案面板: 角色卡片点击 --
@@ -899,6 +1028,9 @@ $('#extensions-settings-button').after(html);
     bindSettingsSaveHandler($wrapper, deps);
     bindAPITestHandlers($wrapper, deps);
 
+    // -- 数据库管理: 绑定数据库管理相关处理器 --
+    bindDatabaseManagementHandlers($wrapper, deps);
+
     deps.info("[UIManager] 所有UI事件已成功绑定。");
 
     }, 0); 
@@ -914,4 +1046,96 @@ $('#extensions-settings-button').after(html);
         }
     });
 }
+/**
+ * 绑定数据库管理相关的事件处理器
+ */
+function bindDatabaseManagementHandlers($wrapper, deps) {
+    // 刷新数据库列表
+    function refreshDatabaseList() {
+        const $list = $wrapper.find('#sbt-static-db-list');
+        const db = staticDataManager.getFullDatabase();
+        const characterIds = Object.keys(db);
+
+        if (characterIds.length === 0) {
+            $list.html('<p class="sbt-instructions">数据库为空，尚未缓存任何角色数据。</p>');
+            return;
+        }
+
+        let html = '';
+        characterIds.forEach(charId => {
+            const data = db[charId];
+            // 统计实体数量
+            let entityCount = 0;
+            if (data?.characters) entityCount += Object.keys(data.characters).length;
+            if (data?.worldview) {
+                for (const category of Object.values(data.worldview)) {
+                    if (typeof category === 'object') entityCount += Object.keys(category).length;
+                }
+            }
+
+            html += `
+                <div class="sbt-db-item" data-char-id="${charId}">
+                    <div class="sbt-db-item-info">
+                        <span class="sbt-db-item-name">${charId}</span>
+                        <span class="sbt-db-item-stats">${entityCount} 个实体</span>
+                    </div>
+                    <button class="sbt-db-item-delete sbt-icon-btn" title="删除此角色数据">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                </div>
+            `;
+        });
+
+        $list.html(html);
+    }
+
+    // 初始加载
+    refreshDatabaseList();
+
+    // 刷新按钮
+    $wrapper.find('#sbt-refresh-db-btn').on('click', () => {
+        refreshDatabaseList();
+        deps.toastr.info('数据库列表已刷新', '刷新');
+    });
+
+    // 清空全部按钮
+    $wrapper.find('#sbt-clear-all-db-btn').on('click', async () => {
+        const confirm = new SbtPopupConfirm();
+        const result = await confirm.show({
+            title: '确认清空',
+            message: '确定要清空所有角色的静态数据吗？\n\n此操作不可撤销，所有角色的世界观数据都将被删除。下次启动章节时将重新分析世界书。',
+            confirmText: '清空全部',
+            cancelText: '取消',
+            isDangerous: true
+        });
+
+        if (result) {
+            staticDataManager.clearAllStaticData();
+            refreshDatabaseList();
+            deps.toastr.success('所有静态数据已清空', '清空成功');
+        }
+    });
+
+    // 单个删除按钮（事件委托）
+    $wrapper.find('#sbt-static-db-list').on('click', '.sbt-db-item-delete', async function() {
+        const $item = $(this).closest('.sbt-db-item');
+        const charId = $item.data('char-id');
+
+        const confirm = new SbtPopupConfirm();
+        const result = await confirm.show({
+            title: '确认删除',
+            message: `确定要删除角色 "${charId}" 的静态数据吗？\n\n下次启动该角色的章节时将重新分析其世界书。`,
+            confirmText: '删除',
+            cancelText: '取消',
+            isDangerous: true
+        });
+
+        if (result) {
+            staticDataManager.deleteStaticData(charId);
+            refreshDatabaseList();
+            deps.toastr.success(`角色 "${charId}" 的数据已删除`, '删除成功');
+        }
+    });
+}
+
 export { populateSettingsUI };

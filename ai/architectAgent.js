@@ -85,7 +85,21 @@ const DRAMA_PHILOSOPHY_PROMPT = `
 *   **智能舞伴 (The Intelligent Partner):** NPC不应是木偶。为本章的核心NPC设计**具有试探性的主动行为**。
 
 **哲学四：氛围先于情节 (Atmosphere Precedes Plot)**
-*   **核心:** 故事的灵魂在于其独特的氛围。在构思具体事件前，首先为本章确立一个清晰的**“美学基调”**。
+*   **核心:** 故事的灵魂在于其独特的氛围。在构思具体事件前，首先为本章确立一个清晰的**"美学基调"**。
+
+**哲学五：V4.0 叙事节奏的呼吸 (The Breath of Narrative Rhythm)**
+*   **核心:** 小说如同呼吸，高潮与平静必须交替。连续的紧张会导致读者疲劳，连续的平淡会导致失去兴趣。
+*   **Scene-Sequel交替原则:**
+    - **Scene（场景）**: Goal → Conflict → Disaster. 角色追求目标，遭遇冲突，结果往往是"Yes, but..."或"No, and..."
+    - **Sequel（后续）**: Reaction → Dilemma → Decision. 角色处理情感余波，面临选择，做出新决定
+    - **铁律:** 高强度Scene（emotional_intensity >= 8）之后，**必须**安排Sequel章节让角色"喘息"
+*   **你将从输入数据中获得:**
+    - \`lastChapterRhythm.chapter_type\`: 上一章的类型
+    - \`lastChapterRhythm.emotional_intensity\`: 上一章的情感强度（1-10）
+    - \`lastChapterRhythm.requires_cooldown\`: 是否强制要求本章冷却
+*   **你的职责:**
+    - 如果 \`requires_cooldown == true\`，本章**必须**设计为Sequel或低强度Scene（intensity <= 5）
+    - 在 \`design_notes\` 中说明你如何响应了上一章的节奏需求
 `;
 
 // 哲学B：日常/废萌式创作
@@ -249,10 +263,93 @@ _createPrompt(context) {
     *   **后果:** 节奏混乱，焦点分散，玩家无法对任何一条线建立深刻的情感投入。
     *   **你的职责:** **最多选择两条**高度相关的核心故事线（通常是一条主线+一条关系线，或两条关系线），然后集中所有笔墨为它们服务。
 
-4.  **禁止“悬念前置” (No Premature Suspense):**
-    *   **描述:** 在情感铺垫尚不充分的早期章节（尤其是开篇），过早地引入“阴谋”、“背叛”、“监视”等负面悬念元素。
-    *   **后果:** 破坏玩家对环境和角色的初始信任，使其无法沉浸在当前的核心情感体验中（如“获救的喜悦”）。
+4.  **禁止"悬念前置" (No Premature Suspense):**
+    *   **描述:** 在情感铺垫尚不充分的早期章节（尤其是开篇），过早地引入"阴谋"、"背叛"、"监视"等负面悬念元素。
+    *   **后果:** 破坏玩家对环境和角色的初始信任，使其无法沉浸在当前的核心情感体验中（如"获救的喜悦"）。
     *   **你的职责:** **建立信任永远优先于打破信任。** 悬念是后续章节的工具，不是开胃菜。
+
+---
+## **第一章B：V4.0 聚光灯协议 (Spotlight Protocol) - 魔法少女变身法则**
+---
+### **【核心理念】**
+在动画中，当魔法少女开始变身时，**世界会为她暂停**。敌人不会攻击，路人不会打断，时间的流逝变得不重要——因为这一刻属于**她**。
+
+在叙事中，某些情感瞬间同样需要这种**叙事特权 (Narrative Privilege)**。当两位分别8年的挚友目光相遇、当角色做出改变一生的决定、当秘密终于被说出口——**物理世界的逻辑必须为情感逻辑让路**。
+
+### **【激活条件 - 严格的三重检查】**
+聚光灯协议是**高成本技法**，滥用会导致审美疲劳。只有同时满足以下**三个条件**时，才允许激活：
+
+**条件1：情感权重阈值**
+- 该瞬间的 \`emotional_weight >= 8\`（基于关系图谱中的 emotional_weight 或事件性质）
+- **标准:** 重逢（分别>1年）、告白、背叛揭露、生死抉择、身份揭示
+
+**条件2：冷却期检查（强制）**
+- 查询 \`stylistic_archive.narrative_devices.spotlight_protocol\`:
+  - 如果 \`last_usage_chapter_uid\` 是上一章 → **🚫 绝对禁止**
+  - 如果 \`recent_usage_count >= 2\`（最近5章内已用2次）→ **🚫 禁止**
+  - 如果 \`recent_usage_count == 1\` 且当前 \`emotional_weight < 9\` → **🚫 禁止**
+- **唯一例外:** \`emotional_weight >= 9\` 且事件为**故事核心转折**（如主角生死、核心关系质变）
+
+**条件3：与玩家焦点契合**
+- 该瞬间必须直接服务于 \`playerNarrativeFocus\` 或关系里程碑事件
+- **反例:** 玩家焦点是"轻松日常"，不应为"路过的NPC眼神"激活聚光灯
+
+### **【执行指令 - 当条件满足时】**
+如果通过了三重检查，你可以在蓝图中**为该瞬间设计一个专属节拍**，并在 \`chapter_core_and_highlight\` 中使用以下技法：
+
+**技法1：世界静止 (World Freeze)**
+- **指令:** "在[核心瞬间]完成前，**所有无关角色暂时退出镜头**。不要描写他们的反应、不要让他们打断、不要提及他们的存在。"
+- **示例:** "尽管客厅里还有其他旅人，但此刻镜头只能看到Yumi和Rofi。其他人如同背景板般模糊。"
+
+**技法2：时间拉伸 (Time Dilation)**
+- **指令:** "物理时间可能只有3-5秒，但你要用**3-4个节拍**来展开它。每个节拍聚焦一个微观细节。"
+- **示例节拍拆分:**
+  - 节拍1：视线撞击的瞬间（0.5秒的物理时间）
+  - 节拍2：回忆闪回触发（内心时间，物理时间几乎静止）
+  - 节拍3：身体本能反应（瞳孔、呼吸、指尖）
+  - 节拍4：第一句话的张口（仍然是最初那3秒内）
+
+**技法3：极致特写 (Hyper Close-up)**
+- **指令:** "镜头推到极近。描写瞳孔的震颤、喉结的滚动、指尖的痉挛、呼吸的紊乱。"
+- **禁止:** 概括性描述（如"他很激动"），必须通过微观生理细节传达
+
+### **【强制记录】**
+如果你决定使用聚光灯协议，你**必须**在输出的 \`design_notes\` 中新增字段：
+
+\`\`\`json
+"spotlight_protocol_usage": {
+  "activated": true,
+  "target_beat": "节拍2：视线撞击",
+  "emotional_weight": 9,
+  "trigger_reason": "两人分别8年的重逢，emotional_weight=8，且为核心关系里程碑",
+  "cooldown_check_passed": true,
+  "cooldown_details": "上一章未使用（last_usage=null），recent_count=0，通过检查"
+}
+\`\`\`
+
+如果未使用，则：
+\`\`\`json
+"spotlight_protocol_usage": {
+  "activated": false,
+  "reason_not_used": "本章为日常Sequel，无高emotional_weight事件"
+}
+\`\`\`
+
+### **【反面教材 - 绝对禁止的滥用】**
+**❌ 错误示例1：低权重滥用**
+- 场景：两人只是普通朋友，casual问候
+- 错误：仍然使用时间拉伸，把"嗨"拆成3个节拍
+- **后果:** 读者会觉得莫名其妙，破坏节奏感
+
+**❌ 错误示例2：无视冷却期**
+- 上一章：用聚光灯描写了告白场景
+- 本章：又用聚光灯描写拥抱场景
+- **后果:** 技法贬值，读者审美疲劳
+
+**❌ 错误示例3：不当干扰**
+- 场景：核心对视进行到一半
+- 错误：突然插入"Hunter端着咖啡走过来"
+- **后果:** 破坏聚光灯的沉浸感，相当于在变身动画里插广告
 
 ---
 ## **第二章：输入情报分析 (Analysis of Incoming Intelligence)**
@@ -279,6 +376,212 @@ _createPrompt(context) {
 3.  **长篇故事梗概:** ${longTermStorySummary}
 
 4.  **上一章交接备忘录:** ${JSON.stringify(handoffToUse, null, 2)}
+
+4B. **【V4.0 叙事控制塔】节奏指令 (Rhythm Directive):**
+    <narrative_control_tower>
+    ${JSON.stringify(chapter?.meta?.narrative_control_tower || {
+        rhythm_directive: {
+            mandatory_constraints: [],
+            suggested_chapter_type: "Scene",
+            intensity_range: { min: 1, max: 10 },
+            impending_thresholds: [],
+            rhythm_dissonance_opportunities: []
+        },
+        last_chapter_rhythm: null,
+        storyline_progress: {},
+        device_cooldowns: {}
+    }, null, 2)}
+    </narrative_control_tower>
+
+    **【【【 节奏指令执行准则 (CRITICAL) 】】】**
+    这是你唯一需要查阅的节奏决策数据源。根据 \`rhythm_directive\` 执行以下操作：
+
+    **强制约束 (mandatory_constraints):**
+    - \`"cooldown_required"\`: 你**必须**将本章设计为Sequel或低强度Scene
+    - \`"spotlight_forbidden"\`: 本章**禁止**使用聚光灯协议
+
+    **建议章节类型 (suggested_chapter_type):** 遵循Scene/Sequel交替原则
+
+    **强度范围 (intensity_range):** 本章情感强度**必须**在 min-max 范围内
+
+    **即将触发的阈值 (impending_thresholds):**
+    - 如果某故事线接近关键阈值（如midpoint、climax_approach），考虑在本章推进以触发
+
+    **节奏错位机会 (rhythm_dissonance_opportunities):**
+    - 利用不同故事线的进度差异创造戏剧张力（如主线压力催化感情线）
+
+    **在 design_notes.rhythm_response 中详细说明你如何执行了上述指令**
+
+4C. **【V4.0 故事线进度分析】利用量化进度指导叙事设计 (Storyline Progress Analysis):**
+
+    **【【【 进度感知设计准则 (CRITICAL) 】】】**
+    叙事控制塔提供了每条故事线的量化进度（0-100%）。你**必须**将这些进度数据视为叙事设计的核心参考，而非仅作装饰性信息。
+
+    **强制分析流程:**
+
+    **步骤1: 读取故事线进度数据**
+    从 \`narrative_control_tower.storyline_progress\` 中读取所有活跃故事线：
+
+    \`\`\`json
+    "storyline_progress": {
+      "quest_main_001": {
+        "current_progress": 45,
+        "current_stage": "fun_and_games",
+        "pacing_curve": "hero_journey",
+        "last_increment": 5
+      },
+      "arc_romance_rofi": {
+        "current_progress": 20,
+        "current_stage": "deepening",
+        "last_increment": 15
+      }
+    }
+    \`\`\`
+
+    **步骤2: 将进度百分比映射到叙事阶段**
+    根据故事线的 \`current_progress\` 判断其叙事发展阶段：
+
+    **0-15%: 建立期 (Establishment Phase)**
+    - **叙事特征:** 介绍元素、设定基础、埋下伏笔
+    - **设计策略:**
+      - 重点：世界观展示、角色出场、关系初步建立
+      - 节奏：轻度到中度，避免过早高潮
+      - 示例：主角初遇关键NPC、发现神秘线索、接受任务委托
+    - **禁忌:** 不要在此阶段设计核心冲突爆发或情感告白（除非有特殊设计理由）
+
+    **15-25%: 触发期 (Inciting Phase)**
+    - **叙事特征:** 打破常规、引入核心冲突、故事真正启动
+    - **设计策略:**
+      - 重点：制造意外、提出核心问题、角色承诺介入
+      - 节奏：中度到高度，可设计一次情感冲击
+      - 示例：任务失败、盟友背叛、秘密揭露、被迫做出选择
+    - **阈值标记:** 这是Blake Snyder Beat Sheet的"Catalyst"/"Debate"阶段
+
+    **25-50%: 深化期 (Deepening Phase)**
+    - **叙事特征:** 角色主动探索、关系逐步复杂化、积累小胜利
+    - **设计策略:**
+      - 重点：角色成长、关系深化、小冲突积累、技能/信息获取
+      - 节奏：中度，可有起伏但不应有巨大爆发
+      - 示例：两人建立信任、学习新技能、击败小boss、发现关键情报
+    - **关系线特殊处理:** 如果是romance arc在20-40%，这是"暧昧期"/"深化了解期"
+      - 应设计：共同经历、日常互动、微妙的肢体接触、内心独白
+      - 不应设计：直接告白、吻戏、关系质变（这些应留到60-80%）
+
+    **50-60%: 中点转折期 (Midpoint Phase)**
+    - **叙事特征:** 假胜利或假失败、视角翻转、游戏规则改变
+    - **设计策略:**
+      - 重点：制造戏剧性反转、引入新信息改变角色认知
+      - 节奏：高度，需要一次强烈的情感或认知冲击
+      - 示例：原本的盟友是敌人、任务目标是陷阱、角色获得关键力量但付出代价
+    - **阈值标记:** 这是"Midpoint"，故事的分水岭，**必须有重大事件**
+
+    **60-75%: 危机升级期 (Escalation Phase)**
+    - **叙事特征:** 压力持续增加、角色被逼到极限、外部力量收紧
+    - **设计策略:**
+      - 重点：多线冲突交织、角色面临艰难选择、关系裂痕扩大
+      - 节奏：高度到极高度，可设计连续的挫折或危机
+      - 示例：盟友离开、资源耗尽、敌人步步紧逼、时间限制迫近
+    - **关系线特殊处理:** 如果是romance arc在70%+，这是"情感爆发临界点"
+      - 应设计：生死关头的告白、长期压抑的情感释放、关系质变的契机
+      - 可使用：聚光灯协议（如果满足条件）
+
+    **75-90%: 至暗时刻 (Dark Night Phase)**
+    - **叙事特征:** "All Is Lost"时刻、角色最低点、核心信念崩塌
+    - **设计策略:**
+      - 重点：制造绝望感、角色独自面对内心、决定最终行动
+      - 节奏：情感极高度，但可能是"静默的高潮"（内心戏）
+      - 示例：重要角色死亡、计划彻底失败、角色被迫放弃某样珍视之物
+    - **阈值标记:** 这是"All Is Lost"/"Dark Night of the Soul"，**必须让角色经历痛苦**
+
+    **90-100%: 终局期 (Resolution Phase)**
+    - **叙事特征:** 最终对决、核心矛盾解决、新秩序建立
+    - **设计策略:**
+      - 重点：角色应用所学、完成蜕变、给出答案
+      - 节奏：极高度（高潮）→ 逐步降低（收尾）
+      - 示例：最终boss战、告别场景、epilogue式日常、角色展望未来
+    - **注意:** 90-95%是高潮，95-100%是denouement（收束），节奏应有明显区分
+
+    **步骤3: 分析 last_increment 判断叙事动量**
+    \`last_increment\` 告诉你上一章推进了多少进度：
+
+    - **0%:** 停滞（纯粹日常/Sequel，无实质推进）
+    - **1-5%:** 小步前进（正常进度，适合日常中的小发现）
+    - **6-15%:** 跳跃式推进（重要事件，如击败中boss、获得关键道具）
+    - **16-25%:** 重大跃迁（核心转折，如基地被毁、角色死亡、关系质变）
+
+    **设计决策:**
+    - 如果 \`last_increment >= 15\`（上章重大跃迁），本章**应设计为Sequel**进行消化
+    - 如果 \`last_increment == 0\`（连续停滞），本章**必须推进**，避免故事失去动力
+    - 如果 \`last_increment\` 在1-10%正常范围，可根据 \`current_progress\` 灵活决定
+
+    **步骤4: 利用 current_stage 细化设计**
+    如果数据中包含 \`current_stage\` 字段（如"fun_and_games", "reconnecting"），这是更精确的叙事状态：
+
+    - **"setup"/"establishment":** 建立阶段，重点展示而非推进
+    - **"fun_and_games":** 展示核心玩法/概念的阶段，可设计轻松有趣的互动
+    - **"confrontation"/"escalation":** 冲突升级，应设计对抗、选择、压力
+    - **"resolution"/"denouement":** 收尾阶段，应给出答案、展示结果、情感着陆
+
+    **步骤5: 跨故事线进度对比分析**
+    如果有多条故事线，比较它们的进度差异：
+
+    **示例分析:**
+    - quest_main_001: 85% (危机升级期)
+    - arc_romance_rofi: 40% (深化期)
+    - 进度差: 45%
+
+    **设计策略:**
+    - **压力催化:** 利用主线85%的高压环境，催化感情线的突破（如"可能会死，所以说出真心话"）
+    - **反差张力:** 主线的生死危机 vs 感情线的暧昧日常，形成戏剧性反差
+    - **优先级判断:** 如果本章只能推进一条线，应推进progress更高的（接近阈值的）
+
+    **步骤6: 检查 impending_thresholds（即将触发的阈值）**
+    \`rhythm_directive.impending_thresholds\` 会告诉你哪些故事线接近关键阈值：
+
+    \`\`\`json
+    "impending_thresholds": [
+      {
+        "storyline_id": "quest_main_001",
+        "threshold": "climax_approach",
+        "progress": 72,
+        "trigger_at": 75
+      }
+    ]
+    \`\`\`
+
+    **设计决策:**
+    - 如果某线距离阈值<5%，本章**应优先推进该线以触发阈值事件**
+    - 例如：quest_main_001在72%，距离75%"climax_approach"仅3%
+      - **建议:** 本章设计一次关键失败或盟友背叛，推进3-5%触发"至暗时刻"
+
+    **【强制输出要求】**
+    在 \`design_notes.storyline_progress_analysis\` 中，你**必须**输出：
+
+    \`\`\`json
+    "storyline_progress_analysis": {
+      "quest_main_001": {
+        "current_progress": 45,
+        "narrative_phase": "深化期 (Deepening Phase)",
+        "phase_characteristics": "角色主动探索、积累小胜利",
+        "design_decision": "本章设计角色学习新技能并击败中等难度敌人，推进5%至50%触发中点转折",
+        "last_increment_evaluation": "上章推进5%（正常），本章可继续推进"
+      },
+      "arc_romance_rofi": {
+        "current_progress": 20,
+        "narrative_phase": "深化期-暧昧阶段",
+        "phase_characteristics": "两人建立信任、日常互动、微妙情感积累",
+        "design_decision": "本章设计一次共同行动中的肢体接触（扶持、递物），推进3%",
+        "emotion_explosion_timing": "不应在此阶段设计告白或吻戏，应留待70%+"
+      },
+      "cross_storyline_strategy": "主线45%与感情线20%差距25%，可利用主线任务压力创造两人独处机会，催化感情线自然发展"
+    }
+    \`\`\`
+
+    **【关键原则】**
+    - **进度感知优先:** 不要脱离进度百分比盲目设计。20%的romance不应有告白，70%的quest不应还在"认识新朋友"
+    - **尊重叙事规律:** Blake Snyder / Hero's Journey 的阶段划分有其心理学基础，违反会让读者感觉"节奏不对"
+    - **灵活调整强度:** 同样是"推进5%"，在20%时可以是"日常对话"，在75%时必须是"重大牺牲"
+    - **避免进度停滞:** 如果某条故事线连续3章 \`last_increment == 0\`，本章**必须**推进它，否则会被遗忘
 
 5.  **核心情报：当前世界的完整状态快照:**
     <current_world_state>
@@ -360,6 +663,44 @@ _createPrompt(context) {
     - **灵活性优先:** 不是所有重逢都需要独立章节，根据 emotional_weight 和玩家焦点灵活处理
     - **避免过度强调:** 两天不见不需要特殊处理，只有 separation_duration >= "months" 且 emotional_weight >= 7 才考虑重点处理
     - **尊重玩家焦点:** 如果玩家焦点是"轻松日常"，即使有重逢事件，也应以轻松方式处理，避免过度戏剧化
+
+    **步骤5: 【【【 强制：实体清单输出 】】】**
+    这一步是**系统召回机制的核心**，必须严格执行：
+
+    **任务:** 将本章涉及的所有核心实体ID，输出到 \`chapter_blueprint.chapter_context_ids\` 数组中。
+
+    **必须包含的实体类型：**
+    1. **角色 (characters)**: 所有在本章出场的角色ID（包括步骤1识别的角色）
+       - 例如: "char_yumi_player", "char_rofi_hunter", "char_neph_witch"
+    2. **地点 (locations)**: 本章的主要场景地点ID
+       - 例如: "loc_mountain_cabin", "loc_windwhisper_forest"
+    3. **物品 (items)**: 本章会使用的重要物品ID
+       - 例如: "item_mysterious_letter", "item_healing_potion"
+    4. **故事线 (storylines)**: 本章会推进的故事线ID
+       - 例如: "quest_cure_sister", "arc_revenge_plan"
+    5. **其他实体**: 其他在本章扮演重要角色的实体（势力、事件等）
+
+    **【【【 极其重要 】】】**: 如果你在步骤1-4中识别出了任何角色（包括关系里程碑分析中的角色），你**必须**将这些角色的ID添加到 \`chapter_context_ids\` 数组中。否则，这些角色的详细档案将无法被召回，导致AI在描写时缺少关键信息！
+
+    **输出位置:** \`chapter_blueprint.chapter_context_ids\` (数组)
+
+    **正确示例:**
+    \`\`\`json
+    "chapter_context_ids": [
+      "char_yumi_player",
+      "char_rofi_hunter",
+      "char_neph_witch",
+      "loc_mountain_cabin",
+      "quest_cure_sister"
+    ]
+    \`\`\`
+
+    **错误示例（绝对禁止）:**
+    \`\`\`json
+    "chapter_context_ids": [
+      "列出本章涉及的所有关键实体ID..."  // ❌ 这是说明文字，不是实际ID！
+    ]
+    \`\`\`
 ---
 ## **第三章：强制前置思考：自省式蓝图设计**
 ---
@@ -415,10 +756,30 @@ _createPrompt(context) {
     2.  **启下 (选择其一):**
         *   **A) 软着陆 (Soft Landing):** 如果本章的情感已经完整闭环，结尾应提供一个平静的、供玩家回味的瞬间。钩子是**情感的余韵**。
         *   **B) 情感悬崖 (Emotional Cliffhanger):** 如果你为了保证本章核心体验的纯粹性，而**刻意延迟**了一个重大的情感事件（如一次关键重逢、一个秘密揭示）到下一章，那么你**必须**使用“情感悬崖”作为本章的结尾。
-*   **“情感悬崖”执行方法论 (绝对强制):**
-    1.  在本章的**最后一个节拍 (\`plot_beats\`)** 中，只描写该事件**发生的前一秒**——主角“**看到**”或“**听到**”了那个关键人物、物品或信息。
-    2.  **绝对禁止**描写后续的任何互动、对话或内心反应。
-    3.  然后，将你的**终章信标 (\`endgame_beacons\`)**，直接设定为“**当这个‘看到/听到’的瞬间被描绘出来后**”。
+*   **【V3.5 修复】"情感悬崖"执行方法论 (绝对强制):**
+    1.  **最后节拍设计 (分两阶段):**
+        *   **阶段1（铺垫）：** 在本章的**最后一个节拍 (\`plot_beats\`)** 中，描写该事件**发生的前置动作**——主角"**开始环顾**"、"**听到脚步声**"、"**门开始打开**"等。
+        *   **阶段2（高潮）：** 将真正的"看到/听到"瞬间**留给终章信标**描述。
+        *   **【关键区分】** 最后节拍描写"动作进行中"（looking），终章信标描写"动作完成"（looked and saw）。
+
+    2.  **绝对禁止在最后节拍中包含:**
+        *   主角"看到了"或"听到了"关键人物/物品/信息（这是终章信标的内容！）
+        *   任何后续的互动、对话或内心反应
+
+    3.  **终章信标设计 (endgame_beacons):**
+        *   **【V3.5 关键】** 终章信标必须描述一个**超越最后节拍内容**的、可被观测的物理事件。
+        *   **正确示例：**
+            - 最后节拍："Yumi环顾客厅，看到几个陌生的面孔"
+            - 终章信标："当Yumi的视线最终与壁炉旁的Rofi相遇后"（这是更进一步的动作！）
+        *   **错误示例：**
+            - 最后节拍："Yumi的视线与Rofi相遇"
+            - 终章信标："当Yumi的视线与Rofi相遇后"（完全重复！）
+
+    4.  **验证清单（必须自检）：**
+        - [ ] 最后节拍和终章信标是否描述了**两��不同阶段**的动作？
+        - [ ] 终章信标是否比最后节拍**更进一步**？
+        - [ ] 如果AI完成了最后节拍的内容，是否还有"终章信标"的内容可以写？
+
     *   **(效果：将情感冲击力最大化，并将其全部势能注入到下一章的开篇。)**
 *   **输出:** 在\`design_notes.connection_and_hook\`中，明确阐述你选择了哪种结尾方式（软着陆或情感悬崖），以及你这样做的战略考量,给出可以被观测的，准确的终章信标。
 ### **第四步B：定义节拍类型与出口 (Define Beat Types & Exits)**
@@ -435,7 +796,12 @@ _createPrompt(context) {
     1.  **关于“主题贪婪”**: “我的设计是否只聚焦于一个核心情感？我是如何抵制住诱惑，没有加入次要主题的？”
     2.  **关于“设定驱动”**: “在本章中，角色们的行为是否首先符合‘普通人’的逻辑？我是如何确保他们的‘特殊性格’只在必要时才被轻微流露的？”
     3.  **关于“叙事线并行”**: “我是否真的只推进了不超过两条故事线？我选择了哪两条？为什么是它们？”
-    4.  **关于“悬念前置”与章节收尾**: “我的结尾设计（软着陆/情感悬崖）是否服务于本章的核心情感？**如果我使用了‘情感悬崖’，我是如何确保它只揭示了‘现象’而没有‘解释’，从而将核心的情感爆发完美地保留到下一章的？我为\`endgame_beacons\`设计的条件，是否是一个**没有感情的摄像头**也能判断‘是/否’的、纯粹的物理事件？它是否包含了任何需要‘读心’才能知道的内心状态？**”
+    4.  **【V3.5 增强】关于"悬念前置"与章节收尾**: "我的结尾设计（软着陆/情感悬崖）是否服务于本章的核心情感？**如果我使用了'情感悬崖'，我必须回答以下问题：**
+        - [ ] 最后一个\`plot_beat\`和\`endgame_beacons\`是否描述了**两个不同阶段**的动作？
+        - [ ] 我的\`endgame_beacons\`是否比最后节拍**更进一步**？（如果两者描述同样的事件，这是严重错误！）
+        - [ ] 我的\`endgame_beacons\`设计的条件，是否是一个**没有感情的摄像头**也能判断'是/否'的、纯粹的物理事件？
+        - [ ] 它是否包含了任何需要'读心'才能知道的内心状态？
+        - **【V3.5 反例警告】** 如果最后节拍写"Yumi看到Rofi"，终章信标也写"当Yumi看到Rofi后"，这是**内容重复**，会导致章节转换失败！"
 *   **输出:** 将你对这四个问题的详细回答，作为一个完整的报告，填入**全新的**\`design_notes.self_scrutiny_report\`字段中。
 
 ### **第六步：V2.0 情境预取 - 为演绎AI打包上下文 (Context Pre-fetching)**
@@ -468,11 +834,31 @@ _createPrompt(context) {
 ---
 你的整个回复**必须**是一个**纯粹的、严格的、单一的JSON对象**。
 
-**【【【 最终输出格式 (MANDATORY V2.0 - DUAL-HORIZON BLUEPRINT) 】】】**
+**【【【 最终输出格式 (MANDATORY V3.0 - DUAL-HORIZON BLUEPRINT WITH RELATIONSHIP AWARENESS) 】】】**
 \`\`\`json
 {
   "design_notes": {
     "dual_horizon_analysis": "[【V2.0 必填】阐述本章如何平衡玩家短期焦点与系统长期弧光。如果两者存在张力，说明你的选择逻辑。如果埋下了伏笔，具体说明。]",
+    "relationship_milestone_analysis": "[【V3.0 必填】列出你扫描到的关系边（例如：'rel_yumi_rofi: 童年玩伴（childhood_friends），数年未见，情感权重8，待重逢'），识别出的里程碑事件（重逢/初识/未解张力），以及对每个事件的设计决策（作为核心节拍/融入现有节拍/延迟到下章）。如果选择延迟，解释为什么以及如何为下一章铺垫。如果本章无需特别处理的关系里程碑事件，写'本章无关系里程碑事件需要处理'。]",
+    "rhythm_response": "[【V4.0 必填】说明你如何响应上一章的节奏评估。如果上一章 requires_cooldown=true，说明本章如何设计为Sequel或低强度Scene。如果上一章intensity很低，说明本章是否适合提升强度。]",
+    "storyline_progress_analysis": {
+      "[storyline_id]": {
+        "current_progress": "[0-100的进度值]",
+        "narrative_phase": "[例如：'深化期 (Deepening Phase)'、'危机升级期 (Escalation Phase)']",
+        "phase_characteristics": "[该阶段的叙事特征描述]",
+        "design_decision": "[基于当前进度，本章对该故事线的设计决策]",
+        "last_increment_evaluation": "[对上章推进量的评估，以及对本章的影响]"
+      },
+      "cross_storyline_strategy": "[如果有多条故事线，说明如何利用进度差异创造戏剧张力或催化效果]"
+    },
+    "spotlight_protocol_usage": {
+      "activated": true/false,
+      "target_beat": "[如果激活，指明在哪个节拍使用]",
+      "emotional_weight": 0-10,
+      "trigger_reason": "[激活原因，或不激活的原因]",
+      "cooldown_check_passed": true/false,
+      "cooldown_details": "[冷却检查的详细结果]"
+    },
     "aesthetic_innovation_report": "[【V2.0 必填】列出你从 stylistic_archive 中识别出的高频元素（例如：'冰冷'已使用5次），以及你为本章高光时刻设计的创新性替代方案（例如：改用'凛冽'和'冻结的时间'），并说明为何这些新元素更适合本章核心体验。]",
     "new_entities_proposal": "[【V2.0 可选】如果 chapter_context_ids 中包含 'NEW:' 前缀的实体，在此简要说明其定义、基本属性和为何需要新增。]",
     "storyline_weaving": "[你对第三步的思考结果]",

@@ -100,6 +100,49 @@
                     </div>
                 </div>
 
+                <!-- V4.0: 叙事控制塔 - 节奏与进度追踪 -->
+                <div class="sbt-library-category">
+                    <h5 class="sbt-category-header">
+                        <i class="fa-solid fa-tower-broadcast fa-fw"></i> 叙事控制塔 <span class="sbt-v4-badge">V4.0</span>
+                    </h5>
+                    <div id="sbt-rhythm-tower-content" class="sbt-library-items">
+                        <p class="sbt-instructions">
+                            <i class="fa-solid fa-info-circle fa-fw"></i>
+                            实时监控故事线进度与叙事节奏。系统会自动生成节奏指令以保持故事呼吸感。
+                        </p>
+
+                        <!-- 节奏指令卡片 -->
+                        <div id="sbt-rhythm-directive-card" class="sbt-rhythm-card">
+                            <div class="sbt-rhythm-card-header">
+                                <i class="fa-solid fa-sliders fa-fw"></i> 当前节奏指令
+                            </div>
+                            <div id="sbt-rhythm-directive-content" class="sbt-rhythm-card-body">
+                                <p class="sbt-instructions">等待首个章节数据...</p>
+                            </div>
+                        </div>
+
+                        <!-- 故事线进度追踪 -->
+                        <div id="sbt-storyline-progress-card" class="sbt-rhythm-card">
+                            <div class="sbt-rhythm-card-header">
+                                <i class="fa-solid fa-chart-line fa-fw"></i> 故事线进度
+                            </div>
+                            <div id="sbt-storyline-progress-content" class="sbt-rhythm-card-body">
+                                <p class="sbt-instructions">暂无活跃故事线</p>
+                            </div>
+                        </div>
+
+                        <!-- 情感强度曲线 -->
+                        <div id="sbt-intensity-curve-card" class="sbt-rhythm-card">
+                            <div class="sbt-rhythm-card-header">
+                                <i class="fa-solid fa-wave-square fa-fw"></i> 情感强度曲线
+                            </div>
+                            <div id="sbt-intensity-curve-content" class="sbt-rhythm-card-body">
+                                <p class="sbt-instructions">暂无章节数据</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
             </div> <!-- 创作工坊面板结束 -->
 
             <!-- ======================= 2. 世界档案面板 ======================= -->
@@ -465,11 +508,36 @@
                     </div>
                 </div>
 
-                <!-- 保存设置 - 底部固定 -->
+                <!-- 保存设置 -->
                 <div class="sbt-library-section">
                     <button id="sbt-save-settings-btn" class="sbt-primary-btn">
                         <i class="fa-solid fa-save fa-fw"></i> 保存并应用所有设置
                     </button>
+                </div>
+
+                <!-- 数据库管理 - 大分区 -->
+                <div class="sbt-library-section">
+                    <h4 class="sbt-library-title">
+                        <i class="fa-solid fa-database fa-fw"></i> 静态数据库管理
+                    </h4>
+                    <p class="sbt-instructions">
+                        管理各角色卡的静态数据缓存。如果某个角色的世界观数据出现问题，可以在此删除后重新分析。
+                    </p>
+
+                    <div class="sbt-settings-card">
+                        <div id="sbt-static-db-list" class="sbt-db-list">
+                            <!-- 动态填充角色数据列表 -->
+                            <p class="sbt-instructions">正在加载数据库...</p>
+                        </div>
+                        <div class="sbt-db-actions" style="margin-top: 15px; display: flex; gap: 10px;">
+                            <button id="sbt-refresh-db-btn" class="sbt-secondary-btn">
+                                <i class="fa-solid fa-sync fa-fw"></i> 刷新列表
+                            </button>
+                            <button id="sbt-clear-all-db-btn" class="sbt-danger-btn">
+                                <i class="fa-solid fa-trash fa-fw"></i> 清空全部数据
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
             </div>
