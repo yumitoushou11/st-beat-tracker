@@ -182,6 +182,8 @@ _createPrompt(context) {
         );
         const longTermStorySummary = chapter?.meta?.longTermStorySummary || "故事刚刚开始。";
         const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
+        // V4.2: 获取玩家设置的章节节拍数量区间
+        const beatCountRange = localStorage.getItem('sbt-beat-count-range') || '8-10';
         const isNsfwFocused = playerNarrativeFocus.toLowerCase().startsWith('nsfw:');
         // V2.0: 提取宏观叙事弧光和文体档案
         const activeNarrativeArcs = chapter?.meta?.active_narrative_arcs || [];
@@ -723,7 +725,7 @@ _createPrompt(context) {
 - **效果:** "回家并安顿下来"这个完整事件得到闭环
 
 **【强制规范】**
-1. **节拍数量:** 每个章节应包含 **8-12个节拍**（而非之前的4个）
+1. **节拍数量:** 每个章节应包含 **${beatCountRange}个节拍**。这是玩家设置的期望区间，你应根据事件复杂度，在此区间内决定实际节拍数。
 2. **事件完整性:** 章节必须包含一个事件的"起承转合"全周期
 3. **内部转场:** 允许在节拍中使用 **Internal Transition**（内部转场）类型，用于时间跳跃或场景切换
    - 示例：\`type: "Internal Transition"\` - "几个小时后，夜幕降临..."
@@ -756,7 +758,7 @@ _createPrompt(context) {
 在设计章节时，问自己：
 - [ ] 这个章节是否包含一个完整的"事件"？（如：回家安顿、外出探险、重要对话）
 - [ ] 这个事件是否有明确的开始、发展、高潮和收尾？
-- [ ] 节拍数量是否在8-12个之间？
+- [ ] 节拍数量是否在${beatCountRange}个之间？
 - [ ] 终章信标是否描述了整个事件的结束，而非某个小动作？
 - [ ] 是否合理使用了Internal Transition来推进时间或场景？
 
@@ -974,7 +976,7 @@ _createPrompt(context) {
         "type": "...",
         "description": "..."
       }
-      // 【V4.2】应包含8-12个节拍以形成完整事件闭环
+      // 【V4.2】应包含${beatCountRange}个节拍以形成完整事件闭环
     ],
     "chapter_core_and_highlight": {
       "creative_core": "[你对第一步的思考结果，即本章唯一的创作核心。]",

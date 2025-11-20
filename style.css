@@ -2289,6 +2289,65 @@ input:checked + .sbt-slider:before {
     color: #5E5CE6;
 }
 
+/* V4.2 手动开场白输入框样式 */
+.sbt-manual-opening-textarea {
+    width: 100%;
+    padding: 10px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-bright);
+    font-family: inherit;
+    font-size: 0.9em;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 80px;
+    margin-top: 8px;
+}
+
+.sbt-manual-opening-textarea:focus {
+    outline: none;
+    border-color: var(--sbt-accent-color);
+    background-color: var(--sbt-bg-base);
+}
+
+.sbt-manual-opening-textarea::placeholder {
+    color: var(--sbt-text-dim);
+    opacity: 0.7;
+}
+
+/* V4.2 章节节拍数量区间下拉框样式 */
+.sbt-beat-count-dropdown {
+    width: 100%;
+    padding: 10px 12px;
+    margin-top: 8px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-bright);
+    font-family: inherit;
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-beat-count-dropdown:hover {
+    border-color: var(--sbt-accent-color);
+    background-color: var(--sbt-bg-dark);
+}
+
+.sbt-beat-count-dropdown:focus {
+    outline: none;
+    border-color: var(--sbt-accent-color);
+    box-shadow: 0 0 0 2px rgba(100, 150, 255, 0.2);
+}
+
+.sbt-beat-count-dropdown option {
+    background-color: var(--sbt-bg-darker);
+    color: var(--sbt-text-bright);
+    padding: 8px;
+}
+
 /* 高光时刻卡片 */
 .sbt-highlight-card {
     background-color: var(--sbt-bg-darker);

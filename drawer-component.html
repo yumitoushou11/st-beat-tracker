@@ -381,6 +381,21 @@
                             </div>
                         </label>
                     </div>
+
+                    <!-- V4.2: 章节节拍数量区间控制 -->
+                    <div class="sbt-control-card">
+                        <label for="sbt-beat-count-range" class="sbt-toggle-label">
+                            <span class="sbt-toggle-text">章节节拍数量区间</span>
+                            <i class="fa-solid fa-circle-info fa-fw" title="设置每章期望的节拍数量区间。建筑师AI会根据事件复杂度，在此区间内决定实际节拍数。区间越大，给予AI的规划自由度越高。"></i>
+                        </label>
+                        <select id="sbt-beat-count-range" class="sbt-beat-count-dropdown">
+                            <option value="4-6">4-6 节拍（紧凑）</option>
+                            <option value="6-8">6-8 节拍（标准）</option>
+                            <option value="8-10" selected>8-10 节拍（完整）</option>
+                            <option value="10-12">10-12 节拍（史诗）</option>
+                            <option value="4-12">4-12 节拍（完全自由）</option>
+                        </select>
+                    </div>
                 </div>
 
                 <!-- 叙事操作 - 大分区 -->
@@ -388,6 +403,20 @@
                     <h4 class="sbt-library-title">
                         <i class="fa-solid fa-play-circle fa-fw"></i> 叙事操作
                     </h4>
+
+                    <!-- V4.2: 手动输入开场白 -->
+                    <div class="sbt-control-card">
+                        <label for="sbt-manual-opening-scene" class="sbt-toggle-label">
+                            <span class="sbt-toggle-text">创世纪开场白（可选）</span>
+                            <i class="fa-solid fa-circle-info fa-fw" title="如果AI无法读取角色自带的开场白，可以在此手动输入。留空则由AI自由创作开篇场景。"></i>
+                        </label>
+                        <textarea
+                            id="sbt-manual-opening-scene"
+                            class="sbt-manual-opening-textarea"
+                            placeholder="在此输入开场白内容（可选）&#10;&#10;提示：如果角色卡自带开场白但AI读取失败，可以复制粘贴到此处作为临时补丁。留空则由AI自动创作。"
+                            rows="4"
+                        ></textarea>
+                    </div>
 
                     <button id="sbt-start-genesis-btn" class="sbt-primary-btn">
                         <i class="fa-solid fa-book-sparkles fa-fw"></i> 开始新的叙事篇章

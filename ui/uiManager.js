@@ -847,6 +847,17 @@ $('#extensions-settings-button').after(html);
         deps.toastr.info(`流式显示回合裁判分析已 ${isChecked ? '开启' : '关闭'}`, "设置已更新");
     });
 
+    // -- V4.2: 章节节拍数量区间控制 --
+    const $beatCountRange = $('#sbt-beat-count-range');
+    const savedBeatCountRange = localStorage.getItem('sbt-beat-count-range') || '8-10';
+    $beatCountRange.val(savedBeatCountRange);
+
+    $wrapper.on('change', '#sbt-beat-count-range', function() {
+        const selectedRange = $(this).val();
+        localStorage.setItem('sbt-beat-count-range', selectedRange);
+        deps.toastr.info(`章节节拍数量区间已设置为：${selectedRange}`, "设置已更新");
+    });
+
     // -- V3.1: 流式面板折叠/展开 --
     $wrapper.on('click', '#sbt-stream-toggle', function(e) {
         e.stopPropagation();

@@ -2194,10 +2194,26 @@ async startGenesisProcess() {
     }
 
     // --- 核心逻辑分支 ---
+    // 【V4.2】检查手动输入的开场白（优先级最高）
+    const manualOpeningScene = $('#sbt-manual-opening-scene').val()?.trim();
     const chat = this.USER.getContext().chat;
     const hasExistingFirstMessage = chat.length > 0 && chat[0] && !chat[0].is_user;
-  const firstMessageContent = hasExistingFirstMessage ? chat[0].mes : null;
-   await this._runGenesisFlow(firstMessageContent);
+    let firstMessageContent = null;
+
+    if (manualOpeningScene) {
+        // 使用手动输入的开场白（最高优先级）
+        firstMessageContent = manualOpeningScene;
+        this.info("检测到手动输入的开场白，将使用此内容作为故事起点。");
+    } else if (hasExistingFirstMessage) {
+        // 否则尝试从聊天记录中读取
+        firstMessageContent = chat[0].mes;
+        this.info("使用角色自带的开场白作为故事起点。");
+    } else {
+        // 完全没有开场白，AI将自由创作
+        this.info("未检测到开场白，AI将自由创作开篇场景。");
+    }
+
+    await this._runGenesisFlow(firstMessageContent);
     if (!this.currentChapter || !this.currentChapter.chapter_blueprint) {
         this.toastr.error("创世纪流程未能成功生成剧本，请检查后台AI设置或查看控制台。", "创世纪失败");
         return;
