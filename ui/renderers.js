@@ -761,18 +761,41 @@ function renderChapterBlueprint(blueprint) {
             }
             html += '</div>';
 
-            // 节拍描述
-            if (beat.description) {
-                html += `<div class="sbt-beat-description" contenteditable="true" data-beat-index="${index}" data-field="description">${beat.description}</div>`;
+            // 物理事件（新格式必填字段）
+            if (beat.physical_event) {
+                html += `<div class="sbt-beat-field">
+                    <div class="sbt-beat-field-label"><i class="fa-solid fa-bolt"></i> 物理事件</div>
+                    <div class="sbt-beat-field-value" contenteditable="true" data-beat-index="${index}" data-field="physical_event">${beat.physical_event}</div>
+                </div>`;
             }
 
-            // 对话场景的退出条件
-            if (beatType === 'Dialogue Scene' && beat.exit_condition) {
-                html += `<div class="sbt-beat-exit-condition">
-                    <i class="fa-solid fa-door-open"></i>
-                    <span>退出条件：</span>
-                    <span contenteditable="true" data-beat-index="${index}" data-field="exit_condition">${beat.exit_condition}</span>
+            // 环境状态（可选）
+            if (beat.environment_state) {
+                html += `<div class="sbt-beat-field">
+                    <div class="sbt-beat-field-label"><i class="fa-solid fa-cloud-sun"></i> 环境状态</div>
+                    <div class="sbt-beat-field-value" contenteditable="true" data-beat-index="${index}" data-field="environment_state">${beat.environment_state}</div>
                 </div>`;
+            }
+
+            // 状态变更（可选）
+            if (beat.state_change) {
+                html += `<div class="sbt-beat-field">
+                    <div class="sbt-beat-field-label"><i class="fa-solid fa-exchange-alt"></i> 状态变更</div>
+                    <div class="sbt-beat-field-value" contenteditable="true" data-beat-index="${index}" data-field="state_change">${beat.state_change}</div>
+                </div>`;
+            }
+
+            // 退出条件（Dialogue Scene必填）
+            if (beat.exit_condition) {
+                html += `<div class="sbt-beat-field">
+                    <div class="sbt-beat-field-label"><i class="fa-solid fa-door-open"></i> 退出条件</div>
+                    <div class="sbt-beat-field-value" contenteditable="true" data-beat-index="${index}" data-field="exit_condition">${beat.exit_condition}</div>
+                </div>`;
+            }
+
+            // 向后兼容：如果还有旧的description字段
+            if (beat.description && !beat.physical_event) {
+                html += `<div class="sbt-beat-description" contenteditable="true" data-beat-index="${index}" data-field="description">${beat.description}</div>`;
             }
 
             html += '</div>'; // 结束节拍卡片
@@ -932,10 +955,47 @@ export function updateDashboard(chapterState) {
             };
 
             const report = notes.self_scrutiny_report || {};
+
+            // 渲染模式选择理由（结构化）
+            let modeSelectionHtml = '';
+            if (notes.mode_selection_rationale) {
+                const rationale = notes.mode_selection_rationale;
+                const chosenMode = rationale.chosen_mode || (typeof rationale === 'string' ? '未知' : '未知');
+                const analysis = rationale.dimension_analysis || {};
+                const reasoning = rationale.final_reasoning || (typeof rationale === 'string' ? rationale : '未阐述');
+
+                // 模式标签样式
+                const modeClass = chosenMode === 'linear' ? 'linear-mode' : 'freeroom-mode';
+                const modeName = chosenMode === 'linear' ? '电影化线性' : chosenMode === 'free_roam' ? '自由漫游' : chosenMode;
+
+                modeSelectionHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                        <strong><i class="fa-solid fa-route fa-fw"></i> 叙事模式选择:</strong>
+                        <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
+                            <span class="sbt-mode-badge ${modeClass}" style="padding: 4px 12px; border-radius: 4px; font-weight: bold;">${modeName}</span>
+                        </div>
+                        ${analysis.information_gap || analysis.urgency || analysis.emotional_focus || analysis.causality_hardness ? `
+                        <div style="margin-top: 15px; padding: 10px; background: var(--sbt-background); border-radius: 6px;">
+                            <div style="font-size: 0.9em; color: var(--sbt-text-muted); margin-bottom: 8px;">📊 四维度分析</div>
+                            ${analysis.information_gap ? `<div style="margin: 5px 0;"><strong>信息密度:</strong> ${analysis.information_gap}</div>` : ''}
+                            ${analysis.urgency ? `<div style="margin: 5px 0;"><strong>紧迫性:</strong> ${analysis.urgency}</div>` : ''}
+                            ${analysis.emotional_focus ? `<div style="margin: 5px 0;"><strong>情感聚焦:</strong> ${analysis.emotional_focus}</div>` : ''}
+                            ${analysis.causality_hardness ? `<div style="margin: 5px 0;"><strong>因果链:</strong> ${analysis.causality_hardness}</div>` : ''}
+                        </div>
+                        ` : ''}
+                        <div style="margin-top: 10px; padding-left: 10px; border-left: 3px solid var(--sbt-primary-accent); font-style: italic;">
+                            ${reasoning}
+                        </div>
+                    </div>
+                `;
+            }
+
             const notesHtml = `
+                ${modeSelectionHtml}
+
                 <strong><i class="fa-solid fa-diagram-project fa-fw"></i> 故事线编织:</strong>
                 <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.storyline_weaving || '未阐述'}</p>
-                
+
                 <strong><i class="fa-solid fa-link fa-fw"></i> 承上启下与钩子:</strong>
                 <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.connection_and_hook || '未阐述'}</p>
                 <strong><i class="fa-solid fa-link fa-fw"></i> 导演高光设计思路:</strong>
@@ -944,10 +1004,10 @@ export function updateDashboard(chapterState) {
                 <hr style="margin: 20px 0; border-color: var(--sbt-border-color);">
 
                 <h6 style="font-size: 1.1em; margin-bottom: 15px; color: var(--sbt-primary-accent);"><i class="fa-solid fa-magnifying-glass-chart fa-fw"></i> AI自我审查报告</h6>
-                ${renderScrutinyItem(report, 'avoiding_thematic_greed', '1. 关于“主题贪婪”')}
-                ${renderScrutinyItem(report, 'avoiding_setting_driven_performance', '2. 关于“设定驱动”')}
-                ${renderScrutinyItem(report, 'avoiding_storyline_overload', '3. 关于“叙事线过载”')}
-                ${renderScrutinyItem(report, 'avoiding_premature_suspense', '4. 关于“悬念前置”')}
+                ${renderScrutinyItem(report, 'avoiding_thematic_greed', '1. 关于"主题贪婪"')}
+                ${renderScrutinyItem(report, 'avoiding_setting_driven_performance', '2. 关于"设定驱动"')}
+                ${renderScrutinyItem(report, 'avoiding_storyline_overload', '3. 关于"叙事线过载"')}
+                ${renderScrutinyItem(report, 'avoiding_premature_suspense', '4. 关于"悬念前置"')}
             `;
             notesContainer.html(notesHtml);
         } else {

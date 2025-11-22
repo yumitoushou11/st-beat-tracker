@@ -223,7 +223,7 @@ export class StoryBeatEngine {
      * @param {string[]} chapterContextIds - 章节规划的实体ID数组
      * @returns {string} 格式化的章节级实体详细信息
      */
-    _generateChapterStaticContext(chapterContextIds) {
+    _generateChapterStaticContext(chapterContextIds, sourceChapter = null) {
         console.group('[ENGINE-V3-PROBE] 章节级静态上下文生成');
         console.log('章节规划实体ID列表:', chapterContextIds);
 
@@ -233,7 +233,11 @@ export class StoryBeatEngine {
             return '';
         }
 
-        const contextContent = this._retrieveEntitiesByIdsInternal(chapterContextIds, '章节级静态上下文');
+        const contextContent = this._retrieveEntitiesByIdsInternal(
+            chapterContextIds,
+            '章节级静态上下文',
+            sourceChapter
+        );
 
         const finalContent = contextContent ? [
             ``,
@@ -255,9 +259,10 @@ export class StoryBeatEngine {
      * [V3.0 重构] 内部实体检索方法，被章节级和回合级检索共用
      * @param {string[]} entityIds - 实体ID数组
      * @param {string} contextLabel - 上下文标签（用于日志）
+     * @param {object} sourceChapter - 可选的源章节对象（用于章节转换时）
      * @returns {string} 格式化的实体详细信息（不含标题）
      */
-    _retrieveEntitiesByIdsInternal(entityIds, contextLabel = '上下文') {
+    _retrieveEntitiesByIdsInternal(entityIds, contextLabel = '上下文', sourceChapter = null) {
         console.group(`[ENGINE-V3-PROBE] ${contextLabel}召回`);
         console.log('需要召回的实体ID列表:', entityIds);
 
@@ -267,7 +272,15 @@ export class StoryBeatEngine {
             return '';
         }
 
-        const staticMatrices = this.currentChapter.staticMatrices;
+        // 使用传入的章节或当前章节
+        const chapter = sourceChapter || this.currentChapter;
+        if (!chapter || !chapter.staticMatrices) {
+            console.error('❌ 错误：无法获取 staticMatrices，章节对象为空');
+            console.groupEnd();
+            return '';
+        }
+
+        const staticMatrices = chapter.staticMatrices;
         const retrievedEntities = [];
 
         for (const entityId of entityIds) {
@@ -400,7 +413,13 @@ onPromptReady = async (eventData) => {
     
     this.isConductorActive = true;
     this.info("✅ 同步检查通过并成功上锁，即将执行分离式注入...");
-const instructionPlaceholder = {
+const spoilerBlockPlaceholder = {
+        role: 'system',
+        content: "【SBT 引擎正在编译剧透封锁禁令...】",
+        is_SBT_script: true,
+        is_SBT_spoiler_block: true // 0. 剧透封锁（最高优先级）
+    };
+    const instructionPlaceholder = {
         role: 'system',
         content: "【SBT 引擎正在编译回合指令...】",
         is_SBT_script: true,
@@ -435,11 +454,16 @@ const instructionPlaceholder = {
     finalChatContext.unshift(scriptPlaceholder);
     finalChatContext.unshift(recallPlaceholder);
     finalChatContext.unshift(instructionPlaceholder);
-    this.info("同步占位完成（4层注入：指令/召回/剧本/法则）。即将进入异步处理阶段...");
+    finalChatContext.unshift(spoilerBlockPlaceholder); // 剧透封锁放在最前面
+    this.info("同步占位完成（5层注入：剧透封锁/指令/召回/剧本/法则）。即将进入异步处理阶段...");
 
     try {
         this.info("异步处理流程启动...");
         this.currentChapter = Chapter.fromJSON(lastStatePiece.leader);
+
+        // 触发UI刷新事件，确保监控面板显示最新状态（包括故事梗概）
+        this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+        this.info("状态已从leader消息恢复，UI已刷新");
 
         // 读取开关状态，默认为 true (开启)
         const isConductorEnabled = localStorage.getItem('sbt-conductor-enabled') !== 'false';
@@ -515,6 +539,12 @@ const instructionPlaceholder = {
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
 
             this.diagnose('[PROBE][CONDUCTOR-DECISION] 收到回合指挥官的完整决策:', JSON.parse(JSON.stringify(conductorDecision)));
+
+            // 【V4.0】边界验证日志
+            if (conductorDecision.micro_instruction?.scope_limit_reasoning) {
+                this.info(`[BOUNDARY-CHECK] scope_limit边界推理: ${conductorDecision.micro_instruction.scope_limit_reasoning}`);
+            }
+
             if (conductorDecision.decision === 'TRIGGER_TRANSITION' || conductorDecision.decision === 'TRIGGER_EMERGENCY_TRANSITION') {
                 const reason = conductorDecision.decision === 'TRIGGER_EMERGENCY_TRANSITION' ? "【紧急熔断】" : "【常规】";
                 this.info(`PROBE [PENDING-TRANSITION]: 回合指挥官已发出${reason}章节转换的后台密令。`);
@@ -542,6 +572,47 @@ const instructionPlaceholder = {
             }
 
 if (this.currentChapter.chapter_blueprint) {
+    // 【V4.2 新增】第0层：剧透封锁禁令（最高优先级，独立消息）
+    const narrativeHold = conductorDecision.micro_instruction?.narrative_hold || '';
+
+    if (narrativeHold && narrativeHold.trim() !== '' && narrativeHold !== '无' && narrativeHold !== '无。') {
+        spoilerBlockPlaceholder.content = [
+            `# 🚫 【绝对禁止与封锁内容】`,
+            ``,
+            `**这是本回合的剧透封锁禁令。以下内容是绝对禁止的，违反将导致叙事失败。**`,
+            ``,
+            narrativeHold,
+            ``,
+            `**请在开始写作前，再次确认你已理解并遵守上述封锁禁令。**`
+        ].join('\n');
+        this.info('[SBT-INFO] ✓ 第0层剧透封锁已注入');
+    } else {
+        spoilerBlockPlaceholder.content = [
+            `# 🚫 【绝对禁止与封锁内容】`,
+            ``,
+            `本回合无特殊剧透封锁要求。`
+        ].join('\n');
+        this.info('[SBT-INFO] ○ 第0层无封锁内容');
+    }
+
+    // 【V4.3 新增】第0.5层：场景状态补充（剧本润滑 - 信息补充）
+    const scriptLubrication = conductorDecision.micro_instruction?.script_lubrication || '';
+
+    if (scriptLubrication && scriptLubrication.trim() !== '' && scriptLubrication !== '无' && scriptLubrication !== '无。') {
+        spoilerBlockPlaceholder.content += '\n\n' + [
+            `---`,
+            ``,
+            `# 📍 【当前场景状态补充】`,
+            ``,
+            `**以下是本回合的场景物理状态信息，请将其作为当前场景的客观事实：**`,
+            ``,
+            scriptLubrication
+        ].join('\n');
+        this.info('[SBT-INFO] ✓ 第0.5层场景状态补充已注入');
+    } else {
+        this.info('[SBT-INFO] ○ 第0.5层无场景状态补充');
+    }
+
     // 【V3.2 重构】第1层：最高优先级微指令（放在最前面，独立强调）
     // 【V4.1 增强】添加强化负面约束
     const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
@@ -551,18 +622,11 @@ if (this.currentChapter.chapter_blueprint) {
     );
 
     instructionPlaceholder.content = [
-        `╔═══════════════════════════════════════════════════════════════════════╗`,
-        `║                   【最高优先级：本回合导演微指令】                    ║`,
-        `║                      (Turn-Level Micro Instruction)                  ║`,
-        `╚═══════════════════════════════════════════════════════════════════════╝`,
+        `# 【本回合导演微指令】`,
         ``,
         strictNarrativeConstraints,
         ``,
-        `⚠️ **【强制性指令】** 以下微指令具有最高优先级，必须在本回合严格执行：`,
-        ``,
-        formattedInstruction,
-        ``,
-        `───────────────────────────────────────────────────────────────────────`
+        formattedInstruction
     ].join('\n');
 
     // 【V3.2 重构】第2层：双轨召回档案（章节级 + 回合级）
@@ -758,56 +822,64 @@ if (this.currentChapter.chapter_blueprint) {
         return consolidatedLog;
     }
 _formatMicroInstruction(instruction) {
-    // 如果输入无效，返回一个安全的默认值
+    // 如果输入无效，返回空字符串（主要内容已在 _buildStrictNarrativeConstraints 中输出）
     if (!instruction || typeof instruction !== 'object') {
-        return "无特殊指令，请按剧本自由演绎。";
+        return "";
     }
-    const { narrative_goal, scope_limit, narrative_hold, corrective_action } = instruction;
-    // 如果是校准指令，优先显示
+    const { corrective_action } = instruction;
+    // 如果是校准指令，显示校准提示
     if (corrective_action && corrective_action.toLowerCase() !== '无 (none)') {
-        return `# 🚨 **【校准指令】**\n---\n*   ${corrective_action}`;
+        return `**校准提示:** ${corrective_action}`;
     }
 
-    // 否则，构建常规的导演指令
-    let formattedString = "# 🎬 **【本回合导演微指令】**\n---\n";
-    formattedString += `*   **战术目标 (Goal):** ${narrative_goal || '自由演绎。'}\n`;
-    formattedString += `*   **演绎边界 (Scope Limit):** ${scope_limit || '无特殊限制。'}\n`;
-    formattedString += `*   **信息壁垒 (Hold):** ${narrative_hold || '无。'}`;
-
-    return formattedString.trim();
+    // 常规情况下返回空，因为主要内容已在 _buildStrictNarrativeConstraints 中
+    return "";
 }
 
 /**
- * V4.1: 构建强化负面约束（方案三：Prompt强化）
- * 使用系统级别的强制拦截网，确保AI无法越界
+ * V4.2: 构建强化负面约束（方案三：Prompt强化）
+ * narrative_hold 已移至独立的第0层，此处只保留边界和建议
  */
 _buildStrictNarrativeConstraints(currentBeat, microInstruction) {
     const scopeLimit = microInstruction?.scope_limit || '未定义';
-    const narrativeHold = microInstruction?.narrative_hold || '';
 
     let constraints = [
-        `### 🛑 绝对叙事禁令 (NARRATIVE STOP-SIGNS)`,
-        `你是一名严格遵守剧本进度的演员。`,
+        `**当前节拍:** ${currentBeat}`,
+        `**演绎边界:** ${scopeLimit}`,
         ``,
-        `1. **当前进度锁定:** 你目前仅处于 **${currentBeat}**。`,
-        `2. **禁止越界:** 绝对禁止描写当前节拍之后的内容。`,
-        `3. **信息封锁:** 下一刻会发生什么（其他角色的行动、未来的剧情）对你来说是**未知**的。`,
-        `4. **物理终点:** 你的描写必须在 **"${scopeLimit}"** 这一动作完成后**立即终止**。`,
-        ``
+        `**叙事建议:** ${microInstruction?.narrative_goal || '按照当前节拍自由演绎。'}`
     ];
 
-    // 如果有信息壁垒，额外强调
-    if (narrativeHold && narrativeHold.trim() !== '' && narrativeHold !== '无' && narrativeHold !== '无。') {
-        constraints.push(`5. **剧透隔离:** ${narrativeHold}`);
-        constraints.push(``);
+    return constraints.join('\n');
+}
+
+/**
+ * 处理节拍中的 ★ 星标标记
+ * 检测 description 是否以 ★ 开头，如果是则设置 is_highlight 并清理标记
+ */
+_processStarMarkedBeats(blueprint) {
+    if (!blueprint || !blueprint.plot_beats || !Array.isArray(blueprint.plot_beats)) {
+        return;
     }
 
-    constraints.push(`### ✅ 本回合唯一任务`);
-    constraints.push(`${microInstruction?.narrative_goal || '按照当前节拍自由演绎。'}`);
-    constraints.push(``);
-    constraints.push(`───────────────────────────────────────────────────────────────────────`);
+    let starCount = 0;
+    blueprint.plot_beats.forEach((beat, index) => {
+        if (beat.description && typeof beat.description === 'string') {
+            const trimmed = beat.description.trim();
+            if (trimmed.startsWith('★')) {
+                // 设置高光标记
+                beat.is_highlight = true;
+                // 清理描述中的 ★ 符号
+                beat.description = trimmed.substring(1).trim();
+                starCount++;
+                this.info(`[★ 星标检测] 节拍 ${index + 1} 被标记为高光节拍: ${beat.description.substring(0, 50)}...`);
+            }
+        }
+    });
 
-    return constraints.join('\n');
+    if (starCount > 0) {
+        this.info(`[★ 星标统计] 本章共有 ${starCount} 个高光节拍`);
+    }
 }
 
 /**
@@ -830,8 +902,9 @@ _applyBlueprintMask(blueprint, currentBeat) {
         isEndgame = true;
         currentBeatIndex = maskedBlueprint.plot_beats.length; // 所有节拍都已完成
     } else {
-        // 尝试从 "【节拍X】" 中提取索引
-        const match = currentBeat.match(/【节拍(\d+)】/);
+        // 尝试从 "【节拍X】" 或 "【节拍X：名称】" 中提取索引
+        // 支持格式: 【节拍6】 或 【节拍6：初次会面】
+        const match = currentBeat.match(/【节拍(\d+)[：:】]/);
         if (match) {
             currentBeatIndex = parseInt(match[1]) - 1; // 转换为0-based索引
         }
@@ -1915,6 +1988,9 @@ _syncUiWithRetry() {
             loadingToast.find('.toast-message').text("建筑师正在构思开篇剧本...");
             const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);
             if (architectResult && architectResult.new_chapter_script) {
+                // 处理 ★ 星标节拍
+                this._processStarMarkedBeats(architectResult.new_chapter_script);
+
                 this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
                 this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
 
@@ -2094,6 +2170,10 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             // 7. 最终化并持久化新状态
             loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
             const finalChapterState = workingChapter;
+
+            // 处理 ★ 星标节拍
+            this._processStarMarkedBeats(architectResult.new_chapter_script);
+
             finalChapterState.chapter_blueprint = architectResult.new_chapter_script;
             finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
 
@@ -2101,7 +2181,11 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
             console.group('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
             console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
-            finalChapterState.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
+            // 【修复】传入 workingChapter 作为数据源，而不是依赖 this.currentChapter
+            finalChapterState.cachedChapterStaticContext = this._generateChapterStaticContext(
+                chapterContextIds,
+                workingChapter
+            );
             console.log('缓存后 cachedChapterStaticContext 长度:', finalChapterState.cachedChapterStaticContext?.length || 0);
             console.groupEnd();
             this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
@@ -2143,7 +2227,9 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
         }
     }
     async _runStrategicReview(chapterContext, startIndex, endIndex) {
-        console.group("BRIDGE-PROBE [STRATEGIC-REVIEW | ECI-MODE]");
+        console.group("BRIDGE-PROBE [STRATEGIC-REVIEW]");
+        this.info("史官正在复盘本章历史...");
+
         let reviewDelta = null;
         try {
             const chat = this.USER.getContext().chat;
@@ -2310,6 +2396,8 @@ async reanalyzeWorldbook() {
         if (lastStatePiece && Chapter.isValidStructure(lastStatePiece.leader)) {
             this.currentChapter = Chapter.fromJSON(lastStatePiece.leader);
             this.info("热重载: 已从聊天记录中成功加载当前 Chapter 状态。");
+            // 触发UI刷新，确保监控面板显示最新状态
+            this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
         } else {
             throw new Error("在聊天记录中未找到有效的故事状态。请先开始对话。");
         }

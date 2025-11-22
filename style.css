@@ -2201,6 +2201,24 @@ input:checked + .sbt-slider:before {
     background-color: rgba(255, 159, 10, 0.1);
 }
 
+.sbt-highlight-star {
+    color: #FFD700;
+    margin-left: 8px;
+    font-size: 1.1em;
+    animation: pulse-star 2s ease-in-out infinite;
+}
+
+@keyframes pulse-star {
+    0%, 100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 0.7;
+        transform: scale(1.1);
+    }
+}
+
 .sbt-beat-header {
     display: flex;
     align-items: center;
@@ -2236,6 +2254,36 @@ input:checked + .sbt-slider:before {
     color: var(--sbt-text-medium);
     line-height: 1.5;
     margin-left: 32px;
+}
+
+/* 新格式：结构化字段 */
+.sbt-beat-field {
+    margin: 8px 0 8px 32px;
+    border-left: 3px solid var(--sbt-border-color);
+    padding-left: 12px;
+}
+
+.sbt-beat-field-label {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--sbt-primary-accent);
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sbt-beat-field-label i {
+    font-size: 0.9em;
+}
+
+.sbt-beat-field-value {
+    font-size: 0.9em;
+    color: var(--sbt-text-medium);
+    line-height: 1.5;
+    padding: 6px 8px;
+    background: var(--sbt-background);
+    border-radius: 4px;
 }
 
 .sbt-beat-exit {
@@ -2733,5 +2781,27 @@ input:checked + .sbt-slider:before {
 .sbt-cooldown-required {
     color: #9ac8ff;
     font-weight: 600;
+}
+
+/* --- 叙事模式标签样式 --- */
+.sbt-mode-badge {
+    display: inline-block;
+    font-size: 0.9em;
+    font-weight: bold;
+    padding: 4px 12px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+.sbt-mode-badge.linear-mode {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.sbt-mode-badge.freeroom-mode {
+    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    color: #fff;
+    box-shadow: 0 2px 8px rgba(240, 147, 251, 0.3);
 }
 
