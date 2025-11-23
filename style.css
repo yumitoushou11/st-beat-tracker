@@ -2805,3 +2805,136 @@ input:checked + .sbt-slider:before {
     box-shadow: 0 2px 8px rgba(240, 147, 251, 0.3);
 }
 
+/* === V5.0 叙事节奏环样式 (Narrative Rhythm Clock) === */
+
+.sbt-rhythm-clock-visual {
+    margin-bottom: 15px;
+}
+
+.sbt-rhythm-phases {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 15px;
+    background: var(--sbt-bg-medium);
+    border-radius: 8px;
+}
+
+.sbt-rhythm-phase {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--sbt-bg-dark);
+    border: 2px solid var(--sbt-border-color);
+    transition: all 0.3s ease;
+    cursor: default;
+}
+
+.sbt-rhythm-phase i {
+    font-size: 1.2em;
+    color: var(--sbt-text-medium);
+    margin-bottom: 4px;
+}
+
+.sbt-rhythm-phase .sbt-phase-name {
+    font-size: 0.7em;
+    color: var(--sbt-text-medium);
+}
+
+.sbt-rhythm-phase.active {
+    border-color: var(--phase-color);
+    background: linear-gradient(135deg, var(--sbt-bg-dark) 0%, var(--sbt-bg-medium) 100%);
+    box-shadow: 0 0 15px rgba(var(--phase-color), 0.3);
+    transform: scale(1.1);
+}
+
+.sbt-rhythm-phase.active i {
+    color: var(--phase-color);
+}
+
+.sbt-rhythm-phase.active .sbt-phase-name {
+    color: var(--phase-color);
+    font-weight: 600;
+}
+
+.sbt-phase-arrow {
+    color: var(--sbt-text-medium);
+    font-size: 0.8em;
+    opacity: 0.5;
+}
+
+.sbt-rhythm-current {
+    padding: 12px 15px;
+    background: var(--sbt-bg-medium);
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.sbt-rhythm-current-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.sbt-rhythm-current-header i {
+    font-size: 1.1em;
+}
+
+.sbt-rhythm-current-phase {
+    font-size: 1.1em;
+    font-weight: 600;
+}
+
+.sbt-rhythm-current-desc {
+    color: var(--sbt-text-medium);
+    font-size: 0.9em;
+    padding-left: 24px;
+}
+
+.sbt-rhythm-stats {
+    display: flex;
+    gap: 20px;
+    padding: 10px 15px;
+    background: var(--sbt-bg-dark);
+    border-radius: 6px;
+    margin-bottom: 12px;
+}
+
+.sbt-rhythm-stat-item {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.sbt-rhythm-stat-label {
+    color: var(--sbt-text-medium);
+    font-size: 0.85em;
+}
+
+.sbt-rhythm-stat-value {
+    color: var(--sbt-text-light);
+    font-weight: 600;
+    font-size: 0.9em;
+}
+
+.sbt-rhythm-recommendation {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    background: linear-gradient(90deg, rgba(156, 39, 176, 0.1) 0%, transparent 100%);
+    border-left: 3px solid #9c27b0;
+    border-radius: 4px;
+    font-size: 0.9em;
+}
+
+.sbt-rhythm-recommendation i {
+    color: #9c27b0;
+}
+

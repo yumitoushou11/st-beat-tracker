@@ -22,11 +22,19 @@ export class TurnConductorAgent extends Agent {
         // V2.0: 解构完整上下文
         const { lastExchange, chapterBlueprint, chapter } = context;
 
+        // V5.0: 提取叙事节奏环状态
+        const narrativeRhythmClock = chapter?.meta?.narrative_control_tower?.narrative_rhythm_clock || {
+            current_phase: "inhale",
+            cycle_count: 0,
+            current_phase_duration: 0
+        };
+
         const prompt = this._createPrompt({
             lastExchange,
             chapterBlueprint,
             staticMatrices: chapter?.staticMatrices || {},
-            stylisticArchive: chapter?.dynamicState?.stylistic_archive || {}
+            stylisticArchive: chapter?.dynamicState?.stylistic_archive || {},
+            narrativeRhythmClock // V5.0 新增
         });
 
         console.groupCollapsed('[SBT-DIAGNOSE] Full TurnConductor AI System Prompt V8.0 (V2.0)');
@@ -121,7 +129,7 @@ export class TurnConductorAgent extends Agent {
 // ai/turnConductorAgent.js
 
 _createPrompt(context) {
-    const { lastExchange, chapterBlueprint, staticMatrices, stylisticArchive } = context;
+    const { lastExchange, chapterBlueprint, staticMatrices, stylisticArchive, narrativeRhythmClock } = context;
     const activeChapterBlueprint = chapterBlueprint || { title: "错误", plot_beats: ["未找到有效的创作蓝图。"] };
 
     // V2.0: 生成轻量级实体清单（Manifest）
@@ -296,8 +304,27 @@ ${JSON.stringify(activeChapterBlueprint.chapter_context_ids || [], null, 2)}
     ${stylisticSummary}
     </stylistic_summary>
     **作用说明：** 这是当前故事已使用的高频文学元素清单。你可以在 \`narrative_goal\` 中为演绎AI提供"避免重复"的美学建议。
+
+4.  **【V5.0 新增】叙事节奏环状态 (Narrative Rhythm Clock):**
+    <narrative_rhythm_clock>
+    当前相位: ${narrativeRhythmClock.current_phase}
+    相位持续章节数: ${narrativeRhythmClock.current_phase_duration}
+    完整呼吸周期数: ${narrativeRhythmClock.cycle_count}
+    </narrative_rhythm_clock>
+    **相位说明：**
+    - **inhale（吸气）**: 铺垫阶段，张力缓慢上升，允许日常互动和伏笔布设
+    - **hold（憋气）**: 高峰前夜，紧张感达到顶峰，暴风雨前的宁静
+    - **exhale（呼气）**: 高潮释放，核心冲突爆发，情感顶峰
+    - **pause（停顿）**: 余韵沉淀，情感消化，日常恢复
+
+    **你的适配策略：**
+    - **inhale阶段**: \`narrative_goal\` 应建议"舒缓叙事节奏，注重细节铺垫"
+    - **hold阶段**: \`narrative_goal\` 应建议"营造紧迫感，缩短句子，加快节奏"
+    - **exhale阶段**: \`narrative_goal\` 应建议"允许情感爆发，可使用强烈词汇和感官描写"
+    - **pause阶段**: \`narrative_goal\` 应建议"留白和喘息空间，避免引入新冲突"
+
 ---
-## **第三章：编译方法论：“守护者”的三步工作法**
+## **第三章：编译方法论："守护者"的三步工作法**
 ---
 你必须严格按照以下流程思考，并将结果填入最终的JSON输出。
 ### **第一步：定位目标节拍 (Locate Target Beat)**

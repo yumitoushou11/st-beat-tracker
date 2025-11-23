@@ -1057,6 +1057,101 @@ function renderNarrativeControlTower(chapterState) {
     const tower = chapterState?.meta?.narrative_control_tower;
     if (!tower) return;
 
+    // === 0. V5.0 渲染叙事节奏环 ===
+    const rhythmClockContainer = $('#sbt-rhythm-clock-content');
+    if (rhythmClockContainer.length > 0) {
+        const clock = tower.narrative_rhythm_clock;
+        if (clock) {
+            const phaseNames = {
+                inhale: '吸气',
+                hold: '憋气',
+                exhale: '呼气',
+                pause: '停顿'
+            };
+            const phaseDescriptions = {
+                inhale: '铺垫与悬念积累',
+                hold: '张力达到顶峰',
+                exhale: '释放与爆发',
+                pause: '余韵与沉淀'
+            };
+            const phaseIcons = {
+                inhale: 'fa-wind',
+                hold: 'fa-hand',
+                exhale: 'fa-burst',
+                pause: 'fa-moon'
+            };
+            const phaseColors = {
+                inhale: '#3498db',  // 蓝色 - 平静上升
+                hold: '#f39c12',    // 橙色 - 紧张
+                exhale: '#e74c3c',  // 红色 - 爆发
+                pause: '#9b59b6'    // 紫色 - 沉淀
+            };
+
+            const currentPhase = clock.current_phase || 'inhale';
+            const phaseName = phaseNames[currentPhase] || currentPhase;
+            const phaseDesc = phaseDescriptions[currentPhase] || '';
+            const phaseIcon = phaseIcons[currentPhase] || 'fa-circle';
+            const phaseColor = phaseColors[currentPhase] || '#666';
+
+            let html = '';
+
+            // 节奏环可视化 - 四相位圆环
+            html += '<div class="sbt-rhythm-clock-visual">';
+            html += '<div class="sbt-rhythm-phases">';
+            ['inhale', 'hold', 'exhale', 'pause'].forEach((phase, index) => {
+                const isActive = phase === currentPhase;
+                const activeClass = isActive ? 'active' : '';
+                const icon = phaseIcons[phase];
+                const name = phaseNames[phase];
+                const color = phaseColors[phase];
+                html += `<div class="sbt-rhythm-phase ${activeClass}" style="--phase-color: ${color};" title="${name}: ${phaseDescriptions[phase]}">`;
+                html += `<i class="fa-solid ${icon}"></i>`;
+                html += `<span class="sbt-phase-name">${name}</span>`;
+                html += '</div>';
+                if (index < 3) {
+                    html += '<div class="sbt-phase-arrow"><i class="fa-solid fa-chevron-right"></i></div>';
+                }
+            });
+            html += '</div>';
+            html += '</div>';
+
+            // 当前相位详情
+            html += '<div class="sbt-rhythm-current" style="border-left: 3px solid ' + phaseColor + ';">';
+            html += `<div class="sbt-rhythm-current-header">`;
+            html += `<i class="fa-solid ${phaseIcon}" style="color: ${phaseColor};"></i>`;
+            html += `<span class="sbt-rhythm-current-phase" style="color: ${phaseColor};">${phaseName}</span>`;
+            html += '</div>';
+            html += `<div class="sbt-rhythm-current-desc">${phaseDesc}</div>`;
+            html += '</div>';
+
+            // 统计信息
+            html += '<div class="sbt-rhythm-stats">';
+            html += `<div class="sbt-rhythm-stat-item">`;
+            html += `<span class="sbt-rhythm-stat-label">相位持续:</span>`;
+            html += `<span class="sbt-rhythm-stat-value">${clock.current_phase_duration || 0} 章</span>`;
+            html += '</div>';
+            html += `<div class="sbt-rhythm-stat-item">`;
+            html += `<span class="sbt-rhythm-stat-label">呼吸周期:</span>`;
+            html += `<span class="sbt-rhythm-stat-value">第 ${(clock.cycle_count || 0) + 1} 次</span>`;
+            html += '</div>';
+            html += '</div>';
+
+            // 史官推荐（如果有）
+            if (clock.recommended_next_phase && clock.recommended_next_phase !== currentPhase) {
+                const nextName = phaseNames[clock.recommended_next_phase] || clock.recommended_next_phase;
+                const nextColor = phaseColors[clock.recommended_next_phase] || '#666';
+                html += '<div class="sbt-rhythm-recommendation">';
+                html += `<i class="fa-solid fa-arrow-right"></i>`;
+                html += `<span>史官建议下一相位: <strong style="color: ${nextColor};">${nextName}</strong></span>`;
+                html += '</div>';
+            }
+
+            rhythmClockContainer.html(html);
+        } else {
+            rhythmClockContainer.html('<p class="sbt-instructions">节奏环未初始化</p>');
+        }
+    }
+
     // === 1. 渲染节奏指令 ===
     const directiveContainer = $('#sbt-rhythm-directive-content');
     if (directiveContainer.length > 0) {

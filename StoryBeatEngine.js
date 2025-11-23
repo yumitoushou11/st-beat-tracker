@@ -961,11 +961,14 @@ _syncUiWithRetry() {
     const transitionBtnWrapper = $('#sbt-force-transition-btn-wrapper');
 
     if (piece && Chapter.isValidStructure(piece.leader)) {
-        this.info(`  -> 成功找到leader状态！正在切换到“游戏内”按钮。`);
+        this.info(`  -> 成功找到leader状态！正在切换到"游戏内"按钮。`);
         genesisBtn.hide();
         transitionBtnWrapper.show();
 
-        this.eventBus.emit('CHAPTER_UPDATED', Chapter.fromJSON(piece.leader));
+        // V5.1 修复：同时更新内存中的 currentChapter，确保状态回退一致性
+        // 这样当用户删除消息时，引擎内存中的状态也会同步回退
+        this.currentChapter = Chapter.fromJSON(piece.leader);
+        this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
         clearTimeout(this.uiSyncRetryTimer);
         this.uiSyncRetryTimer = null;
         this.uiSyncRetryCount = 0;
@@ -1411,6 +1414,72 @@ _syncUiWithRetry() {
             workingChapter.meta.lastChapterHandoff = delta.new_handoff_memo;
         }
 
+        // V6.0 步骤三B：更新年表时间
+        if (delta.chronology_update) {
+            console.group('[ENGINE-V6-CHRONOLOGY] 时间流逝更新流程');
+            this.info(" -> 检测到年表更新请求...");
+
+            const chronUpdate = delta.chronology_update;
+            console.log('收到时间更新:', chronUpdate);
+
+            if (!workingChapter.dynamicState.chronology) {
+                workingChapter.dynamicState.chronology = {
+                    day_count: 1,
+                    time_slot: "evening",
+                    weather: null,
+                    last_rest_chapter: null
+                };
+                this.info(" -> 已初始化年表系统");
+            }
+
+            const chron = workingChapter.dynamicState.chronology;
+
+            // 应用时间更新
+            if (chronUpdate.new_day_count !== undefined) {
+                chron.day_count = chronUpdate.new_day_count;
+                this.info(`  ✓ 天数更新: ${chronUpdate.new_day_count}`);
+            }
+            if (chronUpdate.new_time_slot) {
+                const oldSlot = chron.time_slot;
+                chron.time_slot = chronUpdate.new_time_slot;
+                this.info(`  ✓ 时段更新: ${oldSlot} -> ${chronUpdate.new_time_slot}`);
+            }
+            if (chronUpdate.new_weather !== undefined) {
+                chron.weather = chronUpdate.new_weather;
+                this.info(`  ✓ 天气更新: ${chronUpdate.new_weather || '清除'}`);
+            }
+
+            // 如果是时间跳跃,应用生理状态变更
+            if (chronUpdate.transition_type === 'time_jump' && chronUpdate.physiological_effects) {
+                this.info("  -> 检测到时间跳跃,应用生理状态变更...");
+                let hasRest = false;
+                for (const charId in chronUpdate.physiological_effects) {
+                    const effects = chronUpdate.physiological_effects[charId];
+                    if (!workingChapter.dynamicState.characters[charId]) {
+                        workingChapter.dynamicState.characters[charId] = {};
+                    }
+                    Object.assign(workingChapter.dynamicState.characters[charId], effects);
+                    this.info(`    ✓ 角色 ${charId}: ${JSON.stringify(effects)}`);
+
+                    // 检查是否有角色休息
+                    if (effects.fatigue === 'rested' || effects.fatigue === 'refreshed') {
+                        hasRest = true;
+                    }
+                }
+
+                // 更新last_rest_chapter
+                if (hasRest) {
+                    chron.last_rest_chapter = workingChapter.uid;
+                    this.info(`  ✓ 记录休息章节: ${workingChapter.uid}`);
+                }
+            }
+
+            console.log('最终时间状态:', JSON.parse(JSON.stringify(chron)));
+            console.log('时间转换类型:', chronUpdate.transition_type);
+            console.log('推理:', chronUpdate.reasoning);
+            console.groupEnd();
+        }
+
         // V2.0 步骤四：更新宏观叙事弧光
         if (delta.updates?.meta?.active_narrative_arcs) {
             console.group('[ENGINE-V2-PROBE] 宏观叙事弧光更新流程');
@@ -1721,6 +1790,59 @@ _syncUiWithRetry() {
                 device_usage_details: rhythmData.device_usage_details || ""
             };
             this.info(`  ✓ [微观] 保存 last_chapter_rhythm`);
+
+            // === V5.0 叙事节奏环更新 ===
+            if (rhythmData.recommended_next_phase || rhythmData.phase_transition_triggered) {
+                // 确保节奏环存在
+                if (!tower.narrative_rhythm_clock) {
+                    tower.narrative_rhythm_clock = {
+                        current_phase: "inhale",
+                        phase_description: {},
+                        cycle_count: 0,
+                        last_phase_change_chapter: null,
+                        current_phase_duration: 0,
+                        recommended_next_phase: null,
+                        phase_history: []
+                    };
+                }
+
+                const clock = tower.narrative_rhythm_clock;
+                const oldPhase = clock.current_phase;
+                const newPhase = rhythmData.recommended_next_phase || oldPhase;
+
+                // 如果相位发生变化
+                if (rhythmData.phase_transition_triggered && newPhase !== oldPhase) {
+                    // 检查是否完成一个周期（pause → inhale）
+                    if (oldPhase === 'pause' && newPhase === 'inhale') {
+                        clock.cycle_count = (clock.cycle_count || 0) + 1;
+                        this.info(`  ✓ [节奏环] 完成第 ${clock.cycle_count} 次呼吸周期`);
+                    }
+
+                    // 记录相位变化历史
+                    clock.phase_history.push({
+                        phase: newPhase,
+                        chapter_uid: workingChapter.uid,
+                        reason: rhythmData.phase_transition_reasoning || '史官评估'
+                    });
+                    // 保留最近5次
+                    if (clock.phase_history.length > 5) {
+                        clock.phase_history = clock.phase_history.slice(-5);
+                    }
+
+                    // 更新当前相位
+                    clock.current_phase = newPhase;
+                    clock.last_phase_change_chapter = workingChapter.uid;
+                    clock.current_phase_duration = 1;
+                    this.info(`  ✓ [节奏环] 相位转换: ${oldPhase} → ${newPhase}`);
+                } else {
+                    // 相位未变化，增加持续计数
+                    clock.current_phase_duration = (clock.current_phase_duration || 0) + 1;
+                    this.info(`  ✓ [节奏环] 维持相位: ${oldPhase} (持续 ${clock.current_phase_duration} 章)`);
+                }
+
+                // 保存史官推荐
+                clock.recommended_next_phase = rhythmData.recommended_next_phase || null;
+            }
 
             // === 第四层：叙事技法冷却状态更新 ===
             if (rhythmData.narrative_devices_used) {

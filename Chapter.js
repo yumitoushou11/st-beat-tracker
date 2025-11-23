@@ -90,6 +90,13 @@ export class Chapter {
                     relationship_arcs: {},
                     personal_arcs: {}
                 },
+                // V6.0: 年表系统 - 模糊时段记录
+                chronology: {
+                    day_count: 1,              // 第几天
+                    time_slot: "evening",      // 当前时段 (dawn/morning/noon/afternoon/dusk/evening/late_night)
+                    weather: null,             // 天气状态
+                    last_rest_chapter: null    // 上次休息章节号
+                },
                 // V2.0: 文体档案库 - 用于追踪已使用的文学元素，实现文体熵增对抗
                 stylistic_archive: {
                     imagery_and_metaphors: [
@@ -131,6 +138,30 @@ export class Chapter {
                 // V4.0: 叙事控制塔 (Narrative Control Tower) - 一体化节奏管理系统
                 // 所有节奏相关决策的统一数据源
                 narrative_control_tower: {
+
+                    // === V5.0 叙事节奏环 (Narrative Rhythm Clock) ===
+                    // 核心概念：叙事如呼吸，inhale→hold→exhale→pause 循环往复
+                    narrative_rhythm_clock: {
+                        current_phase: "inhale",  // inhale | hold | exhale | pause
+                        phase_description: {
+                            inhale: "吸气：铺垫与悬念积累，张力上升",
+                            hold: "憋气：张力达到顶峰，高潮前的凝滞",
+                            exhale: "呼气：释放与爆发，高潮时刻",
+                            pause: "停顿：余韵与沉淀，情感消化"
+                        },
+                        // 当前周期计数（从故事开始算起的第几次完整呼吸）
+                        cycle_count: 0,
+                        // 上次相位变化的章节UID
+                        last_phase_change_chapter: null,
+                        // 当前相位已持续的章节数
+                        current_phase_duration: 0,
+                        // 史官推荐的下一相位（由historian评估后填写）
+                        recommended_next_phase: null,
+                        // 相位变化历史（最近5次）
+                        phase_history: [
+                            // { phase: "inhale", chapter_uid: "chap_01", reason: "故事开始，进入铺垫阶段" }
+                        ]
+                    },
 
                     // === 第一层：微观节奏（章节级）===
                     // 最近5章的情感强度曲线

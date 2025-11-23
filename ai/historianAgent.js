@@ -110,10 +110,23 @@ export class HistorianAgent extends Agent {
         const activeChapterBlueprint = chapter.chapter_blueprint;
         // V2.0: 提取宏观叙事弧光和文体档案
         const activeNarrativeArcs = chapter?.meta?.active_narrative_arcs || [];
+        // V5.0: 提取叙事节奏环状态
+        const narrativeRhythmClock = chapter?.meta?.narrative_control_tower?.narrative_rhythm_clock || {
+            current_phase: "inhale",
+            cycle_count: 0,
+            current_phase_duration: 0
+        };
         const stylisticArchive = chapter?.dynamicState?.stylistic_archive || {
             imagery_and_metaphors: [],
             frequent_descriptors: { adjectives: [], adverbs: [] },
             sensory_patterns: []
+        };
+        // V6.0: 提取年表信息
+        const chronology = chapter?.dynamicState?.chronology || {
+            day_count: 1,
+            time_slot: "evening",
+            weather: null,
+            last_rest_chapter: null
         };
         // 【探针】生成实体清单前先检查数据
         console.group('[HISTORIAN-PROBE] 生成实体清单');
@@ -185,6 +198,24 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
     ${JSON.stringify(stylisticArchive, null, 2)}
     </stylistic_archive>
     *   **作用说明:** 这是文体熵增对抗系统的基础数据。你需要从本章对话中提取新的文学元素，并与已有档案进行对比，识别重复使用的模式。
+
+9.  **【V5.0 叙事节奏环】当前节奏相位 (Narrative Rhythm Clock):**
+    <narrative_rhythm_clock>
+    ${JSON.stringify(narrativeRhythmClock, null, 2)}
+    </narrative_rhythm_clock>
+    *   **作用说明:** 叙事节奏遵循呼吸循环（inhale→hold→exhale→pause）。你需要评估本章是否触发了相位转换，并推荐下一相位。
+    *   **当前相位:** \`${narrativeRhythmClock.current_phase}\`
+    *   **已持续章节数:** ${narrativeRhythmClock.current_phase_duration}
+    *   **完整呼吸周期数:** ${narrativeRhythmClock.cycle_count}
+
+10. **【V6.0 年表系统】当前时间状态 (Chronology State):**
+    <chronology>
+    ${JSON.stringify(chronology, null, 2)}
+    </chronology>
+    *   **作用说明:** 年表系统记录叙事时间的流逝。你需要根据本章事件判定时间是否推进。
+    *   **当前天数:** 第 ${chronology.day_count} 天
+    *   **当前时段:** ${chronology.time_slot} (dawn/morning/noon/afternoon/dusk/evening/late_night)
+    *   **当前天气:** ${chronology.weather || '未记录'}
 
 ---
 **【第二部分：核心方法论 (Core Methodologies)】**
@@ -281,8 +312,8 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
     *   **所有细分字段必须使用中文字段名**，如 \`性格特质\` 而非 \`traits\`、\`人生里程碑\` 而非 \`life_milestones\`
     *   对于\`relationships\`变化，必须遵循方法论二的规则
 
-### **方法论五：双轨制摘要 (DUAL-TRACK SUMMARY)**
--   **【核心哲学】**: 同时扮演"编年史家"和"战地联络官"，确保故事连贯性和章节衔接。
+### **方法论五：V5.0 剪辑师双轨制摘要 (EDITOR'S DUAL-TRACK SUMMARY)**
+-   **【核心哲学】**: 你不是"监控录像员"，而是**电影剪辑师**。你有权力也有义务剪掉"垃圾时间"，为下一章选择最有价值的起点。
 -   **【双轨职责】**:
     1.  **第一轨：编年史家视角 (Chronicler Perspective)**
         - **目标**: 为未来的读者（可能是几十章后）提供整个故事的宏观脉络
@@ -290,40 +321,90 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
         - **字数**: 200-400字
         - **风格**: 第三人称客观叙述，像书背面的故事简介
 
-    2.  **第二轨：战地联络官视角 (Field Liaison Perspective)**
-        - **目标**: 为**下一章的建筑师AI**提供精确的"上一章结束瞬间"信息
-        - **【关键】**: 这是防止章节切换信息断层的核心机制！
-        - **内容要求（必须包含两个子字段）**:
-            - **\`ending_snapshot\`** (结束快照):
+    2.  **第二轨：剪辑师视角 (Editor's Perspective)** - **【V5.0 核心升级】**
+        - **目标**: 为建筑师AI提供**经过剪辑的、高价值的起点指令**
+        - **【关键转变】**: 你有权选择**无缝衔接**或**时空跳跃**
+        - **内容要求（必须包含三个子字段）**:
+
+            **A. \`ending_snapshot\`** (结束快照):
                 - 本章**最后3-5个对话或动作**的精确描述
                 - **必须包含**: 谁在场、谁在说话/做什么、环境细节、未完成的动作
-                - **示例**: "在风雪弥漫的小屋门前，Yumi刚刚推开门，她的目光扫过客厅里的几个陌生面孔——其中一个是坐在壁炉旁、正转过头来的Rofi。两人的视线在空中相遇的瞬间，Yumi的手还停留在门把手上，Rofi嘴里的烟斗还冒着烟。"
-            - **\`action_handoff\`** (动作交接):
-                - 明确指出下一章应该从哪里**无缝衔接**
-                - **必须回答**: 下一章第一句话/第一个场景应该是什么？
-                - **示例**: "下一章应该从Rofi的反应开始——他是否会站起来？会说什么？Yumi又会如何回应这个多年未见的童年玩伴？注意：此时其他角色也在场，包括Neph（黑猫形态）和屋主Elara。"
-        - **字数**: 150-300字
-        - **风格**: 第二人称指令式，直接对下一个建筑师说话
+
+            **B. \`transition_mode\`** (转场模式) - **【V5.0 新增】**:
+                - **seamless**: 无缝衔接（下一章从本章结束瞬间的下一秒开始）
+                - **jump_cut**: 跳切（省略低价值时间段，直接跳到下一个有意义节点）
+                - **scene_change**: 场景转换（彻底切换到不同时空的新场景）
+
+            **C. \`action_handoff\`** (动作交接):
+                - **如果 transition_mode == "seamless"**: 描述如何从结束瞬间无缝衔接
+                - **如果 transition_mode == "jump_cut"**: 明确说明**跳过什么**、**跳到哪里**
+                - **如果 transition_mode == "scene_change"**: 描述新场景的时空坐标和氛围
+
+-   **【✂️ 剪辑师协议：垃圾时间识别与跳切】**
+
+    **步骤1: 识别"垃圾时间"**
+    如果本章结尾指向以下内容，你**必须**考虑使用 \`jump_cut\`：
+
+    - **纯生理循环**: 洗澡、刷牙、上厕所、无对话的进食、穿衣
+    - **无意义移动**: 走路、爬楼梯、骑马赶路（除非路上有伏笔/遭遇战）
+    - **睡眠过程**: "闭上眼睛睡觉"本身（梦境除外）
+    - **等待过程**: 坐着发呆、站着等人（除非用于刻画心理状态）
+
+    **步骤2: 判断是否有"例外触发器"**
+    以下情况**可以**保留垃圾时间（使用 seamless）：
+
+    - 在洗澡时会有**重要灵感**或**闪回**
+    - 在赶路时会遭遇**伏击**或**关键NPC**
+    - 在睡眠中会有**预知梦**或**噩梦**
+    - 在等待中会有**突发事件**（如敌人突袭）
+
+    **步骤3: 执行跳切指令**
+    如果判定为垃圾时间且无例外，设置：
+    - \`transition_mode: "jump_cut"\`
+    - 在 \`action_handoff\` 中明确指示建筑师**跳过**这段时间
 
 -   **【输出要求】**:
     *   **\`new_long_term_summary\`**: 字符串，编年史家视角的概要
-    *   **\`new_handoff_memo\`**: 对象，必须包含 \`ending_snapshot\` 和 \`action_handoff\` 两个字段
+    *   **\`new_handoff_memo\`**: 对象，必须包含 \`ending_snapshot\`、\`transition_mode\`、\`action_handoff\` 三个字段
 
--   **【错误示例 vs 正确示例】**:
-    *   **❌ 错误（过于概括，无法衔接）**:
-        \`\`\`json
-        "new_handoff_memo": {
-          "ending_snapshot": "Yumi进入了小屋。",
-          "action_handoff": "下一章继续故事。"
-        }
-        \`\`\`
-    *   **✓ 正确（具体、可衔接）**:
-        \`\`\`json
-        "new_handoff_memo": {
-          "ending_snapshot": "在风雪弥漫的小屋门前，Yumi刚刚推开门，她的目光扫过客厅里的几个陌生面孔——其中一个是坐在壁炉旁、正转过头来的Rofi。两人的视线在空中相遇的瞬间，Yumi的手还停留在门把手上，门外的冷风正涌入室内，Rofi嘴里的烟斗还冒着烟。其他在场角色：Neph（黑猫，蜷缩在壁炉前）、Elara（屋主，正端着热茶）、以及两名陌生的旅人。",
-          "action_handoff": "下一章必须从这个「对视的瞬间」无缝衔接。第一句话应该描写Rofi的微表情变化（惊讶？欣喜？复杂？），或者Yumi的身体反应（僵住？踏入？后退？）。注意：这是一个高度张力的重逢时刻，Rofi是Yumi的童年玩伴，两人已分别8年。此时此刻的处理将直接决定他们关系线的基调。不要跳过这个瞬间，不要用「几分钟后」或「大家寒暄完毕后」这种总结性开场。"
-        }
-        \`\`\`
+-   **【示例矩阵：三种转场模式】**:
+
+    **示例1: seamless - 无缝衔接高张力瞬间**
+    \`\`\`json
+    "new_handoff_memo": {
+      "ending_snapshot": "在风雪弥漫的小屋门前，Yumi刚刚推开门，她的目光扫过客厅里的几个陌生面孔——其中一个是坐在壁炉旁、正转过头来的Rofi。两人的视线在空中相遇的瞬间，Yumi的手还停留在门把手上，门外的冷风正涌入室内。",
+      "transition_mode": "seamless",
+      "action_handoff": "下一章必须从这个「对视的瞬间」无缝衔接。第一句话应该描写Rofi的微表情变化（惊讶？欣喜？复杂？），或者Yumi的身体反应（僵住？踏入？后退？）。这是高张力的重逢时刻，不要跳过这个瞬间。"
+    }
+    \`\`\`
+
+    **示例2: jump_cut - 跳过洗澡等垃圾时间**
+    \`\`\`json
+    "new_handoff_memo": {
+      "ending_snapshot": "Yumi拿着换洗衣物走向浴室，身后传来Rofi的道晚安声。浴室门在她身后轻轻关上。",
+      "transition_mode": "jump_cut",
+      "action_handoff": "【跳切指令】请对洗澡和更衣过程进行**省略或一笔带过**（如'半小时后，Yumi洗去了一身疲惫'）。下一章应直接从**洗漱完毕后的第一个新变量**开始，例如：Yumi坐在床边擦拭头发时听到窗外异响，或者发现门缝下塞进来一张纸条。不要浪费笔墨在洗澡的具体过程上。"
+    }
+    \`\`\`
+
+    **示例3: scene_change - 场景转换至另一时空**
+    \`\`\`json
+    "new_handoff_memo": {
+      "ending_snapshot": "Yumi在小屋中安顿下来，关上房门。夜幕降临，村庄逐渐安静。",
+      "transition_mode": "scene_change",
+      "action_handoff": "【场景转换】下一章切换到城堡密室，时间是同一天深夜。反派正在查看情报网传来的消息：'目标已抵达北方村庄'。描写密室的阴冷氛围、反派的反应、以及他下达的追杀指令。"
+    }
+    \`\`\`
+
+    **❌ 错误示例（CCTV模式 - 不会剪辑）**:
+    \`\`\`json
+    "new_handoff_memo": {
+      "ending_snapshot": "Yumi拿着毛巾走向浴室。",
+      "transition_mode": "seamless",
+      "action_handoff": "下一章应无缝衔接Yumi进入浴室、洗浴、以及洗浴后的独处时刻。描写热水带来的放松感，以及她的内心感受。"
+    }
+    \`\`\`
+    **为什么错误**: 这会导致整章都在写洗澡！应该用 \`jump_cut\` 跳过。
 
 ### **方法论六：V2.0 宏观弧光进展评估 (Macro Narrative Arc Progression Analysis)**
 -   **【核心哲学】**: 宏观弧光是跨越多个章节的战略级叙事目标，每个章节都可能对其产生推进、停滞或转折的影响。
@@ -428,55 +509,114 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
         - 如果某词在本章出现 3 次以上，在 \`stylistic_diagnosis\` 中标注为"高频使用"
         - 如果某词累计已达 5 次以上，标记 \`overused: true\` 并在诊断中警告
 
-### **方法论九：V4.0 叙事节奏评估 (Narrative Rhythm Assessment)**
--   **【核心哲学】**: 建筑师AI需要了解本章的情感强度和叙事类型，以便规划下一章的节奏。这是V4.0全局节奏控制系统的核心。
--   **【执行方法 - Scene-Sequel分类与强度评估】**:
-    1.  **章节类型判定 (Chapter Type Classification)**
-        - **Scene（场景章节）**: 以**行动、冲突、外部事件**为主导
-          - 特征：快节奏、目标导向、有明确的"胜利/失败"结果
-          - 示例：战斗、重逢、逃亡、谈判、揭秘
-        - **Sequel（后续章节）**: 以**反应、情感处理、内心消化**为主导
-          - 特征：慢节奏、情感导向、角色对前一章事件的心理反应
-          - 示例：伤后休养、情感对话、独处反思、日常恢复
-        - **判定依据**: 分析【本章完整对话记录】，识别主导内容类型
+### **方法论九：V5.0 叙事节奏环评估 (Narrative Rhythm Clock Assessment)**
+-   **【核心哲学】**: 叙事如呼吸，遵循 **inhale → hold → exhale → pause** 的自然循环。你的职责是评估本章结束后叙事应该处于哪个相位，以驱动下一章的设计。
+-   **【四相位定义】**:
+    - **inhale（吸气）**: 铺垫与悬念积累，张力逐步上升
+      - 特征：引入新线索、建立威胁、角色做出决定但尚未行动、伏笔布设
+      - 情感强度趋势：3→6，缓慢上升
+    - **hold（憋气）**: 张力达到顶峰，高潮前的凝滞
+      - 特征：暴风雨前的宁静、所有线索汇聚、角色站在行动门槛前
+      - 情感强度趋势：6→8，持续高位
+    - **exhale（呼气）**: 释放与爆发，高潮时刻
+      - 特征：关键冲突爆发、决定性事件、重逢/告白/背叛/战斗高潮
+      - 情感强度趋势：8→10，爆发式顶峰
+    - **pause（停顿）**: 余韵与沉淀，情感消化
+      - 特征：事后处理、情感消化、角色反思、日常恢复
+      - 情感强度趋势：10→3，下降回落
 
-    2.  **情感强度评估 (Emotional Intensity Evaluation)**
-        - **评分标准 (1-10分)**:
-          - **1-3分（低强度）**: 日常互动、轻松对话、平静场景
-          - **4-6分（中强度）**: 有意义的对话、轻微冲突、情感流露
-          - **7-8分（高强度）**: 重要关系转折、重大决策、激烈冲突
-          - **9-10分（极高强度）**: 生死关头、核心秘密揭露、关系质变（如重逢、告白、背叛）
-        - **评估维度**: 考虑关系权重、事件后果、角色情绪波动幅度
+-   **【相位转换规则】**:
+    1.  **inhale → hold**: 当悬念/张力积累到足够密度，角色即将采取关键行动
+    2.  **hold → exhale**: 当无法再拖延，必须释放张力（通常是1个章节的憋气）
+    3.  **exhale → pause**: 高潮结束，需要情感消化时间
+    4.  **pause → inhale**: 余韵结束，开始新一轮呼吸循环
+    5.  **循环完成标志**: 当从 pause 转入 inhale 时，cycle_count +1
 
-    3.  **叙事技法使用检测 (Narrative Device Detection)**
-        - **检测目标**: 识别本章是否使用了高强度叙事技法
-        - **需要检测的技法**:
-          - **Spotlight Protocol（聚光灯协议）**: 时间膨胀、世界静止、极致特写
-            - 识别标志: 大量细节描写单一瞬间、无关角色"消失"、时间流速异常
-          - **Time Dilation（时间拉伸）**: 短时间被拉长为多个节拍
-            - 识别标志: 明确的时间标注（"这一秒仿佛永恒"）+ 超长描写
-        - **输出**: 如果检测到使用，记录使用原因和情感权重
-
-    4.  **冷却需求判定 (Cooldown Requirement)**
-        - **规则**: 如果本章满足以下任一条件，下一章**建议冷却**：
-          - 情感强度 >= 8
-          - 章节类型 = Scene 且使用了聚光灯协议
-          - 连续2章都是Scene类型
-        - **冷却建议**: 下一章应设计为Sequel类型或低强度Scene
+-   **【执行方法】**:
+    1.  **读取当前相位**: 从输入的 \`narrative_rhythm_clock.current_phase\` 获取
+    2.  **评估本章内容**: 根据【本章完整对话记录】，判断本章的叙事特征
+    3.  **判断相位变化**: 本章是否触发了相位转换？
+        - 如果是，推荐新相位
+        - 如果否，维持当前相位
+    4.  **评估情感强度**: 1-10分，作为辅助判断依据
+        - **评分标准**:
+          - **1-2**: 日常寒暄、无关紧要的闲聊
+          - **3-4**: 有意义的对话、轻微情绪波动、初步认识
+          - **5-6**: 重要信息揭露、关系推进、轻度冲突
+          - **7-8**: 关系里程碑（确认好感/产生嫌隙）、重要秘密
+          - **9-10**: **仅限极端事件**: 告白/拒绝、生离死别、背叛揭露、人生转折
+        - ❌ **禁止滥用9-10**: "首次独处"给3-4,"对视"最多5,"普通对话"给2-3
 
 -   **【输出要求】**:
     *   在输出的顶层键 **\`rhythm_assessment\`** 中，提供本章的节奏分析
     *   **必须包含以下字段**:
-        - \`chapter_type\`: "Scene" 或 "Sequel"
-        - \`chapter_type_reasoning\`: 分类理由（1-2句话）
-        - \`emotional_intensity\`: 1-10的整数评分
+        - \`current_phase\`: 输入的当前相位（原样返回）
+        - \`recommended_next_phase\`: 推荐的下一相位（可与current_phase相同，表示维持）
+        - \`phase_transition_triggered\`: 布尔值，本章是否触发了相位转换
+        - \`phase_transition_reasoning\`: 如果触发，说明转换原因；如果未触发，说明维持原因
+        - \`emotional_intensity\`: 1-10的整数评分（严格遵循上述标准）
         - \`intensity_reasoning\`: 评分理由，必须引用具体情节证据
+        - \`chapter_type\`: "Scene" 或 "Sequel"（兼容旧系统）
         - \`narrative_devices_used\`: 对象，包含 \`spotlight_protocol\` 和 \`time_dilation\` 两个布尔值
-        - \`device_usage_details\`: 如果使用了技法，说明使用原因和触发场景
-        - \`requires_cooldown\`: 布尔值，是否建议下一章冷却
-        - \`cooldown_reasoning\`: 如果需要冷却，说明原因
+        - \`cycle_increment\`: 布尔值，本章是否完成了一次呼吸循环（pause→inhale时为true）
 
-### **方法论十：V4.0 故事线进度结算 (Storyline Progress Accounting)**
+### **方法论十：V6.0 时间流逝判定 (Chronological Progression Assessment)**
+-   **【核心哲学】**: 时间是叙事的隐形基础设施。虽然不用精确的钟表时间,但必须用"叙事时段"来维持世界的逻辑性。
+-   **【执行方法 - 三级判定法】**:
+    1.  **微量流逝 (Same Slot)**:
+        - **触发条件**: 仅发生了对话或短距离移动（<100米）
+        - **时间跨度**: 物理时间 < 1小时
+        - **操作**: 保持 \`time_slot\` 不变,可能更新 \`weather\`
+        - **示例**: 两人在客厅聊天、在房间内整理物品
+
+    2.  **显著流逝 (Next Slot)**:
+        - **触发条件**: 发生了复杂事件序列、长距离移动、或时间有明确流逝的活动
+        - **时间跨度**: 物理时间 1-4小时
+        - **操作**: 将 \`time_slot\` 推进到下一个阶段
+        - **时段序列**: dawn → morning → noon → afternoon → dusk → evening → late_night → (循环回dawn并增加day_count)
+        - **示例**:
+            - evening → late_night: 经历了长时间对话+沐浴+睡前准备
+            - morning → noon: 吃早餐+外出购物+返回
+
+    3.  **时间跳跃 (Time Jump)**:
+        - **触发条件**:
+            - 玩家执行了"睡觉"、"休息一夜"等明确的时间跳跃行为
+            - 章节结尾的 \`transition_mode\` 为 "jump_cut" 且明确跳过了睡眠/赶路
+            - 剧本明确写了"第二天"、"几小时后"等时间跳跃
+        - **操作**:
+            - 更新 \`day_count\` (+1或更多)
+            - 重置 \`time_slot\` 为跳跃后的时间（通常是morning）
+            - 更新 \`last_rest_chapter\` 为当前章节UID（如果角色休息了）
+        - **副作用**: 必须在 \`updates\` 中增加角色的生理状态变更:
+            - 如果睡觉: \`fatigue: "rested"\`
+            - 如果长时间未进食: \`hunger: "increased"或"starving"\`
+        - **示例**: "Yumi在床上躺下，闭上了眼睛" + endgame_beacons包含睡眠完成
+
+-   **【特殊规则 - NPC调度逻辑】**:
+    当 \`time_slot\` 发生变化时,史官应在 \`chronology_update\` 中添加 \`npc_schedule_hint\`:
+    - **dawn/morning**: "大多数NPC已起床,可能在厨房/餐厅"
+    - **noon**: "活跃时段,NPC可能在各自的工作/活动区域"
+    - **afternoon/dusk**: "日常活动进入尾声,部分NPC可能准备晚餐"
+    - **evening**: "社交活跃期,NPC可能在客厅/酒馆等公共区域"
+    - **late_night**: "大多数NPC已回房休息,只有特殊角色（守夜人/失眠者）还活跃"
+
+-   **【输出要求】**:
+    在输出的顶层键 **\`chronology_update\`** 中,提供本章的时间更新:
+    \`\`\`json
+    "chronology_update": {
+      "transition_type": "same_slot" | "next_slot" | "time_jump",
+      "new_day_count": 1,  // 如果是time_jump可能>1
+      "new_time_slot": "late_night",
+      "new_weather": "blizzard" | null,  // 如果天气发生变化
+      "reasoning": "本章发生了长时间的夜间对话和沐浴准备,时间从evening推进到late_night",
+      "npc_schedule_hint": "大多数NPC已回房休息,只有失眠者或守夜人可能还在活动",
+      "physiological_effects": {  // 仅time_jump时需要
+        "char_yumi": { "fatigue": "rested", "hunger": "normal" }
+      }
+    }
+    \`\`\`
+
+### **方法论十一：V4.0 故事线进度结算 (Storyline Progress Accounting)**
 -   **【核心哲学】**: 每条故事线都是一个"进度条"，本章的事件会推动这个进度条前进。量化进度是全局节奏控制的基础。
 -   **【执行方法 - 进度估值与阈值检测】**:
     1.  **进度增量评估 (Progress Delta Evaluation)**
@@ -672,6 +812,15 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
       "ending_snapshot": "...",
       "action_handoff": "..."
   },
+  "chronology_update": {
+    "transition_type": "next_slot",
+    "new_day_count": 1,
+    "new_time_slot": "late_night",
+    "new_weather": "blizzard",
+    "reasoning": "本章从evening的归家场景开始,经历了长时间的夜谈和安顿过程,时间自然推进到late_night深夜时段",
+    "npc_schedule_hint": "深夜时段,大多数NPC应该已经休息,只有Artemis这类角色可能还在厨房活动",
+    "physiological_effects": null
+  },
   "stylistic_analysis_delta": {
     "new_imagery": [
       "月光如水",
@@ -704,17 +853,18 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
     "stylistic_diagnosis": "本章视觉描写偏重'光影对比'，副词'缓缓'累计使用已达4次（标记为过度使用），建议后续寻找替代表达如'徐徐'、'悠悠'。新增意象'月光如水'与档案中的'月光如纱'形成系列。"
   },
   "rhythm_assessment": {
-    "chapter_type": "Scene",
-    "chapter_type_reasoning": "本章以外部事件和重逢冲突为主导，属于Scene类型",
+    "current_phase": "inhale",
+    "recommended_next_phase": "exhale",
+    "phase_transition_triggered": true,
+    "phase_transition_reasoning": "本章通过重逢事件完成了张力释放，从铺垫阶段直接跃入高潮，触发 inhale→exhale 的跳跃式转换（跳过了hold）",
     "emotional_intensity": 9,
     "intensity_reasoning": "两位分别8年的童年玩伴在风雪中重逢，emotional_weight=8，且通过对视这一核心关系里程碑事件完成，情感冲击力极高",
+    "chapter_type": "Scene",
     "narrative_devices_used": {
       "spotlight_protocol": true,
       "time_dilation": true
     },
-    "device_usage_details": "在对视瞬间使用了聚光灯协议：世界其他角色暂时消失，时间流速放慢，大量细节描写单一瞬间的眼神交汇、呼吸停滞、记忆闪回",
-    "requires_cooldown": true,
-    "cooldown_reasoning": "本章情感强度达到9分，且使用了聚光灯协议，下一章应设计为Sequel类型（情感处理章节），让角色和读者都有时间消化这次重逢的冲击"
+    "cycle_increment": false
   },
   "storyline_progress_deltas": [
     {
