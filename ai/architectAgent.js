@@ -102,7 +102,62 @@ const DRAMA_PHILOSOPHY_PROMPT = `
     - 在 \`design_notes\` 中说明你如何响应了上一章的节奏需求
 `;
 
-// 哲学B：日常/废萌式创作
+// V7.0 哲学B：网文模式创作 (Web Novel Mode)
+const WEB_NOVEL_PHILOSOPHY_PROMPT = `
+## **第三章：导演的艺术哲学 (The Director's Philosophy - Web Novel)**
+---
+**【【最高优先级:网文模式思维切换】】**
+你现在是一个**商业网文作者**,而非文学创作者。你的核心目标是:
+1. 让读者"停不下来"
+2. 让每一章都有"爽点"或"虐点"
+3. 绝不让读者感到"无聊"
+
+**哲学一:看点即一切 (Selling Point is Everything)**
+*   **核心问题:** "读者为什么要看这一章?"
+*   **强制检查:** 如果你的答案是"推进剧情"、"角色成长",这还不够。必须有具体的:
+    - 信息爆点(秘密揭露、身份揭示)
+    - 情感爆点(告白、背叛、重逢)
+    - 冲突爆点(争吵、战斗、对立)
+    - 悬念钩子(引入未知、制造危机)
+
+**哲学二:结构即节奏 (Structure is Rhythm)**
+*   **起承转合(钩)法则:**
+    - 起(1-2节拍): 承接上章,或设立新问题
+    - 承(2-3节拍): 推进事件,期待值上升
+    - 转(2-3节拍): 意外/冲突/反转登场
+    - 合(1-2节拍): 暂时解决或达成阶段目标
+    - **钩(1节拍)**: 抛出新问题,Result转化为Next Cause
+
+**哲学三:禁止平淡 (Ban the Mundane)**
+*   **绝对禁止的章节类型:**
+    - 纯粹的"日常生活"(除非隐藏冲突)
+    - "问题解决-睡觉"模式
+    - 无冲突的"氛围描写"
+    - Sequel类型的"情感消化"章节
+*   **转化法则:** 如果场景本身是日常的,必须注入以下至少一种元素:
+    - 隐藏的观察者/监视
+    - 对话中的试探/暗流
+    - 环境中的不祥细节
+    - 角色内心的冲突/欲望
+
+**哲学四:扣子链法则 (Hook Chain Law)**
+*   **核心理念:** 每章都是链条上的一环
+*   **执行标准:**
+    - 本章开头必须"接住"上章扔出的扣子
+    - 本章结尾必须"抛出"新扣子
+    - 扣子类型: 悬念型(未知)、冲突型(对立)、欲望型(想要但得不到)
+*   **禁止:** "完美闭环"式结尾(所有问题都解决,角色进入稳定状态)
+
+**哲学五:速度即美德 (Velocity is Virtue)**
+*   **节奏环压缩策略:**
+    - inhale阶段: 快速铺垫,不拖沓(1-2章)
+    - hold阶段: 充分憋气,制造紧迫感(2-3章)
+    - exhale阶段: 爆发式高潮(2-3章)
+    - pause阶段: 极简恢复,快速进入下一轮(1章)
+*   **检查标准:** 如果某个相位持续时间超过建议值,必须在design_notes中说明理由
+`;
+
+// 哲学C：日常/废萌式创作
 const SLICE_OF_LIFE_PHILOSOPHY_PROMPT = `
 ## **第三章：导演的艺术哲学 (The Director's Philosophy - Slice of Life)**
 ---
@@ -213,7 +268,25 @@ _createPrompt(context) {
         };
         this.info("建筑师检测到开场白，已切换到'续写模式'。");
     }
-      
+
+    // V7.0: 提取叙事模式配置
+    const narrativeMode = chapter?.meta?.narrative_control_tower?.narrative_mode || {
+        current_mode: 'classic_rpg',
+        mode_config: {}
+    };
+    const currentMode = narrativeMode.current_mode;
+    const modeConfig = narrativeMode.mode_config?.[currentMode] || {};
+
+    // 根据模式选择哲学prompt
+    let philosophyPrompt = '';
+    if (currentMode === 'web_novel') {
+        philosophyPrompt = WEB_NOVEL_PHILOSOPHY_PROMPT;
+        this.info("🔥 建筑师切换到【网文模式】设计思维");
+    } else {
+        philosophyPrompt = DRAMA_PHILOSOPHY_PROMPT;
+        this.info("🎭 建筑师使用【正剧模式】设计思维");
+    }
+
     const basePrompt = `
 # **指令：自省式叙事蓝图创作 (Self-Reflective Narrative Blueprinting) V11.0**
 
@@ -593,6 +666,8 @@ _createPrompt(context) {
     ]
     \`\`\`
 ---
+${philosophyPrompt}
+---
 ## **第三章：强制前置思考：自省式蓝图设计**
 ---
 这是你的战略构思阶段。你**必须**首先完成以下思考，并将结果填入最终输出JSON的\`design_notes\`和\`chapter_blueprint\`的对应字段中。
@@ -639,6 +714,86 @@ _createPrompt(context) {
   - 独处场景(玩家回房/找个安静角落)
   - 集体场景(被叫去吃饭/大家聚到餐厅)
 
+---
+### **【V7.0 叙事策略模式 (Narrative Strategy Mode)】**
+
+**当前模式:** ${currentMode === 'web_novel' ? '🔥 网文模式 (Web Novel)' : '🎭 正剧模式 (Classic RPG)'}
+
+${currentMode === 'web_novel' ? `
+**【网文模式核心法则】**
+
+1. **章章有梗铁律:**
+   - 每章必须包含至少一个核心看点(core_selling_point)
+   - 在 \`design_notes.web_novel_compliance\` 中明确阐述本章的核心看点是什么
+   - 核心看点可以是: 重要信息揭露、关系突破、冲突爆发、悬念设置、反转
+
+2. **结构法则 - 起承转合(钩):**
+   - 起: 延续上章的扣子或设立新钩子
+   - 承: 推进事件,制造期待
+   - 转: 出现变数或冲突
+   - 合: 暂时解决,但必须...
+   - **钩**: 结尾必须抛出新扣子,禁止"完美闭环"
+
+3. **强制禁令:**
+   - ❌ 禁止纯日常章节(做饭、闲聊、看风景)除非其中隐藏冲突/秘密
+   - ❌ 禁止"解决问题-睡觉"模式(必须在结尾引入新变数)
+   - ❌ 禁止Sequel类型章节(所有章节必须是Scene或Hybrid)
+   - ❌ 情感强度低于${modeConfig.intensity_floor || 5}的章节
+
+4. **节奏环调整:**
+   - inhale阶段: 最多${Math.floor(2 * (modeConfig.phase_duration_modifiers?.inhale || 1))}章,快速铺垫
+   - hold阶段: 延长至${Math.floor(2 * (modeConfig.phase_duration_modifiers?.hold || 1))}章,充分憋气
+   - exhale阶段: 高潮必须爆发式,持续${Math.floor(2 * (modeConfig.phase_duration_modifiers?.exhale || 1))}章
+   - pause阶段: 最多${Math.floor(1 * (modeConfig.phase_duration_modifiers?.pause || 1))}章,快速恢复并进入下一轮
+
+5. **终章信标设计要求:**
+   - 必须设计"情感悬崖"式结尾
+   - 必须在endgame_beacons中明确下一章的钩子是什么
+   - 禁止使用"软着陆"结尾
+
+**【输出要求】**
+在 \`design_notes.web_novel_compliance\` 中必须包含:
+- \`core_selling_point\`: "本章的核心看点是什么"
+- \`hook_design\`: "本章抛出的扣子是什么,如何引导下一章"
+- \`conflict_elements\`: ["本章包含的冲突元素列表"]
+- \`daily_content_justification\`: "如果包含日常内容,说明其如何服务于冲突/悬念"
+` : `
+**【正剧模式核心法则】**
+
+1. **呼吸哲学:**
+   - 完整执行 inhale→hold→exhale→pause 四相位循环
+   - 每个相位都有其叙事价值,不可跳过或压缩
+
+2. **允许内容:**
+   - ✅ 纯氛围节拍: 描写环境、天气、氛围的节拍
+   - ✅ 心理节拍: 角色独处、反思、内心戏的节拍
+   - ✅ 日常即内容: 做饭、整理装备、看风景都是有效的叙事内容
+   - ✅ Sequel章节: 高潮后必须有情感消化期
+
+3. **高潮后强制规则:**
+   - 如果上一章emotional_intensity >= 9,本章必须进入pause相位
+   - pause相位必须设计为Sequel类型
+   - 禁止在pause相位引入新的高张力冲突
+
+4. **留白美学:**
+   - 允许章节无明显目标,聚焦于体验和氛围
+   - endgame_beacons可以是"当角色完成日常活动并进入休息状态"
+   - 不强制要求每章都有钩子
+
+5. **节奏环完整执行:**
+   - inhale: 2-4章,充分铺垫
+   - hold: 1-2章,不过度延长
+   - exhale: 1-2章,充分释放
+   - pause: 1-3章,充分沉淀
+
+**【输出要求】**
+在 \`design_notes.classic_rpg_breath\` 中必须包含:
+- \`current_breath_phase\`: "本章在呼吸周期中的位置"
+- \`atmospheric_design\`: "如果是pause或低强度inhale,说明氛围设计"
+- \`daily_content_value\`: "如果包含日常内容,说明其叙事价值(非功能性)"
+`}
+
+---
 **【章节设计原则 (Chapter Design Principles)】**
 
 **【核心理念】**

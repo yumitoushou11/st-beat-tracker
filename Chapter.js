@@ -1,6 +1,7 @@
 // Chapter.js
 
 import { simpleHash } from './utils/textUtils.js';
+import { getNarrativeModeSettings } from './stateManager.js'; // V7.0: 全局叙事模式配置
 
 function generateUid() {
     return `chapter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -28,6 +29,10 @@ export class Chapter {
      * @returns {object} 一个全新的、初始化的章节状态对象。
      */
     static getInitialState() {
+        // V7.0: 从全局配置读取默认叙事模式
+        const globalNarrativeMode = getNarrativeModeSettings();
+        const defaultMode = globalNarrativeMode?.default_mode || 'classic_rpg';
+
         return {
             uid: null,
             characterId: null, // 故事关联的角色ID
@@ -245,6 +250,60 @@ export class Chapter {
                         ],
                         // 生成时间戳
                         generated_at: null
+                    },
+
+                    // === V7.0 叙事模式配置 (Narrative Mode Strategy) ===
+                    // 两种截然不同的叙事策略：网文模式 vs 正剧模式
+                    narrative_mode: {
+                        // 当前模式: "web_novel" | "classic_rpg"
+                        current_mode: defaultMode, // V7.0: 从全局配置读取
+
+                        // 模式配置
+                        mode_config: {
+                            // 网文模式：环环相扣、章章有梗、拒绝平淡
+                            web_novel: {
+                                // 节奏环相位权重调整(压缩inhale和pause,延长hold和exhale)
+                                phase_duration_modifiers: {
+                                    inhale: 0.6,   // 压缩铺垫期(原2-4章 -> 1-2章)
+                                    hold: 1.5,     // 延长憋气期(原1-2章 -> 2-3章)
+                                    exhale: 1.3,   // 延长爆发期(原1-2章 -> 2-3章)
+                                    pause: 0.5     // 压缩奖赏期(原1-3章 -> 1章)
+                                },
+                                // 强制约束
+                                mandatory_constraints: {
+                                    forbid_pure_daily: true,        // 禁止纯日常
+                                    forbid_sleep_after_solve: true, // 禁止解决问题就睡觉
+                                    require_selling_point: true,    // 每章必须有核心看点
+                                    require_hook: true,             // 每章必须有扣子
+                                    min_conflict_count: 1           // 至少一个冲突/悬念
+                                },
+                                // 情感强度要求
+                                intensity_floor: 5,  // 最低情感强度阈值
+                                // 章节结构法则
+                                structure_law: "cause_result_next_cause" // 结果必须转化为下一个原因
+                            },
+
+                            // 正剧模式：尊重叙事呼吸、允许留白、体验生活
+                            classic_rpg: {
+                                // 节奏环相位权重调整(完整执行)
+                                phase_duration_modifiers: {
+                                    inhale: 1.0,
+                                    hold: 1.0,
+                                    exhale: 1.0,
+                                    pause: 1.0
+                                },
+                                // 允许内容
+                                allow_atmospheric_beats: true,   // 允许纯氛围节拍
+                                allow_psychological_beats: true, // 允许心理节拍
+                                allow_daily_content: true,       // 日常即内容
+                                // 高潮后强制进入Pause
+                                force_pause_after_climax: true,
+                                // 情感强度要求
+                                intensity_floor: 1,  // 无最低阈值限制
+                                // 留白哲学
+                                embrace_blank_space: true
+                            }
+                        }
                     }
                 }
             },

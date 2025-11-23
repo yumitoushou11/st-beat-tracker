@@ -1810,6 +1810,11 @@ _syncUiWithRetry() {
                 const oldPhase = clock.current_phase;
                 const newPhase = rhythmData.recommended_next_phase || oldPhase;
 
+                // V7.0: 获取叙事模式配置
+                const narrativeMode = workingChapter.meta?.narrative_control_tower?.narrative_mode;
+                const currentMode = narrativeMode?.current_mode || 'classic_rpg';
+                const modeConfig = narrativeMode?.mode_config?.[currentMode];
+
                 // 如果相位发生变化
                 if (rhythmData.phase_transition_triggered && newPhase !== oldPhase) {
                     // 检查是否完成一个周期（pause → inhale）
@@ -1818,11 +1823,12 @@ _syncUiWithRetry() {
                         this.info(`  ✓ [节奏环] 完成第 ${clock.cycle_count} 次呼吸周期`);
                     }
 
-                    // 记录相位变化历史
+                    // V7.0: 记录相位变化历史(包含模式信息)
                     clock.phase_history.push({
                         phase: newPhase,
                         chapter_uid: workingChapter.uid,
-                        reason: rhythmData.phase_transition_reasoning || '史官评估'
+                        reason: rhythmData.phase_transition_reasoning || '史官评估',
+                        narrative_mode: currentMode // V7.0: 记录当时的模式
                     });
                     // 保留最近5次
                     if (clock.phase_history.length > 5) {
@@ -1833,11 +1839,28 @@ _syncUiWithRetry() {
                     clock.current_phase = newPhase;
                     clock.last_phase_change_chapter = workingChapter.uid;
                     clock.current_phase_duration = 1;
-                    this.info(`  ✓ [节奏环] 相位转换: ${oldPhase} → ${newPhase}`);
+                    this.info(`  ✓ [节奏环] 相位转换: ${oldPhase} → ${newPhase} [${currentMode === 'web_novel' ? '🔥网文模式' : '🎭正剧模式'}]`);
                 } else {
                     // 相位未变化，增加持续计数
                     clock.current_phase_duration = (clock.current_phase_duration || 0) + 1;
                     this.info(`  ✓ [节奏环] 维持相位: ${oldPhase} (持续 ${clock.current_phase_duration} 章)`);
+
+                    // V7.0: 检查相位持续时间是否超出模式建议
+                    if (modeConfig?.phase_duration_modifiers && clock.current_phase_duration > 0) {
+                        const modifier = modeConfig.phase_duration_modifiers[clock.current_phase] || 1.0;
+                        const baseLimit = {
+                            inhale: 3,
+                            hold: 2,
+                            exhale: 2,
+                            pause: 2
+                        }[clock.current_phase] || 2;
+
+                        const adjustedLimit = Math.ceil(baseLimit * modifier);
+
+                        if (clock.current_phase_duration >= adjustedLimit) {
+                            this.info(`  ⚠️ [节奏环] ${currentMode}模式下,${clock.current_phase}相位已持续${clock.current_phase_duration}章,建议限制为${adjustedLimit}章`);
+                        }
+                    }
                 }
 
                 // 保存史官推荐

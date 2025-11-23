@@ -1,7 +1,7 @@
 // ui/settings/settingsUI.js
 // 设置面板相关的UI逻辑
 
-import { getApiSettings, saveApiSettings } from '../../stateManager.js';
+import { getApiSettings, saveApiSettings, getNarrativeModeSettings, saveNarrativeModeSettings } from '../../stateManager.js';
 
 /**
  * 填充设置面板UI
@@ -43,6 +43,90 @@ export function bindPasswordToggleHandlers($wrapper) {
         const input = $('#sbt-conductor-api-key-input');
         input.attr('type', input.attr('type') === 'password' ? 'text' : 'password');
         $(this).toggleClass('fa-eye fa-eye-slash');
+    });
+}
+
+/**
+ * V7.0: 填充叙事模式选择器（全局配置版本）
+ * @param {Object} deps - 依赖注入对象
+ */
+export function populateNarrativeModeSelector(deps) {
+    try {
+        // V7.0: 从全局配置读取默认叙事模式
+        const modeSettings = getNarrativeModeSettings();
+        const currentMode = modeSettings.default_mode || 'classic_rpg';
+
+        // 设置选中的模式
+        $(`input[name="narrative_mode"][value="${currentMode}"]`).prop('checked', true);
+
+        // 更新视觉状态
+        $('.sbt-mode-option').removeClass('active');
+        $(`.sbt-mode-option[data-mode="${currentMode}"]`).addClass('active');
+
+        deps.info(`[UIManager] 叙事模式UI已填充: ${currentMode === 'web_novel' ? '🔥网文模式(全局默认)' : '🎭正剧模式(全局默认)'}`);
+    } catch (error) {
+        deps.diagnose("[UIManager] 填充叙事模式选择器时发生错误:", error);
+    }
+}
+
+/**
+ * V7.0: 绑定叙事模式切换处理器（全局配置版本）
+ * @param {jQuery} $wrapper - 容器元素
+ * @param {Object} deps - 依赖注入对象
+ * @param {Function} getCurrentChapterFn - 获取当前章节的函数（可选，如果有章节则同步更新）
+ */
+export function bindNarrativeModeSwitchHandler($wrapper, deps, getCurrentChapterFn) {
+    // 单选按钮切换时更新视觉状态
+    $wrapper.on('change', 'input[name="narrative_mode"]', function() {
+        const selectedMode = $(this).val();
+        $('.sbt-mode-option').removeClass('active');
+        $(`.sbt-mode-option[data-mode="${selectedMode}"]`).addClass('active');
+    });
+
+    // 应用按钮点击处理
+    $wrapper.on('click', '#sbt-apply-narrative-mode', () => {
+        const selectedMode = $('input[name="narrative_mode"]:checked').val();
+
+        try {
+            const modeSettings = getNarrativeModeSettings();
+            const oldMode = modeSettings.default_mode;
+
+            // V7.0: 保存到全局配置
+            saveNarrativeModeSettings({ default_mode: selectedMode });
+
+            const modeIcon = selectedMode === 'web_novel' ? '🔥' : '🎭';
+            const modeName = selectedMode === 'web_novel' ? '网文模式' : '正剧模式';
+
+            // 如果当前有活跃章节，同步更新章节的模式配置
+            const currentChapter = getCurrentChapterFn?.();
+            if (currentChapter) {
+                if (!currentChapter.meta.narrative_control_tower.narrative_mode) {
+                    currentChapter.meta.narrative_control_tower.narrative_mode = {
+                        current_mode: 'classic_rpg',
+                        mode_config: {}
+                    };
+                }
+                currentChapter.meta.narrative_control_tower.narrative_mode.current_mode = selectedMode;
+                deps.saveChapterToStorage?.(currentChapter);
+
+                deps.toastr.success(
+                    `${modeIcon} ${modeName}<br><small>已应用到全局设置 + 当前章节</small>`,
+                    "叙事模式已切换",
+                    { timeOut: 5000, escapeHtml: false }
+                );
+            } else {
+                deps.toastr.success(
+                    `${modeIcon} ${modeName}<br><small>已保存为全局默认，将在创世纪时生效</small>`,
+                    "叙事模式已设置",
+                    { timeOut: 5000, escapeHtml: false }
+                );
+            }
+
+            deps.info(`[UIManager] 叙事模式全局默认已从 ${oldMode} 切换到 ${selectedMode}`);
+        } catch (error) {
+            deps.diagnose("[UIManager] 应用叙事模式时发生错误:", error);
+            deps.toastr.error(`应用失败: ${error.message}`, "操作错误");
+        }
     });
 }
 

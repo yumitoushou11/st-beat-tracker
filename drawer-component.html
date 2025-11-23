@@ -461,6 +461,59 @@
             <!-- ======================= 4. 设置面板 ======================= -->
             <div id="sbt-settings-panel" class="sbt-tab-panel">
 
+                <!-- V7.0: 叙事模式选择器 - 大分区 -->
+                <div class="sbt-library-section">
+                    <h4 class="sbt-library-title">
+                        <i class="fa-solid fa-masks-theater fa-fw"></i> 叙事策略模式 <span class="sbt-v2-badge">V7.0</span>
+                    </h4>
+                    <p class="sbt-instructions">
+                        <i class="fa-solid fa-globe fa-fw"></i> <strong>全局默认设置</strong> - 创世纪时将自动应用选定模式。如果已有章节，也会同步更新当前章节。
+                    </p>
+
+                    <div class="sbt-narrative-mode-selector">
+                        <div class="sbt-mode-options">
+                            <!-- 正剧模式 -->
+                            <label class="sbt-mode-option" data-mode="classic_rpg">
+                                <input type="radio" name="narrative_mode" value="classic_rpg" checked>
+                                <div class="sbt-mode-card">
+                                    <div class="sbt-mode-icon">🎭</div>
+                                    <h5 class="sbt-mode-title">正剧模式</h5>
+                                    <p class="sbt-mode-description">尊重叙事呼吸、允许留白、体验生活</p>
+                                    <ul class="sbt-mode-features">
+                                        <li><i class="fa-solid fa-check"></i> 完整的起承转合节奏</li>
+                                        <li><i class="fa-solid fa-check"></i> 允许纯氛围/心理节拍</li>
+                                        <li><i class="fa-solid fa-check"></i> 日常即内容</li>
+                                        <li><i class="fa-solid fa-check"></i> 高潮后强制Pause奖赏期</li>
+                                    </ul>
+                                </div>
+                            </label>
+
+                            <!-- 网文模式 -->
+                            <label class="sbt-mode-option" data-mode="web_novel">
+                                <input type="radio" name="narrative_mode" value="web_novel">
+                                <div class="sbt-mode-card">
+                                    <div class="sbt-mode-icon">🔥</div>
+                                    <h5 class="sbt-mode-title">网文模式</h5>
+                                    <p class="sbt-mode-description">环环相扣、章章有梗、拒绝平淡</p>
+                                    <ul class="sbt-mode-features">
+                                        <li><i class="fa-solid fa-fire"></i> 起承转合(钩)结构</li>
+                                        <li><i class="fa-solid fa-fire"></i> 每章必有核心看点</li>
+                                        <li><i class="fa-solid fa-fire"></i> 禁止纯日常内容</li>
+                                        <li><i class="fa-solid fa-fire"></i> 强制包含冲突/悬念</li>
+                                    </ul>
+                                </div>
+                            </label>
+                        </div>
+
+                        <button id="sbt-apply-narrative-mode" class="sbt-primary-btn" style="margin-top: 20px; width: 100%;">
+                            <i class="fa-solid fa-check fa-fw"></i> 应用叙事模式
+                        </button>
+                        <p class="sbt-instructions-small" style="text-align: center; margin-top: 10px;">
+                            <i class="fa-solid fa-info-circle"></i> 模式切换将在下次章节规划时生效
+                        </p>
+                    </div>
+                </div>
+
                 <!-- 核心大脑 AI 配置 - 大分区 -->
                 <div class="sbt-library-section">
                     <h4 class="sbt-library-title">

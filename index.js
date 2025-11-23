@@ -31,6 +31,7 @@ applicationFunctionManager.eventSource.on(applicationFunctionManager.event_types
     };
     
     stateManager.loadApiSettings();
+    stateManager.loadNarrativeModeSettings(); // V7.0: 加载叙事模式全局配置
 
     // 1. 创建引擎实例
     const engine = new StoryBeatEngine(applicationDependencies);

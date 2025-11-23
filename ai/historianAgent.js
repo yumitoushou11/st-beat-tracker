@@ -103,6 +103,12 @@ export class HistorianAgent extends Agent {
             chapter
         } = context;
 
+        // V7.0: 提取叙事模式配置
+        const narrativeMode = chapter?.meta?.narrative_control_tower?.narrative_mode || {
+            current_mode: 'classic_rpg',
+            mode_config: {}
+        };
+
         // 从Chapter对象中解构出我们需要的所有新旧数据
         const staticMatrices = chapter.staticMatrices;
         const dynamicState = chapter.dynamicState;
@@ -509,8 +515,9 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
         - 如果某词在本章出现 3 次以上，在 \`stylistic_diagnosis\` 中标注为"高频使用"
         - 如果某词累计已达 5 次以上，标记 \`overused: true\` 并在诊断中警告
 
-### **方法论九：V5.0 叙事节奏环评估 (Narrative Rhythm Clock Assessment)**
+### **方法论九：V7.0 叙事节奏环评估 (模式感知版) (Narrative Rhythm Clock Assessment - Mode-Aware)**
 -   **【核心哲学】**: 叙事如呼吸，遵循 **inhale → hold → exhale → pause** 的自然循环。你的职责是评估本章结束后叙事应该处于哪个相位，以驱动下一章的设计。
+-   **【模式感知】** 当前叙事模式: **${narrativeMode?.current_mode === 'web_novel' ? '🔥 网文模式' : '🎭 正剧模式'}**
 -   **【四相位定义】**:
     - **inhale（吸气）**: 铺垫与悬念积累，张力逐步上升
       - 特征：引入新线索、建立威胁、角色做出决定但尚未行动、伏笔布设
@@ -531,6 +538,60 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
     3.  **exhale → pause**: 高潮结束，需要情感消化时间
     4.  **pause → inhale**: 余韵结束，开始新一轮呼吸循环
     5.  **循环完成标志**: 当从 pause 转入 inhale 时，cycle_count +1
+
+-   **【V7.0 模式特定规则】**:
+
+${narrativeMode?.current_mode === 'web_novel' ? `
+**【网文模式特殊规则】**
+
+1. **相位持续时间调整:**
+   - inhale: 建议1-2章(压缩至原来的60%)
+   - hold: 建议2-3章(延长至原来的150%)
+   - exhale: 建议2-3章(延长至原来的130%)
+   - pause: 建议1章(压缩至原来的50%)
+
+2. **强制相位跳跃规则:**
+   - 如果当前是inhale且已持续2章,优先推荐跳转到hold(跳过部分铺垫)
+   - 如果当前是pause且本章emotional_intensity < 6,强制推荐转入inhale
+
+3. **情感强度底线:**
+   - 网文模式下,任何章节的emotional_intensity都不应低于5
+   - 如果本章intensity < 5,在rhythm_assessment中标记warning
+
+4. **禁止长期pause:**
+   - pause相位最多持续1章
+   - 如果当前已是pause,无论内容如何都推荐转入inhale
+
+**【输出特殊要求】**
+在rhythm_assessment中新增字段:
+- \`mode_compliance_check\`: "本章是否符合网文模式要求(intensity>=5, 有冲突/钩子)"
+- \`mode_violation_warnings\`: ["如果违反网文模式,列出具体违反项"]
+` : `
+**【正剧模式特殊规则】**
+
+1. **相位持续时间标准:**
+   - inhale: 2-4章,充分铺垫
+   - hold: 1-2章,适度憋气
+   - exhale: 1-2章,完整释放
+   - pause: 1-3章,充分沉淀
+
+2. **高潮后强制pause:**
+   - 如果上一章emotional_intensity >= 9,本章**必须**进入pause相位
+   - 即使本章有新事件,也优先推荐pause
+
+3. **允许低强度章节:**
+   - 正剧模式下,emotional_intensity可以低至1-2
+   - 纯氛围章节(如角色独处看风景)是有效的pause内容
+
+4. **完整呼吸周期:**
+   - 优先推荐完整的四相位流转
+   - 避免跳跃式转换(如inhale直接跳到exhale)
+
+**【输出特殊要求】**
+在rhythm_assessment中新增字段:
+- \`breath_cycle_integrity\`: "本次转换是否保持了呼吸周期的完整性"
+- \`atmospheric_value_assessment\`: "如果本章是低强度章节,评估其氛围价值"
+`}
 
 -   **【执行方法】**:
     1.  **读取当前相位**: 从输入的 \`narrative_rhythm_clock.current_phase\` 获取

@@ -22,3 +22,28 @@ export const ENGINE_STATUS = Object.freeze({
     BUSY_PLANNING: { text: '规划新章节...', icon: 'fa-sitemap' },
         BUSY_TRANSITIONING: { text: '章节转换中...', icon: 'fa-hourglass-half fa-spin' },
 });
+
+// V7.0 叙事模式常量定义
+export const NARRATIVE_MODES = Object.freeze({
+    WEB_NOVEL: {
+        id: 'web_novel',
+        name: '网文模式',
+        icon: 'fa-fire',
+        description: '环环相扣、章章有梗、拒绝平淡'
+    },
+    CLASSIC_RPG: {
+        id: 'classic_rpg',
+        name: '正剧模式',
+        icon: 'fa-masks-theater',
+        description: '尊重叙事呼吸、允许留白、体验生活'
+    }
+});
+
+// 网文模式强制约束类型
+export const WEB_NOVEL_CONSTRAINTS = Object.freeze({
+    FORBID_PURE_DAILY: 'forbid_pure_daily',
+    FORBID_SLEEP_AFTER_SOLVE: 'forbid_sleep_after_solve',
+    REQUIRE_SELLING_POINT: 'require_selling_point',
+    REQUIRE_HOOK: 'require_hook',
+    MIN_CONFLICT_COUNT: 'min_conflict_count'
+});

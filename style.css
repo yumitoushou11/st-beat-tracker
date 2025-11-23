@@ -2938,3 +2938,129 @@ input:checked + .sbt-slider:before {
     color: #9c27b0;
 }
 
+/* ============================================
+   V7.0: 叙事模式选择器样式
+   ============================================ */
+
+.sbt-narrative-mode-selector {
+    margin-top: 15px;
+}
+
+.sbt-mode-options {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 15px;
+    margin-bottom: 10px;
+}
+
+.sbt-mode-option {
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.sbt-mode-option input[type="radio"] {
+    display: none;
+}
+
+.sbt-mode-card {
+    background: var(--sbt-bg-medium);
+    border: 2px solid var(--sbt-border-color);
+    border-radius: 12px;
+    padding: 20px;
+    transition: all 0.3s ease;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.sbt-mode-option:hover .sbt-mode-card {
+    border-color: var(--sbt-primary-accent);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.2);
+}
+
+.sbt-mode-option.active .sbt-mode-card {
+    border-color: var(--sbt-primary-accent);
+    background: linear-gradient(135deg, var(--sbt-bg-medium) 0%, rgba(10, 132, 255, 0.1) 100%);
+    box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
+}
+
+.sbt-mode-icon {
+    font-size: 3em;
+    text-align: center;
+    margin-bottom: 15px;
+    line-height: 1;
+}
+
+.sbt-mode-title {
+    font-size: 1.2em;
+    font-weight: 600;
+    color: var(--sbt-text-light);
+    margin: 0 0 10px 0;
+    text-align: center;
+}
+
+.sbt-mode-description {
+    font-size: 0.9em;
+    color: var(--sbt-text-medium);
+    text-align: center;
+    margin: 0 0 15px 0;
+    font-style: italic;
+}
+
+.sbt-mode-features {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    flex: 1;
+}
+
+.sbt-mode-features li {
+    padding: 8px 0;
+    font-size: 0.9em;
+    color: var(--sbt-text-medium);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sbt-mode-features li i {
+    color: var(--sbt-success-color);
+    flex-shrink: 0;
+}
+
+.sbt-mode-option.active .sbt-mode-features li i {
+    color: var(--sbt-primary-accent);
+}
+
+/* 网文模式特殊样式 */
+.sbt-mode-option[data-mode="web_novel"] .sbt-mode-features li i {
+    color: var(--sbt-warning-color);
+}
+
+.sbt-mode-option[data-mode="web_novel"].active .sbt-mode-card {
+    background: linear-gradient(135deg, var(--sbt-bg-medium) 0%, rgba(255, 159, 10, 0.1) 100%);
+    box-shadow: 0 0 20px rgba(255, 159, 10, 0.3);
+    border-color: var(--sbt-warning-color);
+}
+
+.sbt-mode-option[data-mode="web_novel"]:hover .sbt-mode-card {
+    border-color: var(--sbt-warning-color);
+    box-shadow: 0 4px 12px rgba(255, 159, 10, 0.2);
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .sbt-mode-options {
+        grid-template-columns: 1fr;
+    }
+
+    .sbt-mode-card {
+        padding: 15px;
+    }
+
+    .sbt-mode-icon {
+        font-size: 2.5em;
+    }
+}
+

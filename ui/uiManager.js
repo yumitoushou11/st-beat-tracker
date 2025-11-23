@@ -5,7 +5,7 @@ import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { showNsfwProposalPopup, showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
-import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers } from './settings/settingsUI.js';
+import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
 
 const deps = {
@@ -67,12 +67,23 @@ $('#extensions-settings-button').after(html);
             deps.diagnose("[UIManager] 严重错误：无法找到顶层容器 #beat-tracker-component-wrapper！UI将完全失效。");
             return;
         }
+    // -- 维护当前章节状态的全局引用 --
+    let currentChapterState = null;
+
+    // 监听CHAPTER_UPDATED事件，保存最新的章节状态
+    if (deps.eventBus) {
+        deps.eventBus.on('CHAPTER_UPDATED', (chapterState) => {
+            currentChapterState = chapterState;
+        });
+    }
+
     // -- 主抽屉开关 --
     $wrapper.find('.drawer-toggle').on('click', () => {
         $('#beat-tracker-icon').toggleClass('closedIcon openIcon');
         $('#beat-tracker-content-panel').toggleClass('closedDrawer openDrawer');
             if ($('#beat-tracker-content-panel').hasClass('openDrawer')) {
                 populateSettingsUI(deps); // 传递 deps 参数
+                populateNarrativeModeSelector(deps); // V7.0: 填充叙事模式选择器（全局配置版）
             }
     });
     
@@ -228,16 +239,6 @@ $('#extensions-settings-button').after(html);
             deps.toastr.success(`已更新终章信标 ${beaconIndex + 1}`, '保存成功');
         }
     });
-
-    // -- 世界档案面板: 角色卡片点击 --
-    let currentChapterState = null;
-
-    // 监听CHAPTER_UPDATED事件，保存最新的章节状态
-    if (deps.eventBus) {
-        deps.eventBus.on('CHAPTER_UPDATED', (chapterState) => {
-            currentChapterState = chapterState;
-        });
-    }
 
     $wrapper.on('click', '#sbt-archive-characters .sbt-archive-card', function() {
         const charId = $(this).data('char-id');
@@ -1038,6 +1039,8 @@ $('#extensions-settings-button').after(html);
     bindPasswordToggleHandlers($wrapper);
     bindSettingsSaveHandler($wrapper, deps);
     bindAPITestHandlers($wrapper, deps);
+    // V7.0: 叙事模式切换 - 传入获取当前章节的函数
+    bindNarrativeModeSwitchHandler($wrapper, deps, () => currentChapterState);
 
     // -- 数据库管理: 绑定数据库管理相关处理器 --
     bindDatabaseManagementHandlers($wrapper, deps);
