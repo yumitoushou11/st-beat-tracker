@@ -206,6 +206,7 @@ _createPrompt(context) {
 **【叙事模式适配 (Mode Adaptation)】**
 
 本章的叙事模式为：**\`${activeChapterBlueprint.mode || 'linear'}\`**
+本章的叙事风格为：**\`${activeChapterBlueprint.narrative_mode?.current_mode || 'classic_rpg'}\`**
 
 **如果 mode == "linear" (电影化线性):**
 - 执行现有逻辑：锁定 current_beat，禁止跨越，使用 scope_limit 严格限制
@@ -219,6 +220,38 @@ _createPrompt(context) {
   3. 如果玩家尝试离开场景 → 检查 endgame_beacons 是否达成
 - **宽松策略:** 不强制引导玩家完成所有热点，只在玩家长时间（5回合）无进展时才给出提示
 - **scope_limit:** 只限制"不要提前透露未发生的事"，不限制玩家的行动自由
+
+**【V7.1 网文模式执行强化 (Web Novel Mode Execution Enhancement)】**
+
+**如果 narrative_mode.current_mode == "web_novel" (网文模式):**
+
+你必须确保演绎AI忠实执行建筑师设计的**爽点蓝图**。建筑师已在蓝图的 \`design_notes.satisfaction_blueprint\` 中规划了本章的快感来源和NPC反馈，你的职责是**监督执行**。
+
+**【侧面烘托原则 (Side-Character Reaction Principle)】**
+- **核心理念:** 主角的成就必须通过NPC的反应来**放大**，才能产生快感
+- **在 \`narrative_goal\` 中添加反馈执行建议:**
+  - 当本回合涉及主角展示实力/获得成就/身份反转等爽点时刻：
+    - "【网文模式】本回合涉及主角[展示/获得/反转]，必须描写在场NPC的震惊/崇拜/恐惧/嫉妒反应。侧面烘托原则：主角的成就通过他人眼中的震撼来体现。"
+  - 当本回合是预期差铺垫阶段（NPC质疑/轻视主角）：
+    - "【网文模式】本回合是铺垫阶段，需要让NPC表现出低估/质疑/嘲讽的态度，为后续反转做预期差准备。"
+
+**【情绪放大原则 (Emotion Amplification Principle)】**
+- **核心理念:** 网文模式拒绝"平淡"，所有情绪都应该是**浓烈**的
+- **在 \`narrative_goal\` 中添加情绪放大建议:**
+  - 查看当前节拍的 \`state_change\`，如果涉及情绪变化（震撼/愤怒/喜悦/恐惧等）：
+    - "【网文模式】本回合的情绪是[X]，允许使用强烈的感官描写和内心独白，情绪饱和度应达到峰值，拒绝克制和留白。"
+
+**【爽点执行监督 (Satisfaction Blueprint Supervision)】**
+- **任务:** 检查蓝图中是否存在 \`design_notes.satisfaction_blueprint\`
+- **如果存在:**
+  - 在 \`analysis.common_sense_review\` 中添加一行："✓ 本章爽点蓝图：[core_pleasure_source]"
+  - 在 \`narrative_goal\` 末尾追加："建筑师已规划本章的爽点路径为[satisfaction_blueprint.core_pleasure_source]，本回合应推进该路径的执行。"
+- **如果不存在:** 无需额外操作（正剧模式或旧版章节）
+
+**【网文模式的微指令调整】**
+- \`narrative_goal\` 应更加**直接**和**具体**，明确告诉演绎AI"本回合是铺垫还是爆发"
+- \`scope_limit\` 在爽点高潮时刻可以适度放宽，允许更多篇幅用于描写NPC反应
+- \`narrative_hold\` 仍然严格执行，防止提前透露后续奖励
 
 ---
 ## **第一章：V3.0 升级职责 - 规划外实体检索 (Out-of-Plan Entity Retrieval)**
