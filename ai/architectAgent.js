@@ -302,8 +302,13 @@ _createPrompt(context) {
         // V4.2: 获取玩家设置的章节节拍数量区间
         const beatCountRange = localStorage.getItem('sbt-beat-count-range') || '8-10';
         const isNsfwFocused = playerNarrativeFocus.toLowerCase().startsWith('nsfw:');
-        // V2.0: 提取宏观叙事弧光和文体档案
-        const activeNarrativeArcs = chapter?.meta?.active_narrative_arcs || [];
+        // V8.0: 提取故事线追踪数据和文体档案
+        const staticStorylines = chapter?.staticMatrices?.storylines || {
+            main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+        };
+        const dynamicStorylines = chapter?.dynamicState?.storylines || {
+            main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+        };
         const stylisticArchive = chapter?.dynamicState?.stylistic_archive || {
             imagery_and_metaphors: [],
             frequent_descriptors: { adjectives: [], adverbs: [] },
@@ -367,21 +372,22 @@ _createPrompt(context) {
 - **定义:** 本章应给予玩家的**即时情感满足**和**当下体验**
 - **优先级:** 这是你的**主要任务**，必须确保本章能够完整地兑现这个承诺
 
-**2. 长期目标 (Long-term Arcs) - 战略层**
-- **数据来源:** 系统的 \`active_narrative_arcs\`
-- **定义:** 整个故事的**宏观演化方向**和**跨章节的叙事弧光**
-- **作用:** 即使本章不直接推进某条弧光，你也应确保设计不与之冲突，并在可能的情况下**埋下伏笔**
+**2. 长期目标 (Long-term Storylines) - 战略层**
+- **数据来源:** 系统的 \`staticMatrices.storylines\` 和 \`dynamicState.storylines\`
+- **定义:** 整个故事的**宏观演化方向**和**跨章节的故事线追踪**（主线任务、支线任务、关系线、个人线）
+- **作用:** 即使本章不直接推进某条故事线，你也应确保设计不与之冲突，并在可能的情况下**埋下伏笔**
 
 **【执行准则 - 二重奏的平衡艺术】**
-*   **情况A - 高度契合:** 如果玩家焦点与某条长期弧光高度契合（例如：玩家焦点"复仇"，长期弧光"复仇之路"），则**优先服务该弧光的推进**，让本章成为宏观叙事的关键节点。
-*   **情况B - 存在张力:** 如果玩家焦点是"轻松日常"，而长期弧光包含"复仇计划"，则本章应**聚焦日常**，但可通过**细微的环境细节或NPC的不经意言行**，暗示长期弧光的存在（例如：角色接到一通神秘电话后表情微变，但未展开）。
+*   **情况A - 高度契合:** 如果玩家焦点与某条活跃故事线高度契合（例如：玩家焦点"复仇"，主线任务"复仇之路"），则**优先服务该故事线的推进**，让本章成为宏观叙事的关键节点。
+*   **情况B - 存在张力:** 如果玩家焦点是"轻松日常"，而活跃故事线包含"复仇计划"，则本章应**聚焦日常**，但可通过**细微的环境细节或NPC的不经意言行**，暗示故事线的存在（例如：角色接到一通神秘电话后表情微变，但未展开）。
 *   **情况C - 无冲突:** 如果两者无直接关联，正常推进短期焦点即可。
 
 **【强制输出要求】**
 在 \`design_notes.dual_horizon_analysis\` 中，你**必须**明确阐述：
-- 你如何平衡了短期焦点与长期弧光
+- 你如何平衡了短期焦点与长期故事线
 - 如果存在张力，你的选择逻辑是什么
-- 你为长期弧光埋下了哪些伏笔（如果有）
+- 你为长期故事线埋下了哪些伏笔（如果有）
+- 本章会推进哪些故事线，推进的具体方式是什么
 
 ---
 ## **第一章：核心创作哲学与红线禁令 (Core Philosophy & Red Lines)**
@@ -537,13 +543,41 @@ _createPrompt(context) {
 1.  **【战术层】玩家的短期焦点 (Short-term Focus):** \`${playerNarrativeFocus}\`
     - 这是玩家对本章的期待，你必须优先兑现这个承诺。
 
-2.  **【战略层】系统的长期弧光 (Long-term Narrative Arcs):**
-    ${activeNarrativeArcs.length > 0
-      ? `<active_narrative_arcs>
-    ${JSON.stringify(activeNarrativeArcs, null, 2)}
-    </active_narrative_arcs>
-    - 这些是跨章节的宏观故事线，参考"第零章"的双重奏哲学进行平衡处理。`
-      : '当前无活跃的长期弧光。你可以根据故事发展，在本章设计中为未来埋下长期目标的种子。'}
+2.  **【战略层】系统的故事线追踪 (Storyline Tracker):**
+    ${(() => {
+        // 合并静态和动态故事线数据
+        const mergedStorylines = {
+            main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+        };
+        let totalCount = 0;
+
+        for (const category of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
+            const staticCat = staticStorylines[category] || {};
+            const dynamicCat = dynamicStorylines[category] || {};
+
+            for (const [id, staticData] of Object.entries(staticCat)) {
+                const dynamicData = dynamicCat[id] || {};
+                mergedStorylines[category][id] = {
+                    ...staticData,
+                    current_status: dynamicData.current_status || 'active',
+                    current_summary: dynamicData.current_summary || staticData.summary
+                };
+                totalCount++;
+            }
+        }
+
+        if (totalCount === 0) {
+            return '当前无活跃的故事线。你可以根据故事发展，在本章设计中为未来埋下新的故事线种子。';
+        }
+
+        return `<storylines>
+    ${JSON.stringify(mergedStorylines, null, 2)}
+    </storylines>
+    - **【【【 强制参考要求 】】】**: 你**必须**在设计本章时优先参考这些故事线。
+    - 这些是跨章节的宏观故事线，参考"第零章"的双重奏哲学进行平衡处理。
+    - 每条故事线都有 current_status (active/completed/paused/failed) 和 current_summary (最新进展)。
+    - **优先推进 status=active 的故事线**，除非玩家焦点明确要求其他内容。`;
+    })()}
 
 3.  **长篇故事梗概:** ${longTermStorySummary}
 

@@ -1,6 +1,6 @@
 // ui/uiManager.js
 import { SbtPopupConfirm } from './SbtPopupConfirm.js';
-import { updateDashboard, showCharacterDetailModal, showWorldviewDetailModal } from './renderers.js';
+import { updateDashboard, showCharacterDetailModal, showWorldviewDetailModal, showStorylineDetailModal } from './renderers.js';
 import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
@@ -649,6 +649,11 @@ $('#extensions-settings-button').after(html);
         $('#sbt-worldview-detail-panel').hide();
     });
 
+    // -- 故事线详情: 关闭详情面板 --
+    $wrapper.on('click', '#sbt-close-storyline-detail', function() {
+        $('#sbt-storyline-detail-panel').hide();
+    });
+
     // -- 世界观详情: 编辑模式切换 --
     $wrapper.on('click', '.sbt-edit-worldview-mode-toggle', function() {
         const $btn = $(this);
@@ -908,52 +913,154 @@ $('#extensions-settings-button').after(html);
         });
     }
 
-    // -- V2.0: 故事大纲 - 新增弧光 --
-    $wrapper.on('click', '.sbt-add-arc-btn', function() {
+    // -- V8.0: 故事线追踪 - 查看故事线详情 --
+    $wrapper.on('click', '.sbt-storyline-card', function(e) {
+        // 如果点击的是编辑或删除按钮，不触发查看详情
+        if ($(e.target).closest('.sbt-storyline-edit-btn, .sbt-storyline-delete-btn').length > 0) {
+            return;
+        }
+
+        const lineId = $(this).data('storyline-id');
+        const category = $(this).data('category');
+        const categoryName = $(this).data('category-name');
+
+        if (!currentChapterState || !lineId || !category) return;
+
+        showStorylineDetailModal(lineId, category, categoryName, currentChapterState, false, false);
+    });
+
+    // -- V8.0: 故事线追踪 - 新建故事线 --
+    $wrapper.on('click', '.sbt-add-storyline-btn', function() {
         if (!currentChapterState) {
             deps.toastr.warning('请先开始一个故事', '操作失败');
             return;
         }
 
-        // 显示弹窗收集弧光信息
-        const arcTitle = prompt('请输入弧光标题:');
-        if (!arcTitle || !arcTitle.trim()) return;
+        const category = $(this).data('category');
+        const categoryName = $(this).data('category-name');
 
-        const longTermGoal = prompt('请输入长期目标:');
-        const currentStage = prompt('请输入当前阶段标识 (如: initial, development, climax):') || 'initial';
-        const stageDescription = prompt('请输入阶段描述:') || '';
+        // 生成临时ID
+        const tempId = `temp_${Date.now()}`;
 
-        // 生成弧光ID
-        const timestamp = Date.now().toString(36);
-        const titlePart = arcTitle.trim().replace(/\s+/g, '_').toLowerCase();
-        const arcId = `arc_${titlePart}_${timestamp}`;
-
-        // 确保 meta.active_narrative_arcs 存在
-        if (!currentChapterState.meta) {
-            currentChapterState.meta = {};
+        // 确保 storylines 结构存在
+        if (!currentChapterState.staticMatrices.storylines) {
+            currentChapterState.staticMatrices.storylines = {
+                main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+            };
         }
-        if (!currentChapterState.meta.active_narrative_arcs) {
-            currentChapterState.meta.active_narrative_arcs = [];
+        if (!currentChapterState.dynamicState.storylines) {
+            currentChapterState.dynamicState.storylines = {
+                main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+            };
         }
 
-        // 创建新弧光
-        const newArc = {
-            arc_id: arcId,
-            title: arcTitle.trim(),
-            long_term_goal: longTermGoal?.trim() || '',
-            current_stage: currentStage.trim(),
-            stage_description: stageDescription.trim(),
-            involved_entities: [],
-            created_at: new Date().toISOString(),
-            last_updated: new Date().toISOString(),
-            progression_history: []
+        // 显示新建模态框
+        showStorylineDetailModal(tempId, category, categoryName, currentChapterState, true, true);
+    });
+
+    // -- V8.0: 故事线追踪 - 编辑故事线按钮 --
+    $wrapper.on('click', '.sbt-storyline-edit-btn', function(e) {
+        e.stopPropagation(); // 防止触发卡片点击
+
+        const lineId = $(this).data('storyline-id');
+        const category = $(this).data('category');
+        const categoryName = $(this).data('category-name');
+
+        if (!currentChapterState || !lineId || !category) return;
+
+        showStorylineDetailModal(lineId, category, categoryName, currentChapterState, true, false);
+    });
+
+    // -- V8.0: 故事线追踪 - 模态框内的编辑模式切换 --
+    $wrapper.on('click', '.sbt-edit-storyline-mode-toggle', function() {
+        const lineId = $(this).data('line-id');
+        const category = $(this).data('category');
+        const categoryName = $(this).data('category-name');
+
+        if (!currentChapterState || !lineId || !category) return;
+
+        showStorylineDetailModal(lineId, category, categoryName, currentChapterState, true, false);
+    });
+
+    // -- V8.0: 故事线追踪 - 保存故事线 --
+    $wrapper.on('click', '.sbt-save-storyline-btn', function() {
+        const lineId = $(this).data('line-id');
+        const category = $(this).data('category');
+        const isNew = $(this).data('is-new');
+        const $panel = $('#sbt-storyline-detail-panel');
+
+        if (!currentChapterState) return;
+
+        // 确保结构存在
+        if (!currentChapterState.staticMatrices.storylines) {
+            currentChapterState.staticMatrices.storylines = {
+                main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+            };
+        }
+        if (!currentChapterState.dynamicState.storylines) {
+            currentChapterState.dynamicState.storylines = {
+                main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+            };
+        }
+        if (!currentChapterState.staticMatrices.storylines[category]) {
+            currentChapterState.staticMatrices.storylines[category] = {};
+        }
+        if (!currentChapterState.dynamicState.storylines[category]) {
+            currentChapterState.dynamicState.storylines[category] = {};
+        }
+
+        // 收集表单数据
+        const title = $panel.find('.sbt-storyline-name-input').val()?.trim();
+        const summary = $panel.find('textarea[data-path="summary"]').val()?.trim();
+        const currentSummary = $panel.find('textarea[data-path="current_summary"]').val()?.trim();
+        const trigger = $panel.find('.sbt-storyline-trigger-input').val()?.trim();
+        const currentStatus = $panel.find('.sbt-storyline-status-select').val();
+
+        // 验证必填字段
+        if (!title) {
+            deps.toastr.error('请输入故事线标题', '验证失败');
+            return;
+        }
+
+        // 收集涉及角色
+        const involvedChars = [];
+        $panel.find('.sbt-involved-chars .sbt-tag-editable').each(function() {
+            const charId = $(this).data('char-id');
+            if (charId) involvedChars.push(charId);
+        });
+
+        // 生成最终ID（如果是新建）
+        let finalLineId = lineId;
+        if (isNew) {
+            const timestamp = Date.now().toString(36);
+            const titlePart = title.replace(/\s+/g, '_').toLowerCase();
+            finalLineId = `line_${titlePart}_${timestamp}`;
+        }
+
+        // 保存静态数据
+        currentChapterState.staticMatrices.storylines[category][finalLineId] = {
+            title: title,
+            summary: summary || '',
+            trigger: trigger || '玩家主动触发',
+            type: category,
+            involved_chars: involvedChars
         };
 
-        currentChapterState.meta.active_narrative_arcs.push(newArc);
+        // 保存动态数据
+        if (!currentChapterState.dynamicState.storylines[category][finalLineId]) {
+            currentChapterState.dynamicState.storylines[category][finalLineId] = {
+                current_status: currentStatus || 'active',
+                current_summary: currentSummary || summary || '故事线刚刚创建',
+                history: []
+            };
+        } else {
+            currentChapterState.dynamicState.storylines[category][finalLineId].current_status = currentStatus || 'active';
+            currentChapterState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || summary || '';
+        }
 
         // 保存
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('narrative_arc_added', currentChapterState);
+            deps.onSaveCharacterEdit(isNew ? 'storyline_added' : 'storyline_updated', currentChapterState);
         }
 
         // 触发更新
@@ -961,70 +1068,48 @@ $('#extensions-settings-button').after(html);
             deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
         }
 
-        deps.toastr.success(`弧光"${arcTitle}"已创建！`, '创建成功');
+        // 隐藏面板
+        $panel.hide();
+
+        deps.toastr.success(`故事线"${title}"已${isNew ? '创建' : '保存'}！`, isNew ? '创建成功' : '保存成功');
     });
 
-    // -- V2.0: 故事大纲 - 编辑弧光 --
-    $wrapper.on('click', '.sbt-edit-arc-btn', function() {
-        const arcId = $(this).data('arc-id');
-        if (!currentChapterState || !arcId) return;
-
-        const arc = currentChapterState.meta.active_narrative_arcs?.find(a => a.arc_id === arcId);
-        if (!arc) {
-            deps.toastr.error('找不到该弧光', '错误');
-            return;
-        }
-
-        // 显示编辑弹窗
-        const newTitle = prompt('弧光标题:', arc.title);
-        if (newTitle === null) return; // 用户取消
-
-        const newGoal = prompt('长期目标:', arc.long_term_goal);
-        const newStage = prompt('当前阶段:', arc.current_stage);
-        const newStageDesc = prompt('阶段描述:', arc.stage_description);
-
-        // 更新弧光
-        if (newTitle && newTitle.trim()) arc.title = newTitle.trim();
-        if (newGoal !== null) arc.long_term_goal = newGoal.trim();
-        if (newStage !== null) arc.current_stage = newStage.trim();
-        if (newStageDesc !== null) arc.stage_description = newStageDesc.trim();
-        arc.last_updated = new Date().toISOString();
-
-        // 保存
-        if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('narrative_arc_updated', currentChapterState);
-        }
-
-        // 触发更新
-        if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
-        }
-
-        deps.toastr.success('弧光已更新！', '更新成功');
+    // -- V8.0: 故事线追踪 - 取消编辑 --
+    $wrapper.on('click', '.sbt-cancel-storyline-edit-btn', function() {
+        const $panel = $('#sbt-storyline-detail-panel');
+        $panel.hide();
     });
 
-    // -- V2.0: 故事大纲 - 删除弧光 --
-    $wrapper.on('click', '.sbt-delete-arc-btn', function() {
-        const arcId = $(this).data('arc-id');
-        if (!currentChapterState || !arcId) return;
+    // -- V8.0: 故事线追踪 - 删除故事线 --
+    $wrapper.on('click', '.sbt-storyline-delete-btn', function(e) {
+        e.stopPropagation(); // 防止触发卡片点击
 
-        const arcIndex = currentChapterState.meta.active_narrative_arcs?.findIndex(a => a.arc_id === arcId);
-        if (arcIndex === -1) {
-            deps.toastr.error('找不到该弧光', '错误');
+        const lineId = $(this).data('storyline-id') || $(this).data('line-id');
+        const category = $(this).data('category');
+
+        if (!currentChapterState || !lineId || !category) return;
+
+        const staticLine = currentChapterState.staticMatrices.storylines?.[category]?.[lineId];
+        if (!staticLine) {
+            deps.toastr.error('找不到该故事线', '错误');
             return;
         }
 
-        const arc = currentChapterState.meta.active_narrative_arcs[arcIndex];
-        if (!confirm(`确定要删除弧光"${arc.title}"吗？此操作无法撤销。`)) {
+        if (!confirm(`确定要删除故事线"${staticLine.title}"吗？此操作无法撤销。`)) {
             return;
         }
 
-        // 删除弧光
-        currentChapterState.meta.active_narrative_arcs.splice(arcIndex, 1);
+        // 删除静态部分
+        delete currentChapterState.staticMatrices.storylines[category][lineId];
+
+        // 删除动态部分
+        if (currentChapterState.dynamicState.storylines?.[category]?.[lineId]) {
+            delete currentChapterState.dynamicState.storylines[category][lineId];
+        }
 
         // 保存
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('narrative_arc_deleted', currentChapterState);
+            deps.onSaveCharacterEdit('storyline_deleted', currentChapterState);
         }
 
         // 触发更新
@@ -1032,7 +1117,56 @@ $('#extensions-settings-button').after(html);
             deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
         }
 
-        deps.toastr.success(`弧光"${arc.title}"已删除`, '删除成功');
+        // 隐藏详情面板（如果正在显示）
+        $('#sbt-storyline-detail-panel').hide();
+
+        deps.toastr.success(`故事线"${staticLine.title}"已删除`, '删除成功');
+    });
+
+    // -- V8.0: 故事线追踪 - 添加涉及角色 --
+    $wrapper.on('click', '.sbt-char-tag-add-btn', function() {
+        if (!currentChapterState) return;
+
+        const allChars = currentChapterState.staticMatrices.characters || {};
+        const charOptions = Object.keys(allChars).map(charId => {
+            const charData = allChars[charId];
+            const charName = charData?.core?.name || charData?.name || charId;
+            return `${charName} (${charId})`;
+        });
+
+        if (charOptions.length === 0) {
+            deps.toastr.warning('当前没有可用的角色', '提示');
+            return;
+        }
+
+        const selection = prompt(`选择要添加的角色（输入编号）:\n${charOptions.map((opt, i) => `${i + 1}. ${opt}`).join('\n')}`);
+        if (!selection) return;
+
+        const index = parseInt(selection, 10) - 1;
+        const charIds = Object.keys(allChars);
+        if (index >= 0 && index < charIds.length) {
+            const charId = charIds[index];
+            const charData = allChars[charId];
+            const charName = charData?.core?.name || charData?.name || charId;
+
+            // 检查是否已存在
+            const $container = $(this).closest('.sbt-involved-chars');
+            const existing = $container.find(`.sbt-tag-editable[data-char-id="${charId}"]`);
+            if (existing.length > 0) {
+                deps.toastr.warning('该角色已在列表中', '提示');
+                return;
+            }
+
+            // 添加标签
+            const $newTag = $(`<span class="sbt-tag sbt-tag-editable" data-char-id="${charId}">${charName}<i class="fa-solid fa-xmark sbt-char-tag-delete" data-char-id="${charId}"></i></span>`);
+            $(this).before($newTag);
+        }
+    });
+
+    // -- V8.0: 故事线追踪 - 删除涉及角色 --
+    $wrapper.on('click', '.sbt-char-tag-delete', function(e) {
+        e.stopPropagation();
+        $(this).closest('.sbt-tag-editable').remove();
     });
 
     // -- 设置面板: 绑定所有设置相关处理器 --

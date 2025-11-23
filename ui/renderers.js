@@ -2,6 +2,7 @@
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { showCharacterDetailModal, showCharacterDetailPopup } from './renderers/characterModal.js';
 import { showWorldviewDetailModal } from './renderers/worldviewModal.js';
+import { showStorylineDetailModal } from './renderers/storylineModal.js';
 
 
 /**
@@ -254,17 +255,27 @@ function renderArchiveWorldview(worldviewData, category, container, categoryKey)
 }
 
 /**
- * @description 渲染世界档案面板 - 故事线
+ * @description 渲染世界档案面板 - 故事线（V8.0 可编辑版本）
  * @param {object} storylineData - 故事线数据对象
  * @param {JQuery<HTMLElement>} container - 渲染的目标容器
+ * @param {string} category - 故事线分类（main_quests/side_quests/relationship_arcs/personal_arcs）
+ * @param {string} categoryName - 分类显示名称
  */
-function renderArchiveStorylines(storylineData, container) {
+function renderArchiveStorylines(storylineData, container, category, categoryName) {
     if (!container || container.length === 0) return;
 
     container.empty();
 
+    // 添加新建故事线按钮
+    const addBtnHtml = `
+        <button class="sbt-add-storyline-btn" data-category="${category}" data-category-name="${categoryName}">
+            <i class="fa-solid fa-plus fa-fw"></i> 新建${categoryName}
+        </button>
+    `;
+    container.append(addBtnHtml);
+
     if (!storylineData || Object.keys(storylineData).length === 0) {
-        container.html('<p class="sbt-instructions">暂无相关故事线。</p>');
+        container.append(`<p class="sbt-instructions">暂无${categoryName}。</p>`);
         return;
     }
 
@@ -294,7 +305,27 @@ function renderArchiveStorylines(storylineData, container) {
             historyHtml += '</div>';
         }
 
-        const itemHtml = `<div class="sbt-archive-item"><div class="sbt-archive-item-title">${line.title || id}<span class="sbt-archive-status ${status}">${statusText}</span></div><div class="sbt-archive-item-desc">${descText}</div>${line.type ? `<div class="sbt-archive-item-meta">类型: ${line.type}</div>` : ''}${historyHtml}</div>`;
+        const itemHtml = `
+            <div class="sbt-archive-item sbt-storyline-card" data-storyline-id="${id}" data-category="${category}">
+                <div class="sbt-archive-item-header">
+                    <div class="sbt-archive-item-title">
+                        ${line.title || id}
+                        <span class="sbt-archive-status ${status}">${statusText}</span>
+                    </div>
+                    <div class="sbt-storyline-actions">
+                        <button class="sbt-storyline-edit-btn" data-storyline-id="${id}" data-category="${category}" data-category-name="${categoryName}" title="编辑${categoryName}">
+                            <i class="fa-solid fa-pen-to-square"></i>
+                        </button>
+                        <button class="sbt-storyline-delete-btn" data-storyline-id="${id}" data-category="${category}" title="删除${categoryName}">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="sbt-archive-item-desc">${descText}</div>
+                ${line.type ? `<div class="sbt-archive-item-meta">类型: ${line.type}</div>` : ''}
+                ${historyHtml}
+            </div>
+        `;
         container.append(itemHtml);
     }
 }
@@ -576,100 +607,34 @@ function updateArchivePanel(chapterState) {
 
     renderArchiveStorylines(
         mergeStorylineData('main_quests'),
-        $('#sbt-archive-main-quests')
+        $('#sbt-archive-main-quests'),
+        'main_quests',
+        '主线任务'
     );
 
     renderArchiveStorylines(
         mergeStorylineData('side_quests'),
-        $('#sbt-archive-side-quests')
+        $('#sbt-archive-side-quests'),
+        'side_quests',
+        '支线任务'
     );
 
     renderArchiveStorylines(
         mergeStorylineData('relationship_arcs'),
-        $('#sbt-archive-relationship-arcs')
+        $('#sbt-archive-relationship-arcs'),
+        'relationship_arcs',
+        '关系弧光'
     );
 
     renderArchiveStorylines(
         mergeStorylineData('personal_arcs'),
-        $('#sbt-archive-personal-arcs')
+        $('#sbt-archive-personal-arcs'),
+        'personal_arcs',
+        '个人成长'
     );
 }
 
 /**更新整个仪表盘UI，现在传递整个 Chapter 对象 */
-/**
- * @description [V2.0] 渲染故事大纲 - 宏观叙事弧光列表
- * @param {object} chapterState - 章节状态对象
- */
-function renderNarrativeArcs(chapterState) {
-    console.group('[RENDERER-V2-PROBE] 故事大纲渲染流程');
-
-    const container = $('#sbt-arc-list');
-    if (!container || container.length === 0) {
-        console.warn('⚠️ 故事大纲容器未找到');
-        console.groupEnd();
-        return;
-    }
-
-    const activeArcs = chapterState?.meta?.active_narrative_arcs || [];
-    console.log(`检测到 ${activeArcs.length} 条活跃弧光`);
-
-    if (activeArcs.length === 0) {
-        container.html('<p class="sbt-instructions">当前没有活跃的叙事弧光。</p>');
-        console.groupEnd();
-        return;
-    }
-
-    let html = '';
-    activeArcs.forEach((arc, index) => {
-        const arcTitle = arc.title || '未命名弧光';
-        const arcId = arc.arc_id || `arc_${index}`;
-        const currentStage = arc.current_stage || 'unknown';
-        const stageDescription = arc.stage_description || '暂无描述';
-        const longTermGoal = arc.long_term_goal || '暂无目标';
-        const createdAt = arc.created_at ? new Date(arc.created_at).toLocaleDateString('zh-CN') : '未知';
-        const lastUpdated = arc.last_updated ? new Date(arc.last_updated).toLocaleDateString('zh-CN') : '未知';
-
-        html += `
-            <div class="sbt-arc-card" data-arc-id="${arcId}">
-                <div class="sbt-arc-header">
-                    <h6 class="sbt-arc-title">
-                        <i class="fa-solid fa-book fa-fw"></i> ${arcTitle}
-                    </h6>
-                    <div class="sbt-arc-actions">
-                        <button class="sbt-icon-btn sbt-edit-arc-btn" data-arc-id="${arcId}" title="编辑弧光">
-                            <i class="fa-solid fa-edit fa-fw"></i>
-                        </button>
-                        <button class="sbt-icon-btn sbt-delete-arc-btn" data-arc-id="${arcId}" title="删除弧光">
-                            <i class="fa-solid fa-trash fa-fw"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="sbt-arc-body">
-                    <div class="sbt-arc-field">
-                        <strong><i class="fa-solid fa-bullseye fa-fw"></i> 长期目标:</strong>
-                        <p>${longTermGoal}</p>
-                    </div>
-                    <div class="sbt-arc-field">
-                        <strong><i class="fa-solid fa-map-signs fa-fw"></i> 当前阶段:</strong>
-                        <p><span class="sbt-arc-stage-badge">${currentStage}</span></p>
-                    </div>
-                    <div class="sbt-arc-field">
-                        <strong><i class="fa-solid fa-info-circle fa-fw"></i> 阶段描述:</strong>
-                        <p>${stageDescription}</p>
-                    </div>
-                    <div class="sbt-arc-meta">
-                        <span class="sbt-meta-item"><i class="fa-solid fa-calendar-plus fa-fw"></i> 创建: ${createdAt}</span>
-                        <span class="sbt-meta-item"><i class="fa-solid fa-clock fa-fw"></i> 更新: ${lastUpdated}</span>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-
-    container.html(html);
-    console.log('✓ 故事大纲渲染完成');
-    console.groupEnd();
-}
 
 /**
  * @description [V3.5] 渲染章节剧本 - 分层卡片式布局
@@ -1015,9 +980,6 @@ export function updateDashboard(chapterState) {
         }
     }
 
-    // --- V2.0: 渲染故事大纲 (宏观叙事弧光) ---
-    renderNarrativeArcs(chapterState);
-
     // --- V4.0: 渲染叙事控制塔 ---
     renderNarrativeControlTower(chapterState);
 
@@ -1288,4 +1250,4 @@ function renderNarrativeControlTower(chapterState) {
 }
 
 // 导出模态框函数，供外部使用
-export { showCharacterDetailModal, showCharacterDetailPopup, showWorldviewDetailModal };
+export { showCharacterDetailModal, showCharacterDetailPopup, showWorldviewDetailModal, showStorylineDetailModal };

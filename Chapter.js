@@ -127,19 +127,6 @@ export class Chapter {
             meta: {
                 longTermStorySummary: "故事刚刚开始。",
                 lastChapterHandoff: null,
-                // V2.0: 宏观叙事弧光存储区
-                active_narrative_arcs: [
-                    // {
-                    //   arc_id: "arc_xxx",
-                    //   title: "弧光标题",
-                    //   long_term_goal: "长期目标描述",
-                    //   current_stage: "当前阶段标识",
-                    //   stage_description: "阶段详细描述",
-                    //   involved_entities: ["char_xxx", "loc_xxx"], // 涉及的实体ID
-                    //   created_at: "创建时间",
-                    //   last_updated: "最后更新时间"
-                    // }
-                ],
                 // V4.0: 叙事控制塔 (Narrative Control Tower) - 一体化节奏管理系统
                 // 所有节奏相关决策的统一数据源
                 narrative_control_tower: {

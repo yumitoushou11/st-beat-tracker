@@ -1270,6 +1270,74 @@ input:checked + .sbt-slider:before {
     margin-right: 4px;
 }
 
+/* 故事线卡片按钮组 */
+.sbt-storyline-actions {
+    display: flex;
+    gap: 6px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.sbt-archive-item:hover .sbt-storyline-actions,
+.sbt-storyline-card:hover .sbt-storyline-actions {
+    opacity: 1;
+}
+
+/* 故事线卡片上的编辑按钮 */
+.sbt-storyline-edit-btn {
+    background-color: rgba(10, 132, 255, 0.1);
+    border: 1px solid rgba(10, 132, 255, 0.4);
+    color: var(--sbt-primary-accent);
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbt-storyline-edit-btn:hover {
+    background-color: rgba(10, 132, 255, 0.2);
+    border-color: var(--sbt-primary-accent);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(10, 132, 255, 0.25);
+}
+
+.sbt-storyline-edit-btn i {
+    font-size: 0.95em;
+}
+
+/* 故事线卡片上的删除按钮(小按钮版本) */
+.sbt-archive-item .sbt-storyline-delete-btn,
+.sbt-storyline-card .sbt-storyline-delete-btn {
+    background-color: rgba(255, 69, 58, 0.1);
+    border: 1px solid rgba(255, 69, 58, 0.4);
+    color: var(--sbt-danger-color);
+    padding: 4px 8px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbt-archive-item .sbt-storyline-delete-btn:hover,
+.sbt-storyline-card .sbt-storyline-delete-btn:hover {
+    background-color: rgba(255, 69, 58, 0.2);
+    border-color: var(--sbt-danger-color);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(255, 69, 58, 0.25);
+}
+
+.sbt-archive-item .sbt-storyline-delete-btn i,
+.sbt-storyline-card .sbt-storyline-delete-btn i {
+    font-size: 0.95em;
+}
+
 /* 删除按钮 */
 .sbt-delete-worldview-item-btn {
     background-color: rgba(255, 69, 58, 0.1);
@@ -1397,6 +1465,242 @@ input:checked + .sbt-slider:before {
     color: var(--sbt-primary-accent);
 }
 
+/* 故事线编辑界面样式 */
+.sbt-storyline-edit-wrapper {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sbt-storyline-textarea {
+    width: 100%;
+    min-height: 150px;
+    padding: 12px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-light);
+    font-size: 0.95em;
+    line-height: 1.6;
+    resize: vertical;
+    font-family: inherit;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.sbt-storyline-textarea:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    background-color: var(--sbt-bg-dark);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
+}
+
+.sbt-storyline-textarea::placeholder {
+    color: var(--sbt-text-medium);
+    opacity: 0.6;
+}
+
+.sbt-storyline-edit-tips {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background-color: rgba(10, 132, 255, 0.1);
+    border-left: 3px solid var(--sbt-primary-accent);
+    border-radius: 4px;
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+}
+
+.sbt-storyline-edit-tips i {
+    color: var(--sbt-primary-accent);
+}
+
+.sbt-storyline-name-input,
+.sbt-storyline-trigger-input {
+    width: 100%;
+    padding: 8px 12px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-light);
+    font-size: 1em;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.sbt-storyline-name-input:focus,
+.sbt-storyline-trigger-input:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    background-color: var(--sbt-bg-dark);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
+}
+
+.sbt-storyline-status-select {
+    width: 100%;
+    padding: 8px 12px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-light);
+    font-size: 0.95em;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.sbt-storyline-status-select:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    background-color: var(--sbt-bg-dark);
+}
+
+.sbt-involved-chars {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+}
+
+.sbt-char-tag-add-btn {
+    padding: 4px 10px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px dashed var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-medium);
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-char-tag-add-btn:hover {
+    background-color: var(--sbt-primary-accent);
+    border-color: var(--sbt-primary-accent);
+    color: white;
+}
+
+.sbt-char-tag-delete {
+    margin-left: 6px;
+    cursor: pointer;
+    color: var(--sbt-text-medium);
+    transition: color 0.2s ease;
+}
+
+.sbt-char-tag-delete:hover {
+    color: var(--sbt-error-color);
+}
+
+.sbt-storyline-history {
+    margin-top: 10px;
+}
+
+.sbt-storyline-history-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: var(--sbt-text-light);
+    margin-bottom: 10px;
+}
+
+.sbt-storyline-history-title i {
+    color: var(--sbt-primary-accent);
+}
+
+.sbt-storyline-content {
+    line-height: 1.6;
+}
+
+/* 故事线详情面板按钮样式 */
+.sbt-save-storyline-btn {
+    background-color: var(--sbt-success-color);
+    color: var(--sbt-bg-darker);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-save-storyline-btn:hover:not(:disabled) {
+    background-color: #28B84A;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(48, 209, 88, 0.3);
+}
+
+.sbt-save-storyline-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.sbt-save-storyline-btn i {
+    margin-right: 4px;
+}
+
+.sbt-cancel-storyline-edit-btn {
+    background-color: transparent;
+    color: var(--sbt-text-light);
+    border: 1px solid var(--sbt-border-color);
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-cancel-storyline-edit-btn:hover {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-color: var(--sbt-text-medium);
+}
+
+.sbt-cancel-storyline-edit-btn i {
+    margin-right: 4px;
+}
+
+.sbt-delete-storyline-btn {
+    background-color: rgba(255, 69, 58, 0.1);
+    border: 1px solid rgba(255, 69, 58, 0.5);
+    color: var(--sbt-danger-color);
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-delete-storyline-btn:hover {
+    background-color: var(--sbt-danger-color);
+    border-color: var(--sbt-danger-color);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.sbt-delete-storyline-btn i {
+    margin-right: 4px;
+}
+
+.sbt-edit-storyline-mode-toggle {
+    margin-top: 8px;
+    padding: 4px 10px;
+    background-color: transparent;
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 3px;
+    color: var(--sbt-text-light);
+    font-size: 0.85em;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-edit-storyline-mode-toggle:hover {
+    background-color: rgba(10, 132, 255, 0.1);
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-edit-storyline-mode-toggle i {
+    margin-right: 3px;
+}
+
 /* 查看模式内容样式 */
 .sbt-worldview-content {
     padding: 10px 0;
@@ -1493,6 +1797,35 @@ input:checked + .sbt-slider:before {
 }
 
 .sbt-add-character-btn i {
+    margin-right: 6px;
+}
+
+/* 新建故事线按钮 */
+.sbt-add-storyline-btn {
+    background-color: rgba(10, 132, 255, 0.08);
+    border: 2px dashed rgba(10, 132, 255, 0.4);
+    color: var(--sbt-primary-accent);
+    padding: 12px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.95em;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.sbt-add-storyline-btn:hover {
+    background-color: rgba(10, 132, 255, 0.15);
+    border-style: solid;
+    border-color: var(--sbt-primary-accent);
+    transform: translateY(-1px);
+}
+
+.sbt-add-storyline-btn i {
     margin-right: 6px;
 }
 
