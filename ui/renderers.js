@@ -850,6 +850,13 @@ function renderChapterBlueprint(blueprint) {
 export function updateDashboard(chapterState) {
     if (!chapterState || $('#beat-tracker-component-wrapper').length === 0) return;
 
+    // V4.2 调试：验证UI收到的章节数据
+    console.group('[RENDERERS-V4.2-DEBUG] updateDashboard 收到数据');
+    console.log('章节UID:', chapterState.uid);
+    console.log('终章信标:', chapterState.chapter_blueprint?.endgame_beacons);
+    console.log('章节衔接点:', chapterState.meta?.lastChapterHandoff);
+    console.groupEnd();
+
     // --- 1. 【V3.6 革新】渲染双轨制故事摘要（编年史+衔接点） ---
     const summaryContainer = $('#sbt-story-summary-content');
     if(summaryContainer.length > 0) {
@@ -903,7 +910,7 @@ export function updateDashboard(chapterState) {
         scriptContainer.html(blueprintHtml);
     }
 
-    // --- 3. 【革新】渲染全新的“自省式”设计笔记 ---
+    // --- 3. 【革新】渲染全新的"自省式"设计笔记 ---
     const notesContainer = $('#sbt-design-notes-content');
     if (notesContainer.length > 0) {
         const notes = chapterState.activeChapterDesignNotes;
@@ -918,6 +925,120 @@ export function updateDashboard(chapterState) {
                 }
                 return '';
             };
+
+            // 渲染满足感蓝图（网文模式KPI）
+            let satisfactionHtml = '';
+            if (notes.satisfaction_blueprint && typeof notes.satisfaction_blueprint === 'object') {
+                const blueprint = notes.satisfaction_blueprint;
+                const isWebNovelMode = blueprint.core_pleasure_source && blueprint.core_pleasure_source !== 'N/A';
+
+                if (isWebNovelMode) {
+                    satisfactionHtml = `
+                        <div style="background: linear-gradient(135deg, var(--sbt-background-dark) 0%, var(--sbt-background) 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid var(--sbt-warning-color);">
+                            <h6 style="font-size: 1.1em; margin-bottom: 15px; color: var(--sbt-warning-color);"><i class="fa-solid fa-fire fa-fw"></i> 网文模式 - 满足感蓝图</h6>
+
+                            ${blueprint.core_pleasure_source ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-heart-pulse fa-fw"></i> 核心快感来源:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid var(--sbt-warning-color);">${blueprint.core_pleasure_source}</p>
+                            </div>
+                            ` : ''}
+
+                            ${blueprint.witness_design ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-users fa-fw"></i> 见证者设计:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid var(--sbt-primary-accent);">${blueprint.witness_design}</p>
+                            </div>
+                            ` : ''}
+
+                            ${blueprint.witness_execution_report ? `
+                            <div style="margin-bottom: 15px; background: var(--sbt-background-dark); padding: 12px; border-radius: 6px;">
+                                <strong><i class="fa-solid fa-clipboard-check fa-fw"></i> 见证者执行报告:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #2ecc71; font-style: italic;">${blueprint.witness_execution_report}</p>
+                            </div>
+                            ` : ''}
+
+                            ${blueprint.expectation_setup ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-arrow-down-up-across-line fa-fw"></i> 预期差铺垫:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #3498db;">${blueprint.expectation_setup}</p>
+                            </div>
+                            ` : ''}
+
+                            ${blueprint.climax_payoff ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-burst fa-fw"></i> 高潮反馈:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #e74c3c;">${blueprint.climax_payoff}</p>
+                            </div>
+                            ` : ''}
+
+                            ${blueprint.tangible_rewards && Array.isArray(blueprint.tangible_rewards) && blueprint.tangible_rewards.length > 0 ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-gift fa-fw"></i> 物质/能力奖励:</strong>
+                                <ul style="margin-top: 5px; padding-left: 30px;">
+                                    ${blueprint.tangible_rewards.map(reward => `<li style="margin: 5px 0;">${reward}</li>`).join('')}
+                                </ul>
+                            </div>
+                            ` : ''}
+
+                            ${blueprint.emotional_rewards ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-face-smile-beam fa-fw"></i> 情绪价值奖励:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #9b59b6;">${blueprint.emotional_rewards}</p>
+                            </div>
+                            ` : ''}
+
+                            ${blueprint.hook_design ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-fish-fins fa-fw"></i> 钩子设计:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #f39c12;">${blueprint.hook_design}</p>
+                            </div>
+                            ` : ''}
+
+                            ${blueprint.silence_check_report ? `
+                            <div style="margin-bottom: 0; background: var(--sbt-background-dark); padding: 10px; border-radius: 6px;">
+                                <strong><i class="fa-solid fa-volume-up fa-fw"></i> 反默剧检查:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #1abc9c; font-size: 0.9em;">${blueprint.silence_check_report}</p>
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                }
+            }
+
+            // 渲染双视野分析（如果存在）
+            let dualHorizonHtml = '';
+            if (notes.dual_horizon_analysis && typeof notes.dual_horizon_analysis === 'object') {
+                const analysis = notes.dual_horizon_analysis;
+                dualHorizonHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid var(--sbt-primary-accent);">
+                        <strong><i class="fa-solid fa-binoculars fa-fw"></i> 双视野分析:</strong>
+                        ${analysis.micro_decisions ? `
+                        <div style="margin-top: 10px;">
+                            <div style="font-weight: bold; margin-bottom: 5px;"><i class="fa-solid fa-magnifying-glass-plus"></i> 微观决策（当前章）:</div>
+                            <p style="padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${analysis.micro_decisions}</p>
+                        </div>
+                        ` : ''}
+                        ${analysis.macro_vision ? `
+                        <div style="margin-top: 10px;">
+                            <div style="font-weight: bold; margin-bottom: 5px;"><i class="fa-solid fa-magnifying-glass-minus"></i> 宏观视野（长期弧光）:</div>
+                            <p style="padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${analysis.macro_vision}</p>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            // 渲染美学创新报告（如果存在）
+            let aestheticHtml = '';
+            if (notes.aesthetic_innovation_report) {
+                aestheticHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #9b59b6;">
+                        <strong><i class="fa-solid fa-palette fa-fw"></i> 美学创新报告:</strong>
+                        <p style="margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color); font-style: italic;">${notes.aesthetic_innovation_report}</p>
+                    </div>
+                `;
+            }
 
             const report = notes.self_scrutiny_report || {};
 
@@ -956,6 +1077,9 @@ export function updateDashboard(chapterState) {
             }
 
             const notesHtml = `
+                ${satisfactionHtml}
+                ${dualHorizonHtml}
+                ${aestheticHtml}
                 ${modeSelectionHtml}
 
                 <strong><i class="fa-solid fa-diagram-project fa-fw"></i> 故事线编织:</strong>
