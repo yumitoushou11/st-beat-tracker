@@ -869,8 +869,9 @@ export function updateDashboard(chapterState) {
         html += '<div class="sbt-summary-section">';
         html += '<div class="sbt-summary-section-title">';
         html += '<i class="fa-solid fa-book"></i> 故事梗概';
+        html += '<button class="sbt-edit-summary-btn" data-field="longTermStorySummary" title="编辑故事梗概"><i class="fa-solid fa-pen-to-square"></i></button>';
         html += '</div>';
-        html += `<div class="sbt-summary-content">${longTermSummary}</div>`;
+        html += `<div class="sbt-summary-content" id="sbt-summary-display">${longTermSummary}</div>`;
         html += '</div>';
 
         // 第二部分：章节交接备忘录（衔接点）
@@ -879,13 +880,14 @@ export function updateDashboard(chapterState) {
             html += '<div class="sbt-summary-section-title">';
             html += '<i class="fa-solid fa-link"></i> 章节衔接点';
             html += '<span class="sbt-handoff-badge">关键</span>';
+            html += '<button class="sbt-edit-summary-btn" data-field="lastChapterHandoff" title="编辑章节衔接点"><i class="fa-solid fa-pen-to-square"></i></button>';
             html += '</div>';
 
             // 结束快照
             if (handoffMemo.ending_snapshot) {
                 html += '<div class="sbt-handoff-block">';
                 html += '<div class="sbt-handoff-block-title"><i class="fa-solid fa-camera"></i> 结束快照</div>';
-                html += `<div class="sbt-handoff-content">${handoffMemo.ending_snapshot}</div>`;
+                html += `<div class="sbt-handoff-content" id="sbt-handoff-ending-display">${handoffMemo.ending_snapshot}</div>`;
                 html += '</div>';
             }
 
@@ -893,7 +895,7 @@ export function updateDashboard(chapterState) {
             if (handoffMemo.action_handoff) {
                 html += '<div class="sbt-handoff-block">';
                 html += '<div class="sbt-handoff-block-title"><i class="fa-solid fa-arrow-right"></i> 下章起点</div>';
-                html += `<div class="sbt-handoff-content sbt-action-handoff">${handoffMemo.action_handoff}</div>`;
+                html += `<div class="sbt-handoff-content sbt-action-handoff" id="sbt-handoff-action-display">${handoffMemo.action_handoff}</div>`;
                 html += '</div>';
             }
 

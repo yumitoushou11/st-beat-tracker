@@ -2832,10 +2832,36 @@ input:checked + .sbt-slider:before {
     display: flex;
     align-items: center;
     gap: 8px;
+    position: relative;
 }
 
 .sbt-summary-section-title i {
     color: var(--sbt-primary-accent);
+}
+
+/* V5.2: 编辑按钮样式 */
+.sbt-edit-summary-btn {
+    margin-left: auto;
+    background: transparent;
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-medium);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: 0.85em;
+    transition: all 0.2s ease;
+    opacity: 0.6;
+}
+
+.sbt-edit-summary-btn:hover {
+    background: var(--sbt-primary-accent);
+    border-color: var(--sbt-primary-accent);
+    color: white;
+    opacity: 1;
+}
+
+.sbt-edit-summary-btn i {
+    color: inherit;
 }
 
 /* 摘要内容 */

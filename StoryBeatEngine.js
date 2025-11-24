@@ -971,40 +971,9 @@ _syncUiWithRetry() {
         // 这样当用户删除消息时，引擎内存中的状态也会同步回退
         this.currentChapter = Chapter.fromJSON(piece.leader);
 
-        // V4.3 修复：跨章节元数据回退问题
-        // 问题：lastChapterHandoff和longTermStorySummary是累积性元数据，当回退到上一章时，
-        // 这些元数据不会自动回退，导致显示的是后续章节的内容
-        // 解决：找到当前章节的第一条消息，提取其中的元数据快照
-        const currentChapterUid = this.currentChapter.uid;
-        const chat = this.USER.getContext().chat;
-        let firstMessageOfCurrentChapter = null;
-
-        // 从后向前查找，找到第一条包含当前章节UID的消息
-        for (let i = chat.length - 1; i >= 0; i--) {
-            const msg = chat[i];
-            if (msg?.leader?.uid === currentChapterUid) {
-                firstMessageOfCurrentChapter = msg;
-                // 继续向前查找，直到找到最早的一条
-            } else if (firstMessageOfCurrentChapter) {
-                // 已经找到了当前章节的消息，现在遇到了不同章节的消息，说明找到了边界
-                break;
-            }
-        }
-
-        // 如果找到了该章节的第一条消息，用它的元数据覆盖当前的累积性元数据
-        if (firstMessageOfCurrentChapter && firstMessageOfCurrentChapter.leader) {
-            const firstMeta = firstMessageOfCurrentChapter.leader.meta;
-            if (firstMeta) {
-                this.currentChapter.meta.lastChapterHandoff = firstMeta.lastChapterHandoff;
-                this.currentChapter.meta.longTermStorySummary = firstMeta.longTermStorySummary;
-                this.info(`  -> 已从该章节首条消息恢复元数据快照（跨章节回退修复）`);
-            }
-        }
-
         // V4.2 调试：验证回退后的关键数据
         console.group('[ENGINE-V4.2-ROLLBACK-DEBUG] 状态回退验证');
         console.log('章节UID:', this.currentChapter.uid);
-        console.log('找到该章节首条消息:', !!firstMessageOfCurrentChapter);
         console.log('终章信标数量:', this.currentChapter.chapter_blueprint?.endgame_beacons?.length || 0);
         console.log('终章信标内容:', this.currentChapter.chapter_blueprint?.endgame_beacons);
         console.log('章节衔接点存在:', !!this.currentChapter.meta?.lastChapterHandoff);
@@ -2235,8 +2204,8 @@ _syncUiWithRetry() {
             
         } else if (this.isTransitionPending) {
             this.info("PROBE [COMMIT-3-TRANSITION]: 检测到待处理的【章节转换】任务。开始执行...");
-            
-            const transitionType = this.pendingTransitionPayload?.transitionType || 'Standard'; 
+
+            const transitionType = this.pendingTransitionPayload?.transitionType || 'Standard';
             const eventUid = `transition_${messageIndex}_${Date.now()}`;
 
             await this.triggerChapterTransition(eventUid, messageIndex, transitionType);
@@ -2244,6 +2213,21 @@ _syncUiWithRetry() {
             this.isTransitionPending = false;
             this.pendingTransitionPayload = null;
             this.info("PROBE [COMMIT-4-SUCCESS]: 章节转换流程已触发。旗标已重置。");
+
+        } else if (this.isNewChapterPendingCommit && this.currentChapter) {
+            // V5.2: 章节转换后的第一次AI回复,需要将新章节状态持久化
+            this.info("PROBE [COMMIT-3-NEW-CHAPTER]: 检测到待处理的【新章节持久化】任务。开始锚定状态...");
+            const chat = this.USER.getContext().chat;
+            const anchorMessage = chat[messageIndex];
+            if (anchorMessage && !anchorMessage.is_user) {
+                anchorMessage.leader = this.currentChapter.toJSON();
+                this.USER.saveChat();
+                this.isNewChapterPendingCommit = false;
+                this.info(`PROBE [COMMIT-4-SUCCESS]: 新章节状态已成功锚定（UID: ${this.currentChapter.uid}）。旗标已重置。`);
+                this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+            } else {
+                this.warn(`PROBE [COMMIT-4-FAIL]: 新章节锚定失败，目标消息无效。`);
+            }
 
         } else {
             this.diagnose("PROBE [COMMIT-2-SKIP]: 无待处理的创世纪或转换任务。");
@@ -2347,64 +2331,83 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
                 this.info("玩家焦点已捕获，中间结果已更新（阶段2/3）。");
             }
 
-            // 5. 【核心】应用史官的事务增量
-            workingChapter = this._applyStateUpdates(workingChapter, reviewDelta);
-            workingChapter.playerNarrativeFocus = finalNarrativeFocus;
+            // V5.2 修复：在应用史官增量之前，先保存旧章节的完整快照到当前消息
+            // 这样可以确保旧章节的最后一条消息包含该章节结束时的状态，而不是下一章节的状态
+            const targetPiece = this.USER.getContext().chat[endIndex];
+            if (!targetPiece) {
+                throw new Error(`无法找到索引 ${endIndex} 处的目标消息！`);
+            }
 
-            // 6. 规划下一章节
+            // 保存旧章节的完整快照（包含旧章节的blueprint和meta）
+            targetPiece.leader = workingChapter.toJSON();
+            this.info(`✓ 已将旧章节快照（UID: ${workingChapter.uid}）保存到消息 #${endIndex}`);
+
+            // 5. 【核心】创建新章节实例并应用史官的事务增量
+            // 重要：必须创建新的Chapter实例以生成新的UID，而不是在旧章节上修改
+            const oldChapterUid = workingChapter.uid;
+
+            // 创建新章节：继承旧章节的数据，但生成新UID
+            const newChapterData = workingChapter.toJSON();
+            delete newChapterData.uid; // 删除旧UID，让构造函数生成新UID
+            delete newChapterData.checksum; // 删除旧checksum
+            const newChapter = new Chapter(newChapterData);
+
+            // 应用史官的增量更新到新章节
+            let updatedNewChapter = this._applyStateUpdates(newChapter, reviewDelta);
+            updatedNewChapter.playerNarrativeFocus = finalNarrativeFocus;
+
+            this.info(`✓ 已创建新章节实例（旧UID: ${oldChapterUid} → 新UID: ${updatedNewChapter.uid}）`);
+
+            // 6. 规划下一章节（使用新章节实例）
             this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
             loadingToast.find('.toast-message').text("建筑师正在规划新章节...");
-            const architectResult = await this._planNextChapter(false, workingChapter);
+            const architectResult = await this._planNextChapter(false, updatedNewChapter);
             if (!architectResult || !architectResult.new_chapter_script) {
                 throw new Error("建筑师未能生成新剧本。中间进度已保存，请点击按钮重试。");
             }
 
-            // 7. 最终化并持久化新状态
+            // 7. 最终化新章节状态
             loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
-            const finalChapterState = workingChapter;
 
             // 处理 ★ 星标节拍
             this._processStarMarkedBeats(architectResult.new_chapter_script);
 
-            finalChapterState.chapter_blueprint = architectResult.new_chapter_script;
-            finalChapterState.activeChapterDesignNotes = architectResult.design_notes;
+            updatedNewChapter.chapter_blueprint = architectResult.new_chapter_script;
+            updatedNewChapter.activeChapterDesignNotes = architectResult.design_notes;
 
             // V3.0: 生成并缓存章节级静态上下文
             const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
             console.group('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
             console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
-            // 【修复】传入 workingChapter 作为数据源，而不是依赖 this.currentChapter
-            finalChapterState.cachedChapterStaticContext = this._generateChapterStaticContext(
+            updatedNewChapter.cachedChapterStaticContext = this._generateChapterStaticContext(
                 chapterContextIds,
-                workingChapter
+                updatedNewChapter
             );
-            console.log('缓存后 cachedChapterStaticContext 长度:', finalChapterState.cachedChapterStaticContext?.length || 0);
+            console.log('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
             console.groupEnd();
             this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
 
-            finalChapterState.lastProcessedEventUid = eventUid;
-            finalChapterState.checksum = simpleHash(JSON.stringify(finalChapterState) + Date.now());
+            updatedNewChapter.lastProcessedEventUid = eventUid;
+            updatedNewChapter.checksum = simpleHash(JSON.stringify(updatedNewChapter) + Date.now());
 
-            const targetPiece = this.USER.getContext().chat[endIndex];
-            if (targetPiece) {
-                targetPiece.leader = finalChapterState.toJSON();
+            // V5.2 修复：将新章节状态保存到内存，并标记为待提交
+            // 新章节的状态将在下一轮AI回复时写入到新消息的leader中
+            this.currentChapter = updatedNewChapter;
+            this.isNewChapterPendingCommit = true; // V5.2: 标记新章节待提交
 
-                // 【阶段3完成】清除临时状态
-                this.LEADER.pendingTransition = null;
-                this.USER.saveChat();
+            // 【阶段3完成】清除临时状态并保存（旧章节快照已在前面保存）
+            this.LEADER.pendingTransition = null;
+            this.USER.saveChat();
 
-                this.currentChapter = finalChapterState;
-                this.info("新章节状态已成功写入聊天记录，临时状态已清除（阶段3/3完成）。");
+            this.info("新章节状态已加载到内存（UID: " + updatedNewChapter.uid + "），待下一轮AI回复时持久化（阶段3/3完成）。");
 
-                try {
-                    this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
-                    this.toastr.success("章节已更新，仪表盘已刷新！", "无缝衔接");
-                } catch (uiError) {
-                    this.diagnose("UI更新操作失败，但这不会影响核心状态的保存。", uiError);
-                    this.toastr.warning("后台状态已更新，但UI刷新失败，请手动刷新页面。", "UI警告");
-                }
-            } else {
-                throw new Error(`最终写入失败！索引 ${endIndex} 处无目标消息。`);
+            // 8. 触发UI更新
+            try {
+                this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+                this.toastr.success("章节已更新，仪表盘已刷新！", "无缝衔接");
+            } catch (uiError) {
+                this.diagnose("UI更新操作失败，但这不会影响核心状态的保存。", uiError);
+                this.toastr.warning("后台状态已更新，但UI刷新失败，请手动刷新页面。", "UI警告");
             }
 
         } catch (error) {

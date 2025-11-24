@@ -1169,6 +1169,74 @@ $('#extensions-settings-button').after(html);
         $(this).closest('.sbt-tag-editable').remove();
     });
 
+    // -- V5.2: 故事梗概和章节衔接点编辑功能 --
+    $wrapper.on('click', '.sbt-edit-summary-btn', function() {
+        const field = $(this).data('field');
+
+        if (!currentChapterState) {
+            deps.toastr.warning('当前没有活跃章节', '操作失败');
+            return;
+        }
+
+        if (field === 'longTermStorySummary') {
+            // 编辑故事梗概
+            const currentValue = currentChapterState.meta?.longTermStorySummary || currentChapterState.longTermStorySummary || '';
+
+            const newValue = prompt('编辑故事梗概:\n(这是史官维护的故事概要,会随着章节推进自动更新)', currentValue);
+
+            if (newValue !== null && newValue.trim() !== currentValue) {
+                currentChapterState.meta.longTermStorySummary = newValue.trim();
+
+                // 保存
+                if (typeof deps.onSaveCharacterEdit === 'function') {
+                    deps.onSaveCharacterEdit('summary_updated', currentChapterState);
+                }
+
+                // 触发更新
+                if (deps.eventBus) {
+                    deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                }
+
+                deps.toastr.success('故事梗概已更新', '保存成功');
+            }
+        } else if (field === 'lastChapterHandoff') {
+            // 编辑章节衔接点
+            const handoffMemo = currentChapterState.meta?.lastChapterHandoff || {};
+
+            // 创建一个简单的表单来编辑两个字段
+            const endingSnapshot = handoffMemo.ending_snapshot || '';
+            const actionHandoff = handoffMemo.action_handoff || '';
+
+            const newEndingSnapshot = prompt('编辑【结束快照】:\n(描述上一章节结束时的场景和状态)', endingSnapshot);
+
+            if (newEndingSnapshot === null) return; // 用户取消
+
+            const newActionHandoff = prompt('编辑【下章起点】:\n(描述下一章节应该从哪里开始)', actionHandoff);
+
+            if (newActionHandoff === null) return; // 用户取消
+
+            // 更新数据
+            if (!currentChapterState.meta.lastChapterHandoff) {
+                currentChapterState.meta.lastChapterHandoff = {};
+            }
+
+            currentChapterState.meta.lastChapterHandoff.ending_snapshot = newEndingSnapshot.trim();
+            currentChapterState.meta.lastChapterHandoff.action_handoff = newActionHandoff.trim();
+
+            // 保存
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                deps.onSaveCharacterEdit('handoff_updated', currentChapterState);
+            }
+
+            // 触发更新
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            }
+
+            deps.toastr.success('章节衔接点已更新', '保存成功');
+        }
+    });
+
     // -- 设置面板: 绑定所有设置相关处理器 --
     bindPasswordToggleHandlers($wrapper);
     bindSettingsSaveHandler($wrapper, deps);
