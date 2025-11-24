@@ -1042,6 +1042,90 @@ export function updateDashboard(chapterState) {
                 `;
             }
 
+            // 渲染 ABC 沉浸流升维策略报告（如果存在）
+            let elevationStrategyHtml = '';
+            if (notes.elevation_strategy_report && typeof notes.elevation_strategy_report === 'object') {
+                const strategy = notes.elevation_strategy_report;
+
+                // 检查是否应用了 ABC 沉浸流
+                const isApplicable = strategy.condition_check && !strategy.reason_not_applicable;
+
+                if (isApplicable) {
+                    elevationStrategyHtml = `
+                        <div style="background: linear-gradient(135deg, var(--sbt-background-dark) 0%, var(--sbt-background) 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #e91e63;">
+                            <h6 style="font-size: 1.1em; margin-bottom: 15px; color: #e91e63;"><i class="fa-solid fa-heart-pulse fa-fw"></i> ABC 沉浸流 - 情感升维策略</h6>
+
+                            ${strategy.condition_check ? `
+                            <div style="margin-bottom: 15px; padding: 10px; background: var(--sbt-background-dark); border-radius: 6px;">
+                                <strong><i class="fa-solid fa-clipboard-check fa-fw"></i> 条件检测:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #2ecc71;">${strategy.condition_check}</p>
+                            </div>
+                            ` : ''}
+
+                            ${strategy.selected_vector ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-compass fa-fw"></i> 选定变调矢量:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #e91e63; font-weight: 600;">${strategy.selected_vector}</p>
+                            </div>
+                            ` : ''}
+
+                            ${strategy.phase_A_plan ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-seedling fa-fw"></i> Phase A (日常沉浸层) 计划:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #4caf50;">${strategy.phase_A_plan}</p>
+                            </div>
+                            ` : ''}
+
+                            ${strategy.phase_B_plan ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-bridge fa-fw"></i> Phase B (缓冲变调) 计划:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #ff9800;">${strategy.phase_B_plan}</p>
+                            </div>
+                            ` : ''}
+
+                            ${strategy.phase_C_plan ? `
+                            <div style="margin-bottom: 15px;">
+                                <strong><i class="fa-solid fa-heart fa-fw"></i> Phase C (情感核爆与余韵) 计划:</strong>
+                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #e91e63;">${strategy.phase_C_plan}</p>
+                            </div>
+                            ` : ''}
+
+                            ${strategy.pacing_allocation_check ? `
+                            <div style="margin-bottom: 0; background: var(--sbt-background-dark); padding: 12px; border-radius: 6px;">
+                                <strong><i class="fa-solid fa-gauge-high fa-fw"></i> 黄金配速法则 (50/25/25):</strong>
+                                ${strategy.pacing_allocation_check.phase_A_ratio ? `
+                                <div style="margin-top: 8px; padding-left: 10px;">
+                                    <div style="color: #4caf50; font-weight: 600;">• Phase A (50%)</div>
+                                    <p style="margin: 3px 0 8px 15px; font-size: 0.9em;">${strategy.pacing_allocation_check.phase_A_ratio}</p>
+                                </div>
+                                ` : ''}
+                                ${strategy.pacing_allocation_check.phase_B_ratio ? `
+                                <div style="padding-left: 10px;">
+                                    <div style="color: #ff9800; font-weight: 600;">• Phase B (25%)</div>
+                                    <p style="margin: 3px 0 8px 15px; font-size: 0.9em;">${strategy.pacing_allocation_check.phase_B_ratio}</p>
+                                </div>
+                                ` : ''}
+                                ${strategy.pacing_allocation_check.phase_C_ratio ? `
+                                <div style="padding-left: 10px;">
+                                    <div style="color: #e91e63; font-weight: 600;">• Phase C (25%)</div>
+                                    <p style="margin: 3px 0 8px 15px; font-size: 0.9em;">${strategy.pacing_allocation_check.phase_C_ratio}</p>
+                                </div>
+                                ` : ''}
+                            </div>
+                            ` : ''}
+                        </div>
+                    `;
+                } else if (strategy.reason_not_applicable) {
+                    // 如果不适用，显示简洁的说明
+                    elevationStrategyHtml = `
+                        <div style="background: var(--sbt-background-dark); padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #9e9e9e;">
+                            <strong><i class="fa-solid fa-info-circle fa-fw"></i> ABC 沉浸流:</strong>
+                            <p style="margin-top: 5px; padding-left: 10px; color: var(--sbt-text-muted); font-style: italic;">${strategy.reason_not_applicable}</p>
+                        </div>
+                    `;
+                }
+            }
+
             const report = notes.self_scrutiny_report || {};
 
             // 渲染模式选择理由（结构化）
@@ -1082,6 +1166,7 @@ export function updateDashboard(chapterState) {
                 ${satisfactionHtml}
                 ${dualHorizonHtml}
                 ${aestheticHtml}
+                ${elevationStrategyHtml}
                 ${modeSelectionHtml}
 
                 <strong><i class="fa-solid fa-diagram-project fa-fw"></i> 故事线编织:</strong>
