@@ -538,14 +538,24 @@
                             <div class="sbt-form-group">
                                 <label for="sbt-api-provider-select">
                                     API 提供商模式
-                                    <i class="fa-solid fa-circle-info fa-fw" title="直接调用: 浏览器直接访问API (可能遇到跨域CORS问题)&#10;SillyTavern代理: 通过SillyTavern后端转发 (推荐, 可解决CORS问题)" style="cursor: help;"></i>
+                                    <i class="fa-solid fa-circle-info fa-fw" title="SillyTavern预设: 使用酒馆已配置的预设 (最简单, 零配置)&#10;SillyTavern代理: 通过SillyTavern后端转发 (推荐, 可解决CORS问题)&#10;直接调用: 浏览器直接访问API (可能遇到跨域问题)" style="cursor: help;"></i>
                                 </label>
                                 <select id="sbt-api-provider-select" class="sbt-select">
+                                    <option value="sillytavern_preset">🎯 SillyTavern 预设 (推荐)</option>
+                                    <option value="sillytavern_proxy_openai">SillyTavern 代理</option>
                                     <option value="direct_openai">直接调用 (Direct Fetch)</option>
-                                    <option value="sillytavern_proxy_openai">SillyTavern 代理 (推荐)</option>
                                 </select>
                             </div>
-                            <div class="sbt-form-group">
+                            <div class="sbt-form-group" id="sbt-preset-selector-wrapper" style="display: none;">
+                                <label for="sbt-preset-select">
+                                    选择预设
+                                    <i class="fa-solid fa-circle-info fa-fw" title="使用您在 SillyTavern 连接管理器中已配置的预设" style="cursor: help;"></i>
+                                </label>
+                                <select id="sbt-preset-select" class="sbt-select">
+                                    <option value="">-- 请选择预设 --</option>
+                                </select>
+                            </div>
+                            <div class="sbt-form-group" id="sbt-api-url-wrapper">
                                 <label for="sbt-api-url-input">API URL</label>
                                 <input type="text" id="sbt-api-url-input" placeholder="例如: https://.../gemini-pro:generateContent">
                             </div>
@@ -581,14 +591,24 @@
                             <div class="sbt-form-group">
                                 <label for="sbt-conductor-api-provider-select">
                                     API 提供商模式
-                                    <i class="fa-solid fa-circle-info fa-fw" title="直接调用: 浏览器直接访问API (可能遇到跨域CORS问题)&#10;SillyTavern代理: 通过SillyTavern后端转发 (推荐, 可解决CORS问题)" style="cursor: help;"></i>
+                                    <i class="fa-solid fa-circle-info fa-fw" title="SillyTavern预设: 使用酒馆已配置的预设 (最简单, 零配置)&#10;SillyTavern代理: 通过SillyTavern后端转发 (推荐, 可解决CORS问题)&#10;直接调用: 浏览器直接访问API (可能遇到跨域问题)" style="cursor: help;"></i>
                                 </label>
                                 <select id="sbt-conductor-api-provider-select" class="sbt-select">
+                                    <option value="sillytavern_preset">🎯 SillyTavern 预设 (推荐)</option>
+                                    <option value="sillytavern_proxy_openai">SillyTavern 代理</option>
                                     <option value="direct_openai">直接调用 (Direct Fetch)</option>
-                                    <option value="sillytavern_proxy_openai">SillyTavern 代理 (推荐)</option>
                                 </select>
                             </div>
-                            <div class="sbt-form-group">
+                            <div class="sbt-form-group" id="sbt-conductor-preset-selector-wrapper" style="display: none;">
+                                <label for="sbt-conductor-preset-select">
+                                    选择预设
+                                    <i class="fa-solid fa-circle-info fa-fw" title="使用您在 SillyTavern 连接管理器中已配置的预设" style="cursor: help;"></i>
+                                </label>
+                                <select id="sbt-conductor-preset-select" class="sbt-select">
+                                    <option value="">-- 请选择预设 --</option>
+                                </select>
+                            </div>
+                            <div class="sbt-form-group" id="sbt-conductor-api-url-wrapper">
                                 <label for="sbt-conductor-api-url-input">API URL</label>
                                 <input type="text" id="sbt-conductor-api-url-input" placeholder="例如: https://.../gemini-1.5-flash:generateContent">
                             </div>

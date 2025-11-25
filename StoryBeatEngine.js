@@ -618,7 +618,8 @@ if (this.currentChapter.chapter_blueprint) {
     const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
     const strictNarrativeConstraints = this._buildStrictNarrativeConstraints(
         conductorDecision.analysis.current_beat,
-        conductorDecision.micro_instruction
+        conductorDecision.micro_instruction,
+        conductorDecision.analysis.common_sense_review
     );
 
     instructionPlaceholder.content = [
@@ -841,16 +842,51 @@ _formatMicroInstruction(instruction) {
 /**
  * V4.2: 构建强化负面约束（方案三：Prompt强化）
  * narrative_hold 已移至独立的第0层，此处只保留边界和建议
+ * V8.1: 添加润滑策略传递 - 当社交摩擦力为高/极高时，将润滑策略发送给演绎AI
+ * V8.2: 高光时刻强制执行 - 检测到★高光标记时，将"建议"改为"要求"
  */
-_buildStrictNarrativeConstraints(currentBeat, microInstruction) {
+_buildStrictNarrativeConstraints(currentBeat, microInstruction, commonSenseReview) {
     const scopeLimit = microInstruction?.scope_limit || '未定义';
+    const narrativeGoal = microInstruction?.narrative_goal || '按照当前节拍自由演绎。';
+
+    // 【V8.2 新增】检测是否为高光时刻
+    const isHighlightMoment = narrativeGoal.includes('【★ 高光时刻】');
 
     let constraints = [
-        `**当前节拍:** ${currentBeat}`,
-        `**演绎边界:** ${scopeLimit}`,
-        ``,
-        `**叙事建议:** ${microInstruction?.narrative_goal || '按照当前节拍自由演绎。'}`
+        `**当前节拍:** ${currentBeat}`
     ];
+
+    // 【V8.2 新增】高光时刻时，scope_limit 升维为强制约束
+    if (isHighlightMoment) {
+        constraints.push(`**演绎边界（★强制约束）:** ${scopeLimit}`);
+    } else {
+        constraints.push(`**演绎边界:** ${scopeLimit}`);
+    }
+
+    constraints.push(``);
+
+    // 【V8.1 新增】检查社交摩擦力，如果为高/极高，则添加润滑策略
+    if (commonSenseReview && typeof commonSenseReview === 'object') {
+        const frictionLevel = commonSenseReview.social_friction_level;
+        const lubricationStrategy = commonSenseReview.lubrication_strategy;
+
+        if ((frictionLevel === '高' || frictionLevel === '极高') &&
+            lubricationStrategy &&
+            lubricationStrategy.trim() !== '' &&
+            lubricationStrategy !== '无需润滑') {
+
+            // 添加润滑策略到叙事建议之前
+            constraints.push(`**【社交摩擦力润滑方案】** ${lubricationStrategy}`);
+            constraints.push(``);
+        }
+    }
+
+    // 【V8.2 新增】高光时刻使用强制语气
+    if (isHighlightMoment) {
+        constraints.push(`**导演要求（★高光时刻 - 强制执行）:** ${narrativeGoal}`);
+    } else {
+        constraints.push(`**叙事建议:** ${narrativeGoal}`);
+    }
 
     return constraints.join('\n');
 }
@@ -983,6 +1019,24 @@ _syncUiWithRetry() {
         }
         console.log('故事梗概:', this.currentChapter.meta?.longTermStorySummary?.substring(0, 100));
         console.groupEnd();
+
+        // [DEBUG] 打印所有楼层的 leader 数据
+        {
+            console.group('[DEBUG] 全楼层 Leader 扫描');
+            const chat = this.USER.getContext().chat;
+            console.log('总消息数:', chat.length);
+            let count = 0;
+            for (let i = 0; i < chat.length; i++) {
+                if (chat[i]?.leader) {
+                    count++;
+                    console.log(`#${i}: UID=${chat[i].leader.uid}`);
+                    console.log(`  meta.longTermStorySummary: ${chat[i].leader.meta?.longTermStorySummary?.substring(0, 100) || '无'}`);
+                    console.log(`  老路径 longTermStorySummary: ${chat[i].leader.longTermStorySummary?.substring(0, 100) || '无'}`);
+                }
+            }
+            console.log(`找到 ${count} 条带 leader 的消息`);
+            console.groupEnd();
+        }
 
         this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
         clearTimeout(this.uiSyncRetryTimer);
@@ -2215,18 +2269,20 @@ _syncUiWithRetry() {
             this.info("PROBE [COMMIT-4-SUCCESS]: 章节转换流程已触发。旗标已重置。");
 
         } else if (this.isNewChapterPendingCommit && this.currentChapter) {
-            // V5.2: 章节转换后的第一次AI回复,需要将新章节状态持久化
-            this.info("PROBE [COMMIT-3-NEW-CHAPTER]: 检测到待处理的【新章节持久化】任务。开始锚定状态...");
+            // V7.2: 遗留逻辑 - 正常情况下不应触发（新章节已在转换时直接保存）
+            // 保留此逻辑作为后备方案，以防出现意外情况
+            this.warn("PROBE [COMMIT-3-LEGACY]: 检测到遗留的【新章节待提交】标记。这不应该发生（V7.2后新章节已在转换时保存）。");
+            this.warn("正在执行后备锚定逻辑...");
             const chat = this.USER.getContext().chat;
             const anchorMessage = chat[messageIndex];
             if (anchorMessage && !anchorMessage.is_user) {
                 anchorMessage.leader = this.currentChapter.toJSON();
                 this.USER.saveChat();
                 this.isNewChapterPendingCommit = false;
-                this.info(`PROBE [COMMIT-4-SUCCESS]: 新章节状态已成功锚定（UID: ${this.currentChapter.uid}）。旗标已重置。`);
+                this.warn(`PROBE [COMMIT-4-LEGACY-SUCCESS]: 新章节状态已通过后备逻辑锚定（UID: ${this.currentChapter.uid}）。`);
                 this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
             } else {
-                this.warn(`PROBE [COMMIT-4-FAIL]: 新章节锚定失败，目标消息无效。`);
+                this.warn(`PROBE [COMMIT-4-LEGACY-FAIL]: 后备锚定失败，目标消息无效。`);
             }
 
         } else {
@@ -2268,20 +2324,43 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
                 workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, staticData);
             }
 
-            // 2. 【断点恢复机制】检查是否有未完成的过渡
+            // V7.2: 提前获取目标消息引用（用于分两次写入）
+            const targetPiece = this.USER.getContext().chat[endIndex];
+            if (!targetPiece) {
+                throw new Error(`无法找到索引 ${endIndex} 处的目标消息！`);
+            }
+
+            // 2. V7.2 增强：检查是否有未完成的过渡（支持分阶段断点恢复）
             let reviewDelta = null;
             let finalNarrativeFocus = "由AI自主创新。";
+            let skipHistorian = false;
 
             if (this.LEADER.pendingTransition) {
                 this.info("检测到未完成的章节转换进度，正在恢复...");
                 loadingToast.find('.toast-message').text("恢复之前的进度...");
 
+                const status = this.LEADER.pendingTransition.status;
                 reviewDelta = this.LEADER.pendingTransition.historianReviewDelta;
                 finalNarrativeFocus = this.LEADER.pendingTransition.playerNarrativeFocus || "由AI自主创新。";
-                workingChapter.playerNarrativeFocus = finalNarrativeFocus;
 
-                this.info("史官分析结果和玩家焦点已从临时存储中恢复。");
+                // V7.2: 如果史官已完成且已写入 leader，直接跳过史官
+                if (status === 'awaiting_architect' || status === 'historian_saved') {
+                    skipHistorian = true;
+                    // 从 leader 读取史官已保存的结果
+                    if (targetPiece.leader && Chapter.isValidStructure(targetPiece.leader)) {
+                        workingChapter = Chapter.fromJSON(targetPiece.leader);
+                        this.info("✓ 史官结果已从 leader 恢复，直接进入建筑师阶段");
+                    }
+                } else {
+                    workingChapter.playerNarrativeFocus = finalNarrativeFocus;
+                }
+
+                this.info(`断点恢复状态: ${status}, 跳过史官: ${skipHistorian}`);
             } else {
+                skipHistorian = false;
+            }
+
+            if (!skipHistorian) {
                 // 3. 获取史官的事务增量 (Delta)
                 loadingToast.find('.toast-message').text("史官正在复盘本章历史...");
                 reviewDelta = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex);
@@ -2331,23 +2410,13 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
                 this.info("玩家焦点已捕获，中间结果已更新（阶段2/3）。");
             }
 
-            // V5.2 修复：在应用史官增量之前，先保存旧章节的完整快照到当前消息
-            // 这样可以确保旧章节的最后一条消息包含该章节结束时的状态，而不是下一章节的状态
-            const targetPiece = this.USER.getContext().chat[endIndex];
-            if (!targetPiece) {
-                throw new Error(`无法找到索引 ${endIndex} 处的目标消息！`);
-            }
-
-            // 保存旧章节的完整快照（包含旧章节的blueprint和meta）
-            targetPiece.leader = workingChapter.toJSON();
-            this.info(`✓ 已将旧章节快照（UID: ${workingChapter.uid}）保存到消息 #${endIndex}`);
-
             // 5. 【核心】创建新章节实例并应用史官的事务增量
             // 重要：必须创建新的Chapter实例以生成新的UID，而不是在旧章节上修改
             const oldChapterUid = workingChapter.uid;
 
             // 创建新章节：继承旧章节的数据，但生成新UID
-            const newChapterData = workingChapter.toJSON();
+            // V5.3 修复：使用深拷贝避免对象引用污染旧章节
+            const newChapterData = JSON.parse(JSON.stringify(workingChapter.toJSON()));
             delete newChapterData.uid; // 删除旧UID，让构造函数生成新UID
             delete newChapterData.checksum; // 删除旧checksum
             const newChapter = new Chapter(newChapterData);
@@ -2357,6 +2426,12 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             updatedNewChapter.playerNarrativeFocus = finalNarrativeFocus;
 
             this.info(`✓ 已创建新章节实例（旧UID: ${oldChapterUid} → 新UID: ${updatedNewChapter.uid}）`);
+
+            // V7.2 第一次写入：将史官分析结果写入 endIndex 消息的 leader
+            // targetPiece 已在前面声明
+            targetPiece.leader = updatedNewChapter.toJSON();
+            this.USER.saveChat();
+            this.info(`✓ [V7.2-阶段1/2] 史官分析结果已写入消息 #${endIndex} 的 leader（新章节UID: ${updatedNewChapter.uid}）`);
 
             // 6. 规划下一章节（使用新章节实例）
             this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
@@ -2390,16 +2465,21 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             updatedNewChapter.lastProcessedEventUid = eventUid;
             updatedNewChapter.checksum = simpleHash(JSON.stringify(updatedNewChapter) + Date.now());
 
-            // V5.2 修复：将新章节状态保存到内存，并标记为待提交
-            // 新章节的状态将在下一轮AI回复时写入到新消息的leader中
-            this.currentChapter = updatedNewChapter;
-            this.isNewChapterPendingCommit = true; // V5.2: 标记新章节待提交
-
-            // 【阶段3完成】清除临时状态并保存（旧章节快照已在前面保存）
-            this.LEADER.pendingTransition = null;
+            // V7.2 第二次写入：将建筑师规划追加到 endIndex 消息的 leader
+            // targetPiece 已在第一次写入时声明，这里直接更新
+            targetPiece.leader = updatedNewChapter.toJSON();
             this.USER.saveChat();
+            this.info(`✓ [V7.2-阶段2/2] 建筑师规划已追加到消息 #${endIndex} 的 leader（完整状态：史官+建筑师）`);
 
-            this.info("新章节状态已加载到内存（UID: " + updatedNewChapter.uid + "），待下一轮AI回复时持久化（阶段3/3完成）。");
+            // 更新内存中的当前章节
+            this.currentChapter = updatedNewChapter;
+            this.isNewChapterPendingCommit = false; // V7.2: 已经保存，不需要等待下一条消息
+
+            // 【阶段3完成】清除临时状态（已在第二次写入时保存）
+            this.LEADER.pendingTransition = null;
+            // 注意：不需要再次 saveChat()，因为已在第二次写入时保存
+
+            this.info(`[V7.2] 新章节状态已完整保存（UID: ${updatedNewChapter.uid}），史官+建筑师结果已锚定到消息 #${endIndex}（阶段3/3完成）。`);
 
             // 8. 触发UI更新
             try {

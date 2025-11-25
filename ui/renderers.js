@@ -860,7 +860,7 @@ export function updateDashboard(chapterState) {
     // --- 1. 【V3.6 革新】渲染双轨制故事摘要（编年史+衔接点） ---
     const summaryContainer = $('#sbt-story-summary-content');
     if(summaryContainer.length > 0) {
-        const longTermSummary = chapterState.meta?.longTermStorySummary || chapterState.longTermStorySummary || "暂无故事摘要。";
+        const longTermSummary = chapterState.meta?.longTermStorySummary || "暂无故事摘要。";
         const handoffMemo = chapterState.meta?.lastChapterHandoff;
 
         let html = '';

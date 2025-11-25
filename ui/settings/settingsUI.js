@@ -16,11 +16,33 @@ export function populateSettingsUI(deps) {
             $('#sbt-api-url-input').val(settings.main.apiUrl);
             $('#sbt-api-key-input').val(settings.main.apiKey);
             $('#sbt-model-name-input').val(settings.main.modelName);
+
             // 填充回合裁判API设置
             $('#sbt-conductor-api-provider-select').val(settings.conductor.apiProvider || 'direct_openai');
             $('#sbt-conductor-api-url-input').val(settings.conductor.apiUrl);
             $('#sbt-conductor-api-key-input').val(settings.conductor.apiKey);
             $('#sbt-conductor-model-name-input').val(settings.conductor.modelName);
+
+            // 根据提供商显示/隐藏预设选择器
+            const mainProvider = settings.main.apiProvider || 'direct_openai';
+            const conductorProvider = settings.conductor.apiProvider || 'direct_openai';
+
+            if (mainProvider === 'sillytavern_preset') {
+                $('#sbt-preset-selector-wrapper').show();
+                $('#sbt-api-url-wrapper').hide();
+                $('#sbt-api-key-input').closest('.sbt-form-group').hide();
+                $('#sbt-model-name-input').closest('.sbt-form-group').hide();
+                loadSillyTavernPresets(deps);
+            }
+
+            if (conductorProvider === 'sillytavern_preset') {
+                $('#sbt-conductor-preset-selector-wrapper').show();
+                $('#sbt-conductor-api-url-wrapper').hide();
+                $('#sbt-conductor-api-key-input').closest('.sbt-form-group').hide();
+                $('#sbt-conductor-model-name-input').closest('.sbt-form-group').hide();
+                loadSillyTavernPresets(deps);
+            }
+
             deps.info("[UIManager] 设置面板UI已根据已加载的配置完成填充。");
         }
     } catch (error) {
@@ -143,12 +165,14 @@ export function bindSettingsSaveHandler($wrapper, deps) {
                 apiUrl: String($('#sbt-api-url-input').val()).trim(),
                 apiKey: String($('#sbt-api-key-input').val()).trim(),
                 modelName: String($('#sbt-model-name-input').val()).trim(),
+                tavernProfile: String($('#sbt-preset-select').val() || '').trim(), // 新增：预设 ID
             },
             conductor: {
                 apiProvider: String($('#sbt-conductor-api-provider-select').val()).trim(),
                 apiUrl: String($('#sbt-conductor-api-url-input').val()).trim(),
                 apiKey: String($('#sbt-conductor-api-key-input').val()).trim(),
                 modelName: String($('#sbt-conductor-model-name-input').val()).trim(),
+                tavernProfile: String($('#sbt-conductor-preset-select').val() || '').trim(), // 新增：预设 ID
             }
         };
 
@@ -233,5 +257,118 @@ export function bindAPITestHandlers($wrapper, deps) {
         } finally {
             $btn.prop('disabled', false).html(originalText);
         }
+    });
+}
+
+/**
+ * 加载 SillyTavern 预设列表
+ * @param {Object} deps - 依赖注入对象
+ */
+export function loadSillyTavernPresets(deps) {
+    console.log('[SBT-预设] 正在加载 SillyTavern 预设列表');
+
+    try {
+        const context = deps.USER.getContext();
+        const tavernProfiles = context.extensionSettings?.connectionManager?.profiles || [];
+
+        if (!tavernProfiles || tavernProfiles.length === 0) {
+            console.warn('[SBT-预设] 未找到 SillyTavern 预设');
+            return;
+        }
+
+        const settings = getApiSettings();
+
+        // 填充主 LLM 预设选择器
+        const $mainSelect = $('#sbt-preset-select');
+        $mainSelect.empty().append(new Option('-- 请选择预设 --', ''));
+
+        // 填充回合裁判预设选择器
+        const $conductorSelect = $('#sbt-conductor-preset-select');
+        $conductorSelect.empty().append(new Option('-- 请选择预设 --', ''));
+
+        tavernProfiles.forEach(profile => {
+            if (profile.api && profile.preset) {
+                const option = new Option(profile.name || profile.id, profile.id);
+                $mainSelect.append(option.cloneNode(true));
+                $conductorSelect.append(option);
+            }
+        });
+
+        // 设置当前选中的预设
+        if (settings.main.tavernProfile) {
+            $mainSelect.val(settings.main.tavernProfile);
+        }
+        if (settings.conductor.tavernProfile) {
+            $conductorSelect.val(settings.conductor.tavernProfile);
+        }
+
+        console.log(`[SBT-预设] 已加载 ${tavernProfiles.length} 个预设`);
+    } catch (error) {
+        console.error('[SBT-预设] 加载预设失败:', error);
+    }
+}
+
+/**
+ * 绑定预设选择器和提供商切换的事件处理器
+ * @param {jQuery} $wrapper - 容器元素
+ * @param {Object} deps - 依赖注入对象
+ */
+export function bindPresetSelectorHandlers($wrapper, deps) {
+    // 主 LLM 提供商切换时，显示/隐藏相关字段
+    $wrapper.on('change', '#sbt-api-provider-select', function() {
+        const provider = $(this).val();
+        const $presetWrapper = $('#sbt-preset-selector-wrapper');
+        const $urlWrapper = $('#sbt-api-url-wrapper');
+        const $keyInput = $('#sbt-api-key-input').closest('.sbt-form-group');
+        const $modelInput = $('#sbt-model-name-input').closest('.sbt-form-group');
+
+        if (provider === 'sillytavern_preset') {
+            // 使用预设模式：只显示预设选择器
+            $presetWrapper.show();
+            $urlWrapper.hide();
+            $keyInput.hide();
+            $modelInput.hide();
+            loadSillyTavernPresets(deps);
+        } else {
+            // 其他模式：显示 URL/Key/Model
+            $presetWrapper.hide();
+            $urlWrapper.show();
+            $keyInput.show();
+            $modelInput.show();
+        }
+    });
+
+    // 回合裁判 LLM 提供商切换
+    $wrapper.on('change', '#sbt-conductor-api-provider-select', function() {
+        const provider = $(this).val();
+        const $presetWrapper = $('#sbt-conductor-preset-selector-wrapper');
+        const $urlWrapper = $('#sbt-conductor-api-url-wrapper');
+        const $keyInput = $('#sbt-conductor-api-key-input').closest('.sbt-form-group');
+        const $modelInput = $('#sbt-conductor-model-name-input').closest('.sbt-form-group');
+
+        if (provider === 'sillytavern_preset') {
+            $presetWrapper.show();
+            $urlWrapper.hide();
+            $keyInput.hide();
+            $modelInput.hide();
+            loadSillyTavernPresets(deps);
+        } else {
+            $presetWrapper.hide();
+            $urlWrapper.show();
+            $keyInput.show();
+            $modelInput.show();
+        }
+    });
+
+    // 主 LLM 预设选择时
+    $wrapper.on('change', '#sbt-preset-select', function() {
+        const profileId = $(this).val();
+        console.log(`[SBT-预设] 主 LLM 预设已选择: ${profileId}`);
+    });
+
+    // 回合裁判预设选择时
+    $wrapper.on('change', '#sbt-conductor-preset-select', function() {
+        const profileId = $(this).val();
+        console.log(`[SBT-预设] 回合裁判预设已选择: ${profileId}`);
     });
 }

@@ -21,15 +21,21 @@ export function debugStorySummaryStorage() {
     // 2. 扫描所有带 leader 字段的消息
     console.group('2️⃣ 扫描聊天记录中的 leader 锚点');
     let leaderCount = 0;
-    for (let i = chat.length - 1; i >= 0; i--) {
+    for (let i = 0; i < chat.length; i++) {
         if (chat[i]?.leader) {
             leaderCount++;
-            console.log(`📌 消息 #${i} (${chat[i].is_user ? '用户' : 'AI'}) 包含 leader 锚点`);
-            console.log('  Summary:', chat[i].leader.meta?.longTermStorySummary?.substring(0, 100) + '...');
-            if (leaderCount >= 3) {
-                console.log('  (仅显示最近3条...)');
-                break;
-            }
+            console.group(`📌 消息 #${i} (${chat[i].is_user ? '用户' : 'AI'})`);
+            console.log('章节UID:', chat[i].leader.uid);
+            console.log('');
+            console.log('📂 meta.longTermStorySummary:');
+            console.log('  ', chat[i].leader.meta?.longTermStorySummary?.substring(0, 150) + '...');
+            console.log('');
+            console.log('🗑️ 老路径 longTermStorySummary (应该为空):');
+            console.log('  ', chat[i].leader.longTermStorySummary?.substring(0, 150) || '(不存在)');
+            console.log('');
+            console.log('🔗 章节衔接点存在:', !!chat[i].leader.meta?.lastChapterHandoff);
+            console.groupEnd();
+            console.log('');
         }
     }
     console.log(`总计找到 ${leaderCount} 条带 leader 锚点的消息`);

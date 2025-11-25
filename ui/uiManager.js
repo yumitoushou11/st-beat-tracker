@@ -5,7 +5,7 @@ import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { showNsfwProposalPopup, showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
-import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler } from './settings/settingsUI.js';
+import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
 
 const deps = {
@@ -1180,7 +1180,7 @@ $('#extensions-settings-button').after(html);
 
         if (field === 'longTermStorySummary') {
             // 编辑故事梗概
-            const currentValue = currentChapterState.meta?.longTermStorySummary || currentChapterState.longTermStorySummary || '';
+            const currentValue = currentChapterState.meta?.longTermStorySummary || '';
 
             const newValue = prompt('编辑故事梗概:\n(这是史官维护的故事概要,会随着章节推进自动更新)', currentValue);
 
@@ -1241,6 +1241,7 @@ $('#extensions-settings-button').after(html);
     bindPasswordToggleHandlers($wrapper);
     bindSettingsSaveHandler($wrapper, deps);
     bindAPITestHandlers($wrapper, deps);
+    bindPresetSelectorHandlers($wrapper, deps);
     // V7.0: 叙事模式切换 - 传入获取当前章节的函数
     bindNarrativeModeSwitchHandler($wrapper, deps, () => currentChapterState);
 
