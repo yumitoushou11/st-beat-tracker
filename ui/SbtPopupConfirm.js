@@ -27,7 +27,7 @@ export class SbtPopupConfirm {
 _createDOMElements(options) {
     const {
         title, message, placeholder = '', initialValue = '',
-        okText = '确认', cancelText = '取消', nsfwText = null
+        okText = '确认', cancelText = '取消', abcText = null, freeRoamText = null
     } = options;
 
     this.overlayElement = document.createElement('div');
@@ -61,12 +61,13 @@ _createDOMElements(options) {
         
         <!-- 【布局核心】
              - 按钮容器依然是水平居中 (justify-content: center)。
-             - 我们只是在其中加入了第三个按钮，并用 order 属性调整了视觉顺序。
+             - 支持最多4个按钮：自由章、ABC、取消、确认
         -->
         <div class="sbt-popup-buttons" style="display: flex; justify-content: center; flex-wrap: wrap; gap: 15px; margin-top: 10px;">
-            <button class="sbt-popup-cancel menu_button" style="padding: 12px 25px; min-width: 160px; text-align: center; order: 2;"></button>
-            <button class="sbt-popup-ok menu_button menu_button_default" style="padding: 12px 25px; min-width: 160px; text-align: center; order: 3;"></button>
-            ${nsfwText ? `<button class="sbt-popup-nsfw menu_button" style="padding: 12px 25px; min-width: 160px; text-align: center; background-color: var(--sbt-danger-accent, #e53935); border-color: var(--sbt-danger-accent, #e53935); color: white; order: 1;"></button>` : ''}
+            <button class="sbt-popup-cancel menu_button" style="padding: 12px 25px; min-width: 160px; text-align: center; order: 3;"></button>
+            <button class="sbt-popup-ok menu_button menu_button_default" style="padding: 12px 25px; min-width: 160px; text-align: center; order: 4;"></button>
+            ${freeRoamText ? `<button class="sbt-popup-freeroam menu_button" style="padding: 12px 25px; min-width: 160px; text-align: center; background-color: #4caf50; border-color: #4caf50; color: white; order: 1;"></button>` : ''}
+            ${abcText ? `<button class="sbt-popup-abc menu_button" style="padding: 12px 25px; min-width: 160px; text-align: center; background-color: #e91e63; border-color: #e91e63; color: white; order: 2;"></button>` : ''}
         </div>
     `;
     
@@ -74,14 +75,18 @@ _createDOMElements(options) {
     this.textareaElement = this.popupElement.querySelector('.sbt-popup-textarea');
     this.okButton = this.popupElement.querySelector('.sbt-popup-ok');
     this.cancelButton = this.popupElement.querySelector('.sbt-popup-cancel');
-    this.nsfwButton = this.popupElement.querySelector('.sbt-popup-nsfw');
-    
+    this.freeRoamButton = this.popupElement.querySelector('.sbt-popup-freeroam');
+    this.abcButton = this.popupElement.querySelector('.sbt-popup-abc');
+
     this.textareaElement.placeholder = placeholder.replace(/<br>/g, '\n');
     this.textareaElement.value = initialValue;
     this.okButton.textContent = okText;
     this.cancelButton.textContent = cancelText;
-    if (this.nsfwButton) {
-        this.nsfwButton.textContent = nsfwText;
+    if (this.freeRoamButton) {
+        this.freeRoamButton.textContent = freeRoamText;
+    }
+    if (this.abcButton) {
+        this.abcButton.textContent = abcText;
     }
 
     this.overlayElement.appendChild(this.popupElement);
@@ -91,17 +96,25 @@ _createDOMElements(options) {
         // 常规按钮
         this.okButton.onclick = () => {
             const value = this.textareaElement.value.trim();
-            this._resolveAndClose({ confirmed: true, value: value, nsfw: false });
+            this._resolveAndClose({ confirmed: true, value: value, freeRoam: false, abc: false });
         };
         this.cancelButton.onclick = () => {
-            this._resolveAndClose({ confirmed: false, value: 'ai_decides', nsfw: false });
+            this._resolveAndClose({ confirmed: false, value: 'ai_decides', freeRoam: false, abc: false });
         };
 
-        // NSFW 按钮
-        if (this.nsfwButton) {
-            this.nsfwButton.onclick = () => {
+        // 自由章按钮
+        if (this.freeRoamButton) {
+            this.freeRoamButton.onclick = () => {
                 const value = this.textareaElement.value.trim();
-                this._resolveAndClose({ confirmed: true, value: value, nsfw: true });
+                this._resolveAndClose({ confirmed: true, value: value, freeRoam: true, abc: false });
+            };
+        }
+
+        // ABC 沉浸流按钮
+        if (this.abcButton) {
+            this.abcButton.onclick = () => {
+                const value = this.textareaElement.value.trim();
+                this._resolveAndClose({ confirmed: true, value: value, freeRoam: false, abc: true });
             };
         }
 
@@ -110,7 +123,7 @@ _createDOMElements(options) {
 
     _handleEscapeKey(event) {
         if (event.key === 'Escape') {
-            this._resolveAndClose({ confirmed: false, value: 'ai_decides', nsfw: false });
+            this._resolveAndClose({ confirmed: false, value: 'ai_decides', freeRoam: false, abc: false });
         }
     }
         _resolveAndClose(result) {

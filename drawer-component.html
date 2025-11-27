@@ -78,81 +78,6 @@
                     </h5>
                     <div id="sbt-design-notes-content" class="sbt-library-items collapsed" style="white-space: pre-wrap;"></div>
                 </div>
-
-                <!-- V2.0: 故事大纲 - 宏观叙事弧光 -->
-                <div class="sbt-library-category">
-                    <h5 class="sbt-category-header">
-                        <i class="fa-solid fa-timeline fa-fw"></i> 故事大纲 <span class="sbt-v2-badge">V2.0</span>
-                    </h5>
-                    <div id="sbt-narrative-arcs-content" class="sbt-library-items">
-                        <div class="sbt-arc-list-header">
-                            <p class="sbt-arc-description">
-                                <i class="fa-solid fa-info-circle fa-fw"></i>
-                                管理所有活跃的宏观叙事弧光。弧光是贯穿多个章节的长期叙事线索。
-                            </p>
-                            <button class="sbt-primary-btn sbt-add-arc-btn">
-                                <i class="fa-solid fa-plus fa-fw"></i> 新增弧光
-                            </button>
-                        </div>
-                        <div id="sbt-arc-list">
-                            <p class="sbt-instructions">当前没有活跃的叙事弧光。</p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- V4.0: 叙事控制塔 - 节奏与进度追踪 -->
-                <div class="sbt-library-category">
-                    <h5 class="sbt-category-header">
-                        <i class="fa-solid fa-tower-broadcast fa-fw"></i> 叙事控制塔 <span class="sbt-v4-badge">V4.0</span>
-                    </h5>
-                    <div id="sbt-rhythm-tower-content" class="sbt-library-items">
-                        <p class="sbt-instructions">
-                            <i class="fa-solid fa-info-circle fa-fw"></i>
-                            实时监控故事线进度与叙事节奏。系统会自动生成节奏指令以保持故事呼吸感。
-                        </p>
-
-                        <!-- V5.0 叙事节奏环卡片 -->
-                        <div id="sbt-rhythm-clock-card" class="sbt-rhythm-card">
-                            <div class="sbt-rhythm-card-header">
-                                <i class="fa-solid fa-lungs fa-fw"></i> 叙事节奏环 <span class="sbt-v4-badge">V5.0</span>
-                            </div>
-                            <div id="sbt-rhythm-clock-content" class="sbt-rhythm-card-body">
-                                <p class="sbt-instructions">等待首个章节数据...</p>
-                            </div>
-                        </div>
-
-                        <!-- 节奏指令卡片 -->
-                        <div id="sbt-rhythm-directive-card" class="sbt-rhythm-card">
-                            <div class="sbt-rhythm-card-header">
-                                <i class="fa-solid fa-sliders fa-fw"></i> 当前节奏指令
-                            </div>
-                            <div id="sbt-rhythm-directive-content" class="sbt-rhythm-card-body">
-                                <p class="sbt-instructions">等待首个章节数据...</p>
-                            </div>
-                        </div>
-
-                        <!-- 故事线进度追踪 -->
-                        <div id="sbt-storyline-progress-card" class="sbt-rhythm-card">
-                            <div class="sbt-rhythm-card-header">
-                                <i class="fa-solid fa-chart-line fa-fw"></i> 故事线进度
-                            </div>
-                            <div id="sbt-storyline-progress-content" class="sbt-rhythm-card-body">
-                                <p class="sbt-instructions">暂无活跃故事线</p>
-                            </div>
-                        </div>
-
-                        <!-- 情感强度曲线 -->
-                        <div id="sbt-intensity-curve-card" class="sbt-rhythm-card">
-                            <div class="sbt-rhythm-card-header">
-                                <i class="fa-solid fa-wave-square fa-fw"></i> 情感强度曲线
-                            </div>
-                            <div id="sbt-intensity-curve-content" class="sbt-rhythm-card-body">
-                                <p class="sbt-instructions">暂无章节数据</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
             </div> <!-- 创作工坊面板结束 -->
 
             <!-- ======================= 2. 世界档案面板 ======================= -->
@@ -182,7 +107,7 @@
                 <!-- V3.0: 关系图谱 -->
                 <div class="sbt-library-section">
                     <h4 class="sbt-library-title">
-                        <i class="fa-solid fa-diagram-project fa-fw"></i> 关系图谱 <span class="sbt-v3-badge">V3.0</span>
+                        <i class="fa-solid fa-diagram-project fa-fw"></i> 关系图谱
                     </h4>
 
                     <p class="sbt-relationship-graph-desc">
@@ -416,6 +341,38 @@
                             <option value="4-12">4-12 节拍（完全自由）</option>
                         </select>
                     </div>
+
+                    <!-- 叙事模式选择器 -->
+                    <div class="sbt-control-card" style="margin-top: 15px;">
+                        <label class="sbt-toggle-label">
+                            <span class="sbt-toggle-text"><i class="fa-solid fa-masks-theater fa-fw"></i> 叙事策略模式</span>
+                            <i class="fa-solid fa-circle-info fa-fw" title="全局默认设置，创世纪时自动应用。如果已有章节，也会同步更新当前章节。"></i>
+                        </label>
+
+                        <div class="sbt-narrative-mode-selector">
+                            <label class="sbt-mode-option-compact" data-mode="classic_rpg">
+                                <input type="radio" name="narrative_mode" value="classic_rpg" checked>
+                                <span class="sbt-mode-icon-compact">🎭</span>
+                                <div class="sbt-mode-info-compact">
+                                    <strong>正剧模式</strong>
+                                    <span>尊重叙事呼吸、允许留白、体验生活</span>
+                                </div>
+                            </label>
+
+                            <label class="sbt-mode-option-compact" data-mode="web_novel">
+                                <input type="radio" name="narrative_mode" value="web_novel">
+                                <span class="sbt-mode-icon-compact">🔥</span>
+                                <div class="sbt-mode-info-compact">
+                                    <strong>网文模式</strong>
+                                    <span>环环相扣、章章有梗、拒绝平淡</span>
+                                </div>
+                            </label>
+
+                            <button id="sbt-apply-narrative-mode" class="sbt-primary-btn" style="margin-top: 12px; width: 100%;">
+                                <i class="fa-solid fa-check fa-fw"></i> 应用叙事模式
+                            </button>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 叙事操作 - 大分区 -->
@@ -470,59 +427,6 @@
 
             <!-- ======================= 4. 设置面板 ======================= -->
             <div id="sbt-settings-panel" class="sbt-tab-panel">
-
-                <!-- V7.0: 叙事模式选择器 - 大分区 -->
-                <div class="sbt-library-section">
-                    <h4 class="sbt-library-title">
-                        <i class="fa-solid fa-masks-theater fa-fw"></i> 叙事策略模式 <span class="sbt-v2-badge">V7.0</span>
-                    </h4>
-                    <p class="sbt-instructions">
-                        <i class="fa-solid fa-globe fa-fw"></i> <strong>全局默认设置</strong> - 创世纪时将自动应用选定模式。如果已有章节，也会同步更新当前章节。
-                    </p>
-
-                    <div class="sbt-narrative-mode-selector">
-                        <div class="sbt-mode-options">
-                            <!-- 正剧模式 -->
-                            <label class="sbt-mode-option" data-mode="classic_rpg">
-                                <input type="radio" name="narrative_mode" value="classic_rpg" checked>
-                                <div class="sbt-mode-card">
-                                    <div class="sbt-mode-icon">🎭</div>
-                                    <h5 class="sbt-mode-title">正剧模式</h5>
-                                    <p class="sbt-mode-description">尊重叙事呼吸、允许留白、体验生活</p>
-                                    <ul class="sbt-mode-features">
-                                        <li><i class="fa-solid fa-check"></i> 完整的起承转合节奏</li>
-                                        <li><i class="fa-solid fa-check"></i> 允许纯氛围/心理节拍</li>
-                                        <li><i class="fa-solid fa-check"></i> 日常即内容</li>
-                                        <li><i class="fa-solid fa-check"></i> 高潮后强制Pause奖赏期</li>
-                                    </ul>
-                                </div>
-                            </label>
-
-                            <!-- 网文模式 -->
-                            <label class="sbt-mode-option" data-mode="web_novel">
-                                <input type="radio" name="narrative_mode" value="web_novel">
-                                <div class="sbt-mode-card">
-                                    <div class="sbt-mode-icon">🔥</div>
-                                    <h5 class="sbt-mode-title">网文模式</h5>
-                                    <p class="sbt-mode-description">环环相扣、章章有梗、拒绝平淡</p>
-                                    <ul class="sbt-mode-features">
-                                        <li><i class="fa-solid fa-fire"></i> 起承转合(钩)结构</li>
-                                        <li><i class="fa-solid fa-fire"></i> 每章必有核心看点</li>
-                                        <li><i class="fa-solid fa-fire"></i> 禁止纯日常内容</li>
-                                        <li><i class="fa-solid fa-fire"></i> 强制包含冲突/悬念</li>
-                                    </ul>
-                                </div>
-                            </label>
-                        </div>
-
-                        <button id="sbt-apply-narrative-mode" class="sbt-primary-btn" style="margin-top: 20px; width: 100%;">
-                            <i class="fa-solid fa-check fa-fw"></i> 应用叙事模式
-                        </button>
-                        <p class="sbt-instructions-small" style="text-align: center; margin-top: 10px;">
-                            <i class="fa-solid fa-info-circle"></i> 模式切换将在下次章节规划时生效
-                        </p>
-                    </div>
-                </div>
 
                 <!-- 核心大脑 AI 配置 - 大分区 -->
                 <div class="sbt-library-section">

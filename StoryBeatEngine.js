@@ -218,6 +218,67 @@ export class StoryBeatEngine {
     }
 
     /**
+     * [自由章模式] 生成包含所有世界观档案的完整上下文
+     * @returns {string} 格式化的完整世界观档案
+     */
+    _generateFullWorldviewContext() {
+        console.group('[ENGINE-FREE-ROAM] 生成完整世界观档案');
+
+        const chapter = this.currentChapter;
+        if (!chapter || !chapter.staticMatrices) {
+            console.error('❌ 错误：无法获取章节数据');
+            console.groupEnd();
+            return '';
+        }
+
+        const allEntityIds = [];
+
+        // 收集所有角色ID
+        if (chapter.staticMatrices.characters) {
+            allEntityIds.push(...Object.keys(chapter.staticMatrices.characters));
+        }
+
+        // 收集所有世界观元素ID
+        if (chapter.staticMatrices.worldview) {
+            for (const category of ['locations', 'items', 'factions', 'concepts', 'events', 'races']) {
+                if (chapter.staticMatrices.worldview[category]) {
+                    allEntityIds.push(...Object.keys(chapter.staticMatrices.worldview[category]));
+                }
+            }
+        }
+
+        // 收集所有故事线ID
+        if (chapter.staticMatrices.storylines) {
+            for (const category of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
+                if (chapter.staticMatrices.storylines[category]) {
+                    allEntityIds.push(...Object.keys(chapter.staticMatrices.storylines[category]));
+                }
+            }
+        }
+
+        console.log(`✓ 收集到 ${allEntityIds.length} 个实体ID`);
+
+        const contextContent = this._retrieveEntitiesByIdsInternal(
+            allEntityIds,
+            '自由章模式-完整档案'
+        );
+
+        const finalContent = contextContent ? [
+            ``,
+            `### 🎲 自由章模式 - 完整世界观档案`,
+            ``,
+            `【导演指示】本章为自由章模式，以下是完整的世界观档案供你自由调用：`,
+            ``,
+            contextContent
+        ].join('\n') : '';
+
+        console.log(`✓ 完整世界观档案生成完成，长度: ${finalContent.length} 字符`);
+        console.groupEnd();
+
+        return finalContent;
+    }
+
+    /**
      * [V3.0 新增] 生成并缓存章节级静态上下文
      * 在章节启动时调用，将 chapter_context_ids 中的所有实体一次性注入
      * @param {string[]} chapterContextIds - 章节规划的实体ID数组
@@ -292,8 +353,8 @@ export class StoryBeatEngine {
                 entity = staticMatrices.characters[entityId];
                 category = 'characters';
             }
-            // 2. 在世界观中查找
-            else if (staticMatrices.worldview) {
+            // 2. 在世界观中查找（只有未找到时才继续）
+            if (!entity && staticMatrices.worldview) {
                 for (const worldCategory of ['locations', 'items', 'factions', 'concepts', 'events', 'races']) {
                     if (staticMatrices.worldview[worldCategory]?.[entityId]) {
                         entity = staticMatrices.worldview[worldCategory][entityId];
@@ -302,9 +363,21 @@ export class StoryBeatEngine {
                     }
                 }
             }
-            // 3. 在故事线中查找
-            else if (staticMatrices.storylines) {
-                for (const storylineCategory of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
+            // 3. 在故事线中查找（只有未找到时才继续）
+            if (!entity && staticMatrices.storylines) {
+                // 智能识别：根据ID前缀推断可能的分类
+                let categoriesToSearch = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
+
+                // 如果ID以quest_开头，优先搜索quest类别
+                if (entityId.startsWith('quest_')) {
+                    categoriesToSearch = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
+                }
+                // 如果ID以arc_开头，优先搜索arc类别
+                else if (entityId.startsWith('arc_')) {
+                    categoriesToSearch = ['relationship_arcs', 'personal_arcs', 'main_quests', 'side_quests'];
+                }
+
+                for (const storylineCategory of categoriesToSearch) {
                     if (staticMatrices.storylines[storylineCategory]?.[entityId]) {
                         entity = staticMatrices.storylines[storylineCategory][entityId];
                         category = `storylines.${storylineCategory}`;
@@ -322,6 +395,22 @@ export class StoryBeatEngine {
                 });
             } else {
                 console.warn(`⚠️ 未找到实体: ${entityId}`);
+
+                // 诊断信息：列出可能的原因
+                if (entityId.startsWith('quest_') || entityId.startsWith('arc_')) {
+                    console.group('🔍 故事线ID诊断');
+                    console.log('当前 staticMatrices.storylines 结构:');
+                    if (staticMatrices.storylines) {
+                        for (const cat of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
+                            const ids = staticMatrices.storylines[cat] ? Object.keys(staticMatrices.storylines[cat]) : [];
+                            console.log(`  ${cat}:`, ids.length > 0 ? ids : '(空)');
+                        }
+                    } else {
+                        console.log('  storylines不存在');
+                    }
+                    console.log('💡 建议: 如果这是新故事线，ID应该使用 NEW: 前缀');
+                    console.groupEnd();
+                }
             }
         }
 
@@ -464,6 +553,22 @@ const spoilerBlockPlaceholder = {
         // 触发UI刷新事件，确保监控面板显示最新状态（包括故事梗概）
         this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
         this.info("状态已从leader消息恢复，UI已刷新");
+
+        // 【自由章模式】跳过回合指挥
+        const isFreeRoamMode = this.currentChapter?.meta?.freeRoamMode || false;
+        if (isFreeRoamMode) {
+            this.info("🎲 [自由章模式] 跳过回合执导，将世界观档案全部发送到前台");
+
+            // 生成包含所有世界观档案的完整上下文
+            const allWorldviewContext = this._generateFullWorldviewContext();
+
+            // 直接注入到占位符
+            const worldviewInjection = `【世界观档案（自由章模式）】\n${allWorldviewContext}`;
+            recallPlaceholder.mes = worldviewInjection;
+
+            this.info("✓ 世界观档案已注入，自由章模式激活完成");
+            return;
+        }
 
         // 读取开关状态，默认为 true (开启)
         const isConductorEnabled = localStorage.getItem('sbt-conductor-enabled') !== 'false';
@@ -710,14 +815,15 @@ if (this.currentChapter.chapter_blueprint) {
         const visibility = beat.status === '【待解锁】' ? '(已屏蔽)' : '(完整可见)';
         console.log(`  节拍${idx + 1}: ${beat.status} ${visibility} - ${contentPreview}...`);
     });
-    console.log('终章信标状态:', maskedBlueprint.endgame_beacons?.[0]?.substring(0, 50) || '无');
+    const beaconPreview = maskedBlueprint.endgame_beacon?.substring(0, 50) || maskedBlueprint.endgame_beacons?.[0]?.substring(0, 50) || '无';
+    console.log('终章信标状态:', beaconPreview);
     console.groupEnd();
 
     // V3.0 调试：验证第3层内容
     console.group('[ENGINE-V3-DEBUG] 第3层蓝图内容验证');
     console.log('scriptContent 总长度:', scriptContent.length);
     console.log('蓝图包含plot_beats:', scriptContent.includes('plot_beats'));
-    console.log('蓝图包含endgame_beacons:', scriptContent.includes('endgame_beacons'));
+    console.log('蓝图包含endgame信标:', scriptContent.includes('endgame_beacon'));
     console.groupEnd();
 
     // 【V3.2 重构】第4层：通用核心法则与关系指南
@@ -983,8 +1089,13 @@ _applyBlueprintMask(blueprint, currentBeat) {
     });
 
     // 屏蔽终章信标（除非已经到达终局）
-    if (!isEndgame && maskedBlueprint.endgame_beacons) {
-        maskedBlueprint.endgame_beacons = ["【数据删除 - 仅在最后节拍解锁】"];
+    if (!isEndgame) {
+        if (maskedBlueprint.endgame_beacons) {
+            maskedBlueprint.endgame_beacons = ["【数据删除 - 仅在最后节拍解锁】"];
+        }
+        if (maskedBlueprint.endgame_beacon) {
+            maskedBlueprint.endgame_beacon = "【数据删除 - 仅在最后节拍解锁】";
+        }
     }
 
     return maskedBlueprint;
@@ -2188,37 +2299,58 @@ _syncUiWithRetry() {
             this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
             // ... (后续流程与之前版本一致)
             loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
-            const popupResult = await this.deps.showNarrativeFocusPopup(''); 
+            const popupResult = await this.deps.showNarrativeFocusPopup('');
             let initialChapterFocus = "由AI自主创新。";
-            if (popupResult.nsfw) {
-                initialChapterFocus = "nsfw: " + (popupResult.value || "请AI自主设计成人情节");
+            let isFreeRoamMode = false;
+
+            if (popupResult.freeRoam) {
+                // 自由章模式：跳过建筑师和回合执导
+                isFreeRoamMode = true;
+                initialChapterFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
+                this.info("🎲 [自由章模式] 已激活：本章将跳过建筑师规划和回合执导，世界观档案将全部发送到前台");
+            } else if (popupResult.abc) {
+                // ABC沉浸流模式：添加[IMMERSION_MODE]标记
+                const userInput = popupResult.value || "";
+                initialChapterFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
             } else if (popupResult.confirmed && popupResult.value) {
                 initialChapterFocus = popupResult.value;
             }
+
             this.currentChapter.playerNarrativeFocus = initialChapterFocus;
+            this.currentChapter.meta.freeRoamMode = isFreeRoamMode;
             this.info(`GENESIS: 玩家设定的开篇小章焦点为: "${initialChapterFocus}"`);
 
-            // 6. 规划开篇剧本
-            this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-            loadingToast.find('.toast-message').text("建筑师正在构思开篇剧本...");
-            const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);
-            if (architectResult && architectResult.new_chapter_script) {
-                // 处理 ★ 星标节拍
-                this._processStarMarkedBeats(architectResult.new_chapter_script);
-
-                this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
-                this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
-
-                // V3.0: 生成并缓存章节级静态上下文
-                const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
-                console.group('[ENGINE-V3-DEBUG] GENESIS - 章节上下文缓存');
-                console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
-                this.currentChapter.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
-                console.log('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
-                console.groupEnd();
-                this.info(`GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
+            if (isFreeRoamMode) {
+                // 自由章模式：跳过建筑师规划
+                this.info("🎲 跳过建筑师规划，直接进入自由章模式");
+                this.currentChapter.chapter_blueprint = {
+                    title: "自由探索",
+                    emotional_arc: "自由发挥",
+                    plot_beats: []
+                };
             } else {
-                throw new Error("建筑师未能生成有效的开篇创作蓝图。");
+                // 6. 规划开篇剧本
+                this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
+                loadingToast.find('.toast-message').text("建筑师正在构思开篇剧本...");
+                const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);
+                if (architectResult && architectResult.new_chapter_script) {
+                    // 处理 ★ 星标节拍
+                    this._processStarMarkedBeats(architectResult.new_chapter_script);
+
+                    this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
+                    this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
+
+                    // V3.0: 生成并缓存章节级静态上下文
+                    const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
+                    console.group('[ENGINE-V3-DEBUG] GENESIS - 章节上下文缓存');
+                    console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
+                    this.currentChapter.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
+                    console.log('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
+                    console.groupEnd();
+                    this.info(`GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
+                } else {
+                    throw new Error("建筑师未能生成有效的开篇创作蓝图。");
+                }
             }
 
         } catch (error) {
@@ -2362,7 +2494,54 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
 
             if (!skipHistorian) {
                 // 3. 获取史官的事务增量 (Delta)
-                loadingToast.find('.toast-message').text("史官正在复盘本章历史...");
+                loadingToast.find('.toast-message').html(`
+                    史官正在复盘本章历史...<br>
+                    <button id="sbt-early-focus-btn" class="sbt-compact-focus-btn" title="提前规划下一章">
+                        <i class="fa-solid fa-pen-ruler"></i> 规划
+                    </button>
+                `);
+
+                // 添加提前规划按钮的事件监听
+                $('#sbt-early-focus-btn').off('click').on('click', async () => {
+                    this.info("玩家点击了提前规划按钮");
+                    const $btn = $('#sbt-early-focus-btn');
+                    $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
+
+                    this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
+                    const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
+
+                    // 检查用户是否取消了
+                    if (!popupResult.confirmed && !popupResult.freeRoam && !popupResult.abc) {
+                        $btn.prop('disabled', false).html('<i class="fa-solid fa-pen-ruler"></i> 规划');
+                        this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
+                        this.info("玩家取消了提前输入");
+                        return;
+                    }
+
+                    let earlyFocus = "由AI自主创新。";
+                    let earlyFreeRoam = false;
+
+                    if (popupResult.freeRoam) {
+                        earlyFreeRoam = true;
+                        earlyFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
+                    } else if (popupResult.abc) {
+                        const userInput = popupResult.value || "";
+                        earlyFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
+                    } else if (popupResult.confirmed && popupResult.value) {
+                        earlyFocus = popupResult.value;
+                    }
+
+                    // 保存到临时对象（史官完成后会合并）
+                    this.LEADER.earlyPlayerInput = {
+                        focus: earlyFocus,
+                        freeRoam: earlyFreeRoam
+                    };
+
+                    this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
+                    $btn.html('<i class="fa-solid fa-check"></i> 已记录').css('background-color', '#4caf50');
+                    this.info(`玩家提前输入已记录: ${earlyFocus}`);
+                });
+
                 reviewDelta = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex);
 
                 if (!reviewDelta || (!reviewDelta.creations && !reviewDelta.updates)) {
@@ -2374,6 +2553,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
 
                     // 清除可能存在的错误临时状态
                     this.LEADER.pendingTransition = null;
+                    this.LEADER.earlyPlayerInput = null;
                     this.USER.saveChat();
 
                     this._setStatus(ENGINE_STATUS.IDLE);
@@ -2392,19 +2572,38 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
                 this.info("史官复盘完成，中间结果已暂存（阶段1/3）。");
 
                 // 4. 获取玩家的导演焦点
-                loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
-                if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
-                    this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
-                    const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
-                    if (popupResult.nsfw) {
-                        finalNarrativeFocus = "nsfw: " + (popupResult.value || "请AI自主设计成人情节");
-                    } else if (popupResult.confirmed && popupResult.value) {
-                        finalNarrativeFocus = popupResult.value;
+                let isFreeRoamMode = false;
+
+                // 检查是否有提前输入的内容
+                if (this.LEADER.earlyPlayerInput) {
+                    this.info("使用玩家提前输入的焦点");
+                    finalNarrativeFocus = this.LEADER.earlyPlayerInput.focus;
+                    isFreeRoamMode = this.LEADER.earlyPlayerInput.freeRoam;
+                    this.LEADER.earlyPlayerInput = null; // 清除临时数据
+                    loadingToast.find('.toast-message').text("正在应用您的规划...");
+                } else {
+                    loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
+                    if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
+                        this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
+                        const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
+                        if (popupResult.freeRoam) {
+                            // 自由章模式
+                            isFreeRoamMode = true;
+                            finalNarrativeFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
+                            this.info("🎲 [自由章模式] 已激活：本章将跳过建筑师规划和回合执导，世界观档案将全部发送到前台");
+                        } else if (popupResult.abc) {
+                            // ABC沉浸流模式：添加[IMMERSION_MODE]标记
+                            const userInput = popupResult.value || "";
+                            finalNarrativeFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
+                        } else if (popupResult.confirmed && popupResult.value) {
+                            finalNarrativeFocus = popupResult.value;
+                        }
                     }
                 }
 
                 // 【阶段2完成】更新玩家焦点到临时存储
                 this.LEADER.pendingTransition.playerNarrativeFocus = finalNarrativeFocus;
+                this.LEADER.pendingTransition.freeRoamMode = isFreeRoamMode;
                 this.LEADER.pendingTransition.status = 'awaiting_architect';
                 this.USER.saveChat();
                 this.info("玩家焦点已捕获，中间结果已更新（阶段2/3）。");
@@ -2424,6 +2623,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             // 应用史官的增量更新到新章节
             let updatedNewChapter = this._applyStateUpdates(newChapter, reviewDelta);
             updatedNewChapter.playerNarrativeFocus = finalNarrativeFocus;
+            updatedNewChapter.meta.freeRoamMode = this.LEADER.pendingTransition.freeRoamMode || false;
 
             this.info(`✓ 已创建新章节实例（旧UID: ${oldChapterUid} → 新UID: ${updatedNewChapter.uid}）`);
 
@@ -2434,33 +2634,44 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             this.info(`✓ [V7.2-阶段1/2] 史官分析结果已写入消息 #${endIndex} 的 leader（新章节UID: ${updatedNewChapter.uid}）`);
 
             // 6. 规划下一章节（使用新章节实例）
-            this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-            loadingToast.find('.toast-message').text("建筑师正在规划新章节...");
-            const architectResult = await this._planNextChapter(false, updatedNewChapter);
-            if (!architectResult || !architectResult.new_chapter_script) {
-                throw new Error("建筑师未能生成新剧本。中间进度已保存，请点击按钮重试。");
+            if (updatedNewChapter.meta.freeRoamMode) {
+                // 自由章模式：跳过建筑师规划
+                this.info("🎲 跳过建筑师规划，进入自由章模式");
+                updatedNewChapter.chapter_blueprint = {
+                    title: "自由探索",
+                    emotional_arc: "自由发挥",
+                    plot_beats: []
+                };
+                updatedNewChapter.activeChapterDesignNotes = null;
+            } else {
+                this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
+                loadingToast.find('.toast-message').text("建筑师正在规划新章节...");
+                const architectResult = await this._planNextChapter(false, updatedNewChapter);
+                if (!architectResult || !architectResult.new_chapter_script) {
+                    throw new Error("建筑师未能生成新剧本。中间进度已保存，请点击按钮重试。");
+                }
+
+                // 7. 最终化新章节状态
+                loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
+
+                // 处理 ★ 星标节拍
+                this._processStarMarkedBeats(architectResult.new_chapter_script);
+
+                updatedNewChapter.chapter_blueprint = architectResult.new_chapter_script;
+                updatedNewChapter.activeChapterDesignNotes = architectResult.design_notes;
+
+                // V3.0: 生成并缓存章节级静态上下文
+                const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
+                console.group('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
+                console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
+                updatedNewChapter.cachedChapterStaticContext = this._generateChapterStaticContext(
+                    chapterContextIds,
+                    updatedNewChapter
+                );
+                console.log('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
+                console.groupEnd();
+                this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
             }
-
-            // 7. 最终化新章节状态
-            loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
-
-            // 处理 ★ 星标节拍
-            this._processStarMarkedBeats(architectResult.new_chapter_script);
-
-            updatedNewChapter.chapter_blueprint = architectResult.new_chapter_script;
-            updatedNewChapter.activeChapterDesignNotes = architectResult.design_notes;
-
-            // V3.0: 生成并缓存章节级静态上下文
-            const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
-            console.group('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
-            console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
-            updatedNewChapter.cachedChapterStaticContext = this._generateChapterStaticContext(
-                chapterContextIds,
-                updatedNewChapter
-            );
-            console.log('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
-            console.groupEnd();
-            this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
 
             updatedNewChapter.lastProcessedEventUid = eventUid;
             updatedNewChapter.checksum = simpleHash(JSON.stringify(updatedNewChapter) + Date.now());
@@ -2477,6 +2688,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
 
             // 【阶段3完成】清除临时状态（已在第二次写入时保存）
             this.LEADER.pendingTransition = null;
+            this.LEADER.earlyPlayerInput = null;
             // 注意：不需要再次 saveChat()，因为已在第二次写入时保存
 
             this.info(`[V7.2] 新章节状态已完整保存（UID: ${updatedNewChapter.uid}），史官+建筑师结果已锚定到消息 #${endIndex}（阶段3/3完成）。`);
@@ -2493,6 +2705,8 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
         } catch (error) {
             this.diagnose("章节转换流程中发生严重错误:", error);
             this.toastr.error(`${error.message}`, "章节规划失败", { timeOut: 10000 });
+            // 清除临时数据
+            this.LEADER.earlyPlayerInput = null;
         } finally {
             this._setStatus(ENGINE_STATUS.IDLE);
             if (loadingToast) {

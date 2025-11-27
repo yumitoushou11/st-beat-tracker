@@ -1,10 +1,10 @@
 // ui/uiManager.js
 import { SbtPopupConfirm } from './SbtPopupConfirm.js';
-import { updateDashboard, showCharacterDetailModal, showWorldviewDetailModal, showStorylineDetailModal } from './renderers.js';
+import { updateDashboard, showCharacterDetailModal, showWorldviewDetailModal, showStorylineDetailModal, showRelationshipDetailModal } from './renderers.js';
 import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
-import { showNsfwProposalPopup, showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
+import { showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
 import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
 
@@ -33,7 +33,6 @@ export function initializeUIManager(dependencies) {
     Object.assign(deps, dependencies);
 
     deps.showSagaFocusPopup = showSagaFocusPopup;
-    deps.showNsfwProposalPopup = showNsfwProposalPopup;
     deps.showNarrativeFocusPopup = showNarrativeFocusPopup;
     
     if (deps.eventBus) {
@@ -77,6 +76,79 @@ $('#extensions-settings-button').after(html);
         });
     }
 
+    // -- 加载缓存的静态数据并显示 --
+    function loadAndDisplayCachedStaticData() {
+        try {
+            const db = staticDataManager.getFullDatabase();
+            const characterIds = Object.keys(db);
+
+            if (characterIds.length === 0) {
+                deps.info('[UIManager] 静态数据库为空，无缓存数据可加载');
+                return;
+            }
+
+            // 取第一个角色的数据（或者可以根据某种优先级选择）
+            const firstCharId = characterIds[0];
+            const cachedData = db[firstCharId];
+
+            if (!cachedData || !cachedData.characters || !cachedData.worldview) {
+                deps.info('[UIManager] 缓存数据结构不完整，跳过加载');
+                return;
+            }
+
+            deps.info(`[UIManager] 找到缓存数据，正在加载角色: ${firstCharId}`);
+
+            // 构造一个临时的 chapterState 对象
+            const tempChapterState = {
+                uid: 'temp_cached_view',
+                staticMatrices: {
+                    characters: cachedData.characters || {},
+                    worldview: cachedData.worldview || {
+                        locations: {},
+                        items: {},
+                        factions: {},
+                        concepts: {},
+                        events: {},
+                        races: {}
+                    },
+                    storylines: cachedData.storylines || {
+                        main_quests: {},
+                        side_quests: {},
+                        relationship_arcs: {},
+                        personal_arcs: {}
+                    },
+                    relationship_graph: cachedData.relationship_graph || { edges: [] }
+                },
+                dynamicState: {
+                    characters: {},
+                    worldview: {},
+                    storylines: {
+                        main_quests: {},
+                        side_quests: {},
+                        relationship_arcs: {},
+                        personal_arcs: {}
+                    }
+                },
+                meta: {
+                    longTermStorySummary: '（缓存数据预览）',
+                    lastChapterHandoff: null
+                },
+                chapter_blueprint: {}
+            };
+
+            // 更新当前状态引用
+            currentChapterState = tempChapterState;
+
+            // 调用 updateDashboard 显示数据
+            updateDashboard(tempChapterState);
+
+            deps.toastr.info(`已加载缓存数据: ${firstCharId}`, '静态数据');
+
+        } catch (error) {
+            deps.diagnose('[UIManager] 加载缓存静态数据时出错:', error);
+        }
+    }
+
     // -- 主抽屉开关 --
     $wrapper.find('.drawer-toggle').on('click', () => {
         $('#beat-tracker-icon').toggleClass('closedIcon openIcon');
@@ -84,6 +156,9 @@ $('#extensions-settings-button').after(html);
             if ($('#beat-tracker-content-panel').hasClass('openDrawer')) {
                 populateSettingsUI(deps); // 传递 deps 参数
                 populateNarrativeModeSelector(deps); // V7.0: 填充叙事模式选择器（全局配置版）
+
+                // 【新增】加载并显示静态数据缓存（如果存在）
+                loadAndDisplayCachedStaticData();
             }
     });
     
@@ -223,7 +298,20 @@ $('#extensions-settings-button').after(html);
 
         if (!currentChapterState || isNaN(beaconIndex)) return;
 
-        const beacons = currentChapterState.chapter_blueprint?.endgame_beacons;
+        const blueprint = currentChapterState.chapter_blueprint;
+        if (!blueprint) return;
+
+        // 兼容单数和复数格式
+        let beacons;
+        if (blueprint.endgame_beacons && Array.isArray(blueprint.endgame_beacons)) {
+            beacons = blueprint.endgame_beacons;
+        } else if (blueprint.endgame_beacon && typeof blueprint.endgame_beacon === 'string') {
+            // 转换为数组格式
+            beacons = [blueprint.endgame_beacon];
+            blueprint.endgame_beacons = beacons;
+            delete blueprint.endgame_beacon;
+        }
+
         if (beacons && beacons[beaconIndex] !== newValue) {
             beacons[beaconIndex] = newValue;
 
@@ -652,6 +740,102 @@ $('#extensions-settings-button').after(html);
     // -- 故事线详情: 关闭详情面板 --
     $wrapper.on('click', '#sbt-close-storyline-detail', function() {
         $('#sbt-storyline-detail-panel').hide();
+    });
+
+    // -- 关系图谱: 关闭详情面板 --
+    $wrapper.on('click', '#sbt-close-relationship-detail', function() {
+        $('#sbt-relationship-detail-panel').hide();
+    });
+
+    // -- 关系图谱: 编辑模式切换 --
+    $wrapper.on('click', '.sbt-edit-relationship-mode-toggle', function() {
+        const edgeId = $(this).data('edge-id');
+        if (!currentChapterState) return;
+
+        showRelationshipDetailModal(edgeId, currentChapterState, true);
+    });
+
+    // -- 关系图谱: 取消编辑 --
+    $wrapper.on('click', '.sbt-cancel-relationship-edit-btn', function() {
+        const edgeId = $(this).data('edge-id');
+        if (!currentChapterState) return;
+
+        showRelationshipDetailModal(edgeId, currentChapterState, false);
+    });
+
+    // -- 关系图谱: 保存修改 --
+    $wrapper.on('click', '.sbt-save-relationship-btn', function() {
+        const edgeId = $(this).data('edge-id');
+        if (!currentChapterState) return;
+
+        try {
+            const $panel = $('#sbt-relationship-detail-content');
+
+            // 获取relationship_graph中的edge
+            const relationshipGraph = currentChapterState.staticMatrices.relationship_graph;
+            const edge = relationshipGraph?.edges?.find(e => e.id === edgeId);
+
+            if (!edge) {
+                deps.toastr.error('找不到该关系边', '错误');
+                return;
+            }
+
+            // 更新情感权重
+            const newWeight = parseInt($panel.find('.sbt-rel-weight-input').val(), 10);
+            if (!isNaN(newWeight) && newWeight >= 0 && newWeight <= 10) {
+                edge.emotional_weight = newWeight;
+            }
+
+            // 更新未解张力
+            const newTensions = [];
+            $panel.find('.sbt-rel-tension-editable').each(function() {
+                const text = $(this).text().trim();
+                if (text) newTensions.push(text);
+            });
+
+            if (!edge.narrative_status) edge.narrative_status = {};
+            edge.narrative_status.unresolved_tension = newTensions;
+
+            // 保存
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                deps.onSaveCharacterEdit('relationship_updated', currentChapterState);
+            }
+
+            // 触发更新事件
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            }
+
+            deps.toastr.success('关系已更新', '保存成功');
+
+            // 返回查看模式
+            showRelationshipDetailModal(edgeId, currentChapterState, false);
+
+        } catch (error) {
+            deps.diagnose('[UIManager] 保存关系修改时发生错误:', error);
+            deps.toastr.error(`保存失败: ${error.message}`, '错误');
+        }
+    });
+
+    // -- 关系图谱: 添加张力标签 --
+    $wrapper.on('click', '.sbt-add-tension-btn', function() {
+        const $tensionTags = $(this).closest('.sbt-rel-tension-tags');
+
+        const newTagHtml = `
+            <span class="sbt-rel-tension-tag sbt-rel-tension-editable" contenteditable="true" data-tension-index="new">新张力</span>
+            <i class="fa-solid fa-xmark sbt-tension-delete" data-tension-index="new"></i>
+        `;
+        $(this).before(newTagHtml);
+
+        // 聚焦到新标签
+        $tensionTags.find('.sbt-rel-tension-editable[data-tension-index="new"]').focus().select();
+    });
+
+    // -- 关系图谱: 删除张力标签 --
+    $wrapper.on('click', '.sbt-tension-delete', function() {
+        const $deleteBtn = $(this);
+        $deleteBtn.prev('.sbt-rel-tension-editable').remove();
+        $deleteBtn.remove();
     });
 
     // -- 世界观详情: 编辑模式切换 --
@@ -1169,6 +1353,45 @@ $('#extensions-settings-button').after(html);
         $(this).closest('.sbt-tag-editable').remove();
     });
 
+    // -- V8.0: 故事线追踪 - 编辑历史记录 --
+    $wrapper.on('blur', '.sbt-history-content', function() {
+        const $this = $(this);
+        const newContent = $this.text().trim();
+        const historyIndex = parseInt($this.data('history-index'), 10);
+
+        if (isNaN(historyIndex) || !currentChapterState) return;
+
+        // 找到对应的故事线
+        const $card = $this.closest('.sbt-storyline-card');
+        const lineId = $card.data('storyline-id');
+        const category = $card.data('category');
+
+        if (!lineId || !category) return;
+
+        // 获取动态状态中的历史记录
+        const dynamicLine = currentChapterState.dynamicState.storylines?.[category]?.[lineId];
+        if (!dynamicLine || !dynamicLine.history || !dynamicLine.history[historyIndex]) {
+            deps.toastr.warning('无法找到对应的历史记录', '保存失败');
+            return;
+        }
+
+        // 更新历史记录
+        const historyEntry = dynamicLine.history[historyIndex];
+        historyEntry.summary_update = newContent;
+
+        // 保存到后端
+        if (typeof deps.onSaveCharacterEdit === 'function') {
+            deps.onSaveCharacterEdit('storyline_history_updated', currentChapterState);
+        }
+
+        // 触发更新事件
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        deps.toastr.success('历史记录已更新', '保存成功');
+    });
+
     // -- V5.2: 故事梗概和章节衔接点编辑功能 --
     $wrapper.on('click', '.sbt-edit-summary-btn', function() {
         const field = $(this).data('field');
@@ -1281,30 +1504,150 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
         let html = '';
         characterIds.forEach(charId => {
             const data = db[charId];
-            // 统计实体数量
-            let entityCount = 0;
-            if (data?.characters) entityCount += Object.keys(data.characters).length;
-            if (data?.worldview) {
-                for (const category of Object.values(data.worldview)) {
-                    if (typeof category === 'object') entityCount += Object.keys(category).length;
-                }
-            }
+
+            // 统计各分类的实体
+            const charCount = data?.characters ? Object.keys(data.characters).length : 0;
+            const worldviewData = data?.worldview || {};
+            const locationCount = worldviewData.locations ? Object.keys(worldviewData.locations).length : 0;
+            const itemCount = worldviewData.items ? Object.keys(worldviewData.items).length : 0;
+            const factionCount = worldviewData.factions ? Object.keys(worldviewData.factions).length : 0;
+            const conceptCount = worldviewData.concepts ? Object.keys(worldviewData.concepts).length : 0;
+            const eventCount = worldviewData.events ? Object.keys(worldviewData.events).length : 0;
+            const raceCount = worldviewData.races ? Object.keys(worldviewData.races).length : 0;
+
+            const totalCount = charCount + locationCount + itemCount + factionCount + conceptCount + eventCount + raceCount;
 
             html += `
                 <div class="sbt-db-item" data-char-id="${charId}">
-                    <div class="sbt-db-item-info">
-                        <span class="sbt-db-item-name">${charId}</span>
-                        <span class="sbt-db-item-stats">${entityCount} 个实体</span>
+                    <div class="sbt-db-item-header">
+                        <div class="sbt-db-item-info">
+                            <i class="fa-solid fa-chevron-right sbt-db-expand-icon"></i>
+                            <span class="sbt-db-item-name">${charId}</span>
+                            <span class="sbt-db-item-stats">共 ${totalCount} 个实体</span>
+                        </div>
+                        <button class="sbt-db-item-delete sbt-icon-btn" title="删除此角色数据">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
                     </div>
-                    <button class="sbt-db-item-delete sbt-icon-btn" title="删除此角色数据">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
+                    <div class="sbt-db-item-details" style="display: none;">
+                        ${charCount > 0 ? `
+                        <div class="sbt-db-category">
+                            <div class="sbt-db-category-title">
+                                <i class="fa-solid fa-user"></i> 角色 (${charCount})
+                            </div>
+                            <div class="sbt-db-entity-list">
+                                ${Object.keys(data.characters).map(id => {
+                                    const char = data.characters[id];
+                                    const name = char?.core?.name || char?.name || id;
+                                    return `<span class="sbt-db-entity-tag">${name}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${locationCount > 0 ? `
+                        <div class="sbt-db-category">
+                            <div class="sbt-db-category-title">
+                                <i class="fa-solid fa-map-marker-alt"></i> 地点 (${locationCount})
+                            </div>
+                            <div class="sbt-db-entity-list">
+                                ${Object.keys(worldviewData.locations).map(id => {
+                                    const name = worldviewData.locations[id]?.name || id;
+                                    return `<span class="sbt-db-entity-tag">${name}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${itemCount > 0 ? `
+                        <div class="sbt-db-category">
+                            <div class="sbt-db-category-title">
+                                <i class="fa-solid fa-box"></i> 物品 (${itemCount})
+                            </div>
+                            <div class="sbt-db-entity-list">
+                                ${Object.keys(worldviewData.items).map(id => {
+                                    const name = worldviewData.items[id]?.name || id;
+                                    return `<span class="sbt-db-entity-tag">${name}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${factionCount > 0 ? `
+                        <div class="sbt-db-category">
+                            <div class="sbt-db-category-title">
+                                <i class="fa-solid fa-flag"></i> 势力 (${factionCount})
+                            </div>
+                            <div class="sbt-db-entity-list">
+                                ${Object.keys(worldviewData.factions).map(id => {
+                                    const name = worldviewData.factions[id]?.name || id;
+                                    return `<span class="sbt-db-entity-tag">${name}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${conceptCount > 0 ? `
+                        <div class="sbt-db-category">
+                            <div class="sbt-db-category-title">
+                                <i class="fa-solid fa-lightbulb"></i> 概念 (${conceptCount})
+                            </div>
+                            <div class="sbt-db-entity-list">
+                                ${Object.keys(worldviewData.concepts).map(id => {
+                                    const name = worldviewData.concepts[id]?.name || id;
+                                    return `<span class="sbt-db-entity-tag">${name}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${eventCount > 0 ? `
+                        <div class="sbt-db-category">
+                            <div class="sbt-db-category-title">
+                                <i class="fa-solid fa-calendar"></i> 历史事件 (${eventCount})
+                            </div>
+                            <div class="sbt-db-entity-list">
+                                ${Object.keys(worldviewData.events).map(id => {
+                                    const name = worldviewData.events[id]?.name || id;
+                                    return `<span class="sbt-db-entity-tag">${name}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${raceCount > 0 ? `
+                        <div class="sbt-db-category">
+                            <div class="sbt-db-category-title">
+                                <i class="fa-solid fa-dragon"></i> 种族 (${raceCount})
+                            </div>
+                            <div class="sbt-db-entity-list">
+                                ${Object.keys(worldviewData.races).map(id => {
+                                    const name = worldviewData.races[id]?.name || id;
+                                    return `<span class="sbt-db-entity-tag">${name}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${totalCount === 0 ? '<p class="sbt-instructions">此角色暂无缓存数据</p>' : ''}
+                    </div>
                 </div>
             `;
         });
 
         $list.html(html);
     }
+
+    // 展开/折叠详情
+    $wrapper.find('#sbt-static-db-list').on('click', '.sbt-db-item-header', function(e) {
+        // 如果点击的是删除按钮，不展开
+        if ($(e.target).closest('.sbt-db-item-delete').length > 0) return;
+
+        const $item = $(this).closest('.sbt-db-item');
+        const $details = $item.find('.sbt-db-item-details');
+        const $icon = $item.find('.sbt-db-expand-icon');
+
+        if ($details.is(':visible')) {
+            $details.slideUp(200);
+            $icon.removeClass('expanded');
+        } else {
+            $details.slideDown(200);
+            $icon.addClass('expanded');
+        }
+    });
 
     // 初始加载
     refreshDatabaseList();

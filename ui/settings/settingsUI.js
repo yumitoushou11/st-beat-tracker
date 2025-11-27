@@ -81,10 +81,6 @@ export function populateNarrativeModeSelector(deps) {
         // 设置选中的模式
         $(`input[name="narrative_mode"][value="${currentMode}"]`).prop('checked', true);
 
-        // 更新视觉状态
-        $('.sbt-mode-option').removeClass('active');
-        $(`.sbt-mode-option[data-mode="${currentMode}"]`).addClass('active');
-
         deps.info(`[UIManager] 叙事模式UI已填充: ${currentMode === 'web_novel' ? '🔥网文模式(全局默认)' : '🎭正剧模式(全局默认)'}`);
     } catch (error) {
         deps.diagnose("[UIManager] 填充叙事模式选择器时发生错误:", error);
@@ -98,13 +94,6 @@ export function populateNarrativeModeSelector(deps) {
  * @param {Function} getCurrentChapterFn - 获取当前章节的函数（可选，如果有章节则同步更新）
  */
 export function bindNarrativeModeSwitchHandler($wrapper, deps, getCurrentChapterFn) {
-    // 单选按钮切换时更新视觉状态
-    $wrapper.on('change', 'input[name="narrative_mode"]', function() {
-        const selectedMode = $(this).val();
-        $('.sbt-mode-option').removeClass('active');
-        $(`.sbt-mode-option[data-mode="${selectedMode}"]`).addClass('active');
-    });
-
     // 应用按钮点击处理
     $wrapper.on('click', '#sbt-apply-narrative-mode', () => {
         const selectedMode = $('input[name="narrative_mode"]:checked').val();

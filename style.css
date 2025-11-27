@@ -389,21 +389,18 @@ input:checked + .sbt-slider:before {
 
 /* --- [SECTION 11D] 数据库管理样式 (Database Management) --- */
 .sbt-db-list {
-    max-height: 300px;
+    max-height: 500px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
 }
 
 .sbt-db-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 12px;
     background-color: var(--sbt-bg-darker);
     border: 1px solid var(--sbt-border-color);
-    border-radius: 4px;
+    border-radius: 6px;
+    overflow: hidden;
     transition: border-color 0.2s;
 }
 
@@ -411,10 +408,34 @@ input:checked + .sbt-slider:before {
     border-color: var(--sbt-primary-accent);
 }
 
+.sbt-db-item-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.sbt-db-item-header:hover {
+    background-color: var(--sbt-bg-dark);
+}
+
 .sbt-db-item-info {
     display: flex;
-    flex-direction: column;
-    gap: 2px;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+}
+
+.sbt-db-expand-icon {
+    color: var(--sbt-text-dim);
+    font-size: 0.8em;
+    transition: transform 0.2s;
+}
+
+.sbt-db-expand-icon.expanded {
+    transform: rotate(90deg);
 }
 
 .sbt-db-item-name {
@@ -424,12 +445,15 @@ input:checked + .sbt-slider:before {
 }
 
 .sbt-db-item-stats {
-    font-size: 0.8em;
+    font-size: 0.85em;
     color: var(--sbt-text-dim);
+    padding: 2px 8px;
+    background-color: var(--sbt-bg-darker);
+    border-radius: 10px;
 }
 
 .sbt-db-item-delete {
-    padding: 6px 8px;
+    padding: 6px 10px;
     background: transparent;
     border: 1px solid var(--sbt-border-color);
     border-radius: 4px;
@@ -442,6 +466,56 @@ input:checked + .sbt-slider:before {
     background-color: rgba(255, 100, 100, 0.2);
     border-color: #ff6464;
     color: #ff6464;
+}
+
+/* 详情展开区域 */
+.sbt-db-item-details {
+    padding: 0 15px 15px 15px;
+    border-top: 1px solid var(--sbt-border-color);
+}
+
+.sbt-db-category {
+    margin-top: 12px;
+}
+
+.sbt-db-category:first-child {
+    margin-top: 15px;
+}
+
+.sbt-db-category-title {
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--sbt-text-medium);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sbt-db-category-title i {
+    color: var(--sbt-primary-accent);
+}
+
+.sbt-db-entity-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.sbt-db-entity-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 3px;
+    font-size: 0.85em;
+    color: var(--sbt-text-light);
+    transition: all 0.2s;
+}
+
+.sbt-db-entity-tag:hover {
+    background-color: var(--sbt-bg-medium);
+    border-color: var(--sbt-primary-accent);
 }
 
 .sbt-danger-btn {
@@ -1886,9 +1960,24 @@ input:checked + .sbt-slider:before {
     margin-right: 4px;
 }
 
-/* ============================================
-   V2.0: 故事大纲 - 宏观叙事弧光样式
-   ============================================ */
+/* 可编辑历史记录内容样式 */
+.sbt-history-content {
+    display: inline;
+    padding: 2px 4px;
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+    cursor: text;
+}
+
+.sbt-history-content:hover {
+    background-color: rgba(10, 132, 255, 0.1);
+    outline: 1px dashed var(--sbt-primary-accent);
+}
+
+.sbt-history-content:focus {
+    outline: 2px solid var(--sbt-primary-accent);
+    background-color: rgba(10, 132, 255, 0.15);
+}
 
 /* V2.0 徽章 */
 .sbt-v2-badge {
@@ -1928,7 +2017,7 @@ input:checked + .sbt-slider:before {
     vertical-align: middle;
 }
 
-/* =========================== V3.0: 关系图谱样式 =========================== */
+/* =========================== 关系图谱样式 =========================== */
 
 .sbt-relationship-graph-desc {
     font-size: 0.85em;
@@ -1946,7 +2035,7 @@ input:checked + .sbt-slider:before {
     margin-right: 4px;
 }
 
-/* 关系边卡片 */
+/* 关系卡片 - 简化版列表 */
 .sbt-relationship-edge-card {
     background-color: var(--sbt-card-bg);
     border: 1px solid var(--sbt-border-color);
@@ -1956,74 +2045,197 @@ input:checked + .sbt-slider:before {
     transition: all 0.2s ease;
 }
 
-.sbt-relationship-edge-card:hover {
-    border-color: var(--sbt-primary-accent);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-}
-
-.sbt-relationship-edge-card.reunion-pending {
-    border-left: 3px solid #f39c12;
-}
-
-.sbt-relationship-edge-card.first-meeting-pending {
-    border-left: 3px solid #3498db;
-}
-
-/* 关系边头部 */
-.sbt-relationship-edge-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 12px;
+.sbt-relationship-card-clickable {
     cursor: pointer;
 }
 
-.sbt-relationship-edge-header:hover {
-    background-color: var(--sbt-hover-bg);
+.sbt-relationship-card-clickable:hover {
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 2px 12px rgba(10, 132, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.sbt-relationship-card-clickable:active {
+    transform: translateY(0);
+}
+
+.sbt-relationship-edge-card.reunion-pending {
+    border-left: 4px solid #f39c12;
+}
+
+.sbt-relationship-edge-card.first-meeting-pending {
+    border-left: 4px solid #3498db;
+}
+
+.sbt-relationship-card-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    gap: 16px;
+}
+
+.sbt-relationship-card-left {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+}
+
+.sbt-relationship-meta-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.sbt-relationship-card-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.sbt-relationship-quick-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.sbt-quick-weight {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sbt-quick-weight-bar {
+    width: 80px;
+    height: 6px;
+    background-color: var(--sbt-input-bg);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.sbt-quick-weight-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s ease;
+}
+
+.sbt-quick-weight-fill.weight-low {
+    background-color: #95a5a6;
+}
+
+.sbt-quick-weight-fill.weight-medium {
+    background: linear-gradient(90deg, #3498db, #5dade2);
+}
+
+.sbt-quick-weight-fill.weight-high {
+    background: linear-gradient(90deg, #e74c3c, #ec7063);
+}
+
+.sbt-quick-weight-fill.weight-critical {
+    background: linear-gradient(90deg, #e74c3c, #c0392b);
+}
+
+.sbt-quick-weight-value {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--sbt-text-medium);
+    min-width: 35px;
+    text-align: right;
+}
+
+.sbt-card-arrow {
+    color: var(--sbt-text-medium);
+    font-size: 1.2em;
+    transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.sbt-relationship-card-clickable:hover .sbt-card-arrow {
+    color: var(--sbt-primary-accent);
+    transform: translateX(4px);
 }
 
 .sbt-relationship-participants {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-weight: 500;
-    font-size: 0.95em;
+    gap: 12px;
 }
 
-.sbt-relationship-participants i {
+.sbt-participant-name {
+    font-weight: 700;
+    font-size: 1.05em;
+    color: var(--sbt-text-light);
+    line-height: 1.3;
+}
+
+.sbt-heart-icon {
     color: var(--sbt-primary-accent);
+    font-size: 1em;
+    flex-shrink: 0;
 }
 
 .sbt-relationship-type-badge {
-    font-size: 0.75em;
-    padding: 2px 8px;
-    background-color: var(--sbt-input-bg);
-    border-radius: 4px;
-    color: var(--sbt-text-medium);
+    font-size: 0.85em;
+    padding: 5px 12px;
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.15), rgba(10, 132, 255, 0.05));
+    border: 1px solid rgba(10, 132, 255, 0.2);
+    border-radius: 6px;
+    color: var(--sbt-text-light);
+    width: fit-content;
+    font-weight: 500;
 }
 
-/* 关系边指标区 */
-.sbt-relationship-indicators {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+/* 展开图标 */
+.sbt-expand-icon {
+    color: var(--sbt-primary-accent);
+    font-size: 1em;
+    transition: transform 0.3s ease;
+    flex-shrink: 0;
+}
+
+.sbt-expand-icon.expanded {
+    transform: rotate(180deg);
+    color: var(--sbt-primary-accent);
 }
 
 /* 关系边详情 */
 .sbt-relationship-edge-details {
-    padding: 12px;
+    display: none;
     border-top: 1px solid var(--sbt-border-color);
     font-size: 0.9em;
-    display: none;
+    animation: slideDown 0.2s ease-out;
 }
 
 .sbt-relationship-edge-details.expanded {
     display: block;
 }
 
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.sbt-detail-section {
+    padding: 16px;
+    border-bottom: 1px solid var(--sbt-border-color);
+}
+
+.sbt-detail-section:last-child {
+    border-bottom: none;
+}
+
 .sbt-relationship-detail-row {
     display: flex;
-    margin-bottom: 8px;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 12px;
 }
 
 .sbt-relationship-detail-row:last-child {
@@ -2031,35 +2243,56 @@ input:checked + .sbt-slider:before {
 }
 
 .sbt-relationship-detail-label {
-    width: 100px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 120px;
     flex-shrink: 0;
     color: var(--sbt-text-medium);
-    font-size: 0.85em;
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+.sbt-relationship-detail-label i {
+    color: var(--sbt-primary-accent);
+    font-size: 1em;
+    width: 16px;
+    text-align: center;
+}
+
+.sbt-relationship-detail-label.sbt-section-title {
+    font-size: 1em;
+    font-weight: 600;
+    margin-bottom: 12px;
+    min-width: auto;
+    color: var(--sbt-text-light);
 }
 
 .sbt-relationship-detail-value {
     flex: 1;
-    color: var(--sbt-text-primary);
+    color: var(--sbt-text-light);
+    line-height: 1.6;
+    font-size: 0.95em;
 }
 
 /* 情感权重指示器 */
 .sbt-emotional-weight-bar {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
 }
 
 .sbt-emotional-weight-track {
     flex: 1;
-    height: 6px;
+    height: 8px;
     background-color: var(--sbt-input-bg);
-    border-radius: 3px;
+    border-radius: 4px;
     overflow: hidden;
 }
 
 .sbt-emotional-weight-fill {
     height: 100%;
-    border-radius: 3px;
+    border-radius: 4px;
     transition: width 0.3s ease;
 }
 
@@ -2068,22 +2301,24 @@ input:checked + .sbt-slider:before {
 }
 
 .sbt-emotional-weight-fill.weight-medium {
-    background-color: #3498db;
+    background: linear-gradient(90deg, #3498db, #5dade2);
 }
 
 .sbt-emotional-weight-fill.weight-high {
-    background-color: #e74c3c;
+    background: linear-gradient(90deg, #e74c3c, #ec7063);
 }
 
 .sbt-emotional-weight-fill.weight-critical {
     background: linear-gradient(90deg, #e74c3c, #c0392b);
+    box-shadow: 0 0 8px rgba(231, 76, 60, 0.4);
 }
 
 .sbt-emotional-weight-value {
     font-weight: 600;
-    font-size: 0.85em;
-    min-width: 30px;
+    font-size: 0.9em;
+    min-width: 35px;
     text-align: right;
+    color: var(--sbt-text-light);
 }
 
 /* 时间线状态标签 */
@@ -2121,127 +2356,83 @@ input:checked + .sbt-slider:before {
 .sbt-unresolved-tensions {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 4px;
+    gap: 8px;
 }
 
 .sbt-tension-tag {
     display: inline-block;
-    padding: 2px 8px;
+    padding: 4px 12px;
     background-color: rgba(155, 89, 182, 0.15);
     color: #9b59b6;
-    border-radius: 4px;
-    font-size: 0.8em;
+    border: 1px solid rgba(155, 89, 182, 0.3);
+    border-radius: 12px;
+    font-size: 0.85em;
 }
 
 /* 重大事件列表 */
 .sbt-major-events-list {
-    margin-top: 8px;
+    margin-top: 0;
 }
 
 .sbt-major-event-item {
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    padding: 6px 0;
-    border-bottom: 1px dashed var(--sbt-border-color);
+    gap: 10px;
+    padding: 10px;
+    margin-bottom: 8px;
+    background-color: rgba(10, 132, 255, 0.05);
+    border-left: 3px solid var(--sbt-primary-accent);
+    border-radius: 4px;
     font-size: 0.85em;
 }
 
 .sbt-major-event-item:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
 }
 
 .sbt-major-event-icon {
     color: var(--sbt-primary-accent);
     margin-top: 2px;
+    font-size: 0.9em;
 }
 
 .sbt-major-event-content {
     flex: 1;
+    line-height: 1.5;
 }
 
 .sbt-major-event-impact {
     font-size: 0.8em;
     color: var(--sbt-text-medium);
+    margin-top: 4px;
 }
 
 /* 关系图谱统计信息 */
 .sbt-relationship-stats {
     display: flex;
-    gap: 16px;
-    padding: 10px 12px;
-    background-color: var(--sbt-input-bg);
-    border-radius: 6px;
-    margin-bottom: 12px;
-    font-size: 0.85em;
+    gap: 20px;
+    padding: 12px 16px;
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.08), rgba(10, 132, 255, 0.03));
+    border: 1px solid rgba(10, 132, 255, 0.15);
+    border-radius: 8px;
+    margin-bottom: 16px;
+    font-size: 0.9em;
 }
 
 .sbt-relationship-stat-item {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 8px;
 }
 
 .sbt-relationship-stat-item i {
     color: var(--sbt-primary-accent);
+    font-size: 1em;
 }
 
 .sbt-relationship-stat-value {
-    font-weight: 600;
-}
-
-/* 弧光列表头部 */
-.sbt-arc-list-header {
-    margin-bottom: 16px;
-}
-
-.sbt-arc-description {
-    font-size: 0.9em;
-    color: var(--sbt-text-medium);
-    margin-bottom: 12px;
-    padding: 8px 12px;
-    background-color: rgba(10, 132, 255, 0.05);
-    border-left: 3px solid var(--sbt-primary-accent);
-    border-radius: 4px;
-}
-
-/* 弧光卡片 */
-.sbt-arc-card {
-    margin-bottom: 16px;
-    padding: 16px;
-    background-color: var(--sbt-card-bg);
-    border: 1px solid var(--sbt-border-color);
-    border-radius: 8px;
-    transition: all 0.3s ease;
-}
-
-.sbt-arc-card:hover {
-    border-color: var(--sbt-primary-accent);
-    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.15);
-    transform: translateY(-2px);
-}
-
-/* 弧光卡片头部 */
-.sbt-arc-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    padding-bottom: 12px;
-    border-bottom: 1px solid var(--sbt-border-color);
-}
-
-.sbt-arc-title {
-    margin: 0;
-    font-size: 1.1em;
-    font-weight: 600;
-    color: var(--sbt-text-primary);
-}
-
-.sbt-arc-actions {
-    display: flex;
-    gap: 8px;
+    font-weight: 700;
+    color: var(--sbt-primary-accent);
 }
 
 /* 图标按钮 */
@@ -2258,60 +2449,6 @@ input:checked + .sbt-slider:before {
 .sbt-icon-btn:hover {
     background-color: rgba(10, 132, 255, 0.1);
     border-color: var(--sbt-primary-accent);
-    color: var(--sbt-primary-accent);
-}
-
-.sbt-delete-arc-btn:hover {
-    background-color: rgba(255, 69, 58, 0.1);
-    border-color: var(--sbt-danger-color);
-    color: var(--sbt-danger-color);
-}
-
-/* 弧光卡片主体 */
-.sbt-arc-body {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.sbt-arc-field strong {
-    display: block;
-    font-size: 0.9em;
-    color: var(--sbt-text-light);
-    margin-bottom: 4px;
-}
-
-.sbt-arc-field p {
-    margin: 0;
-    font-size: 0.95em;
-    color: var(--sbt-text-primary);
-    line-height: 1.5;
-}
-
-/* 阶段徽章 */
-.sbt-arc-stage-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    font-size: 0.85em;
-    font-weight: 600;
-    color: #fff;
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    border-radius: 12px;
-}
-
-/* 弧光元信息 */
-.sbt-arc-meta {
-    display: flex;
-    gap: 16px;
-    padding-top: 12px;
-    margin-top: 8px;
-    border-top: 1px solid var(--sbt-border-color);
-    font-size: 0.85em;
-    color: var(--sbt-text-light);
-}
-
-.sbt-meta-item i {
-    margin-right: 4px;
     color: var(--sbt-primary-accent);
 }
 
@@ -2507,6 +2644,64 @@ input:checked + .sbt-slider:before {
     margin: 0;
     color: var(--sbt-text-medium);
     flex: 1;
+}
+
+/* 章节剧本字段通用样式 */
+.sbt-blueprint-field {
+    margin-bottom: 12px;
+}
+
+.sbt-blueprint-field:last-child {
+    margin-bottom: 0;
+}
+
+.sbt-blueprint-field-label {
+    font-size: 0.9em;
+    color: var(--sbt-text-medium);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sbt-blueprint-field-value {
+    padding: 10px 12px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-light);
+    line-height: 1.6;
+    min-height: 40px;
+    transition: all 0.2s ease;
+}
+
+.sbt-blueprint-field-value:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    background-color: var(--sbt-bg-dark);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.1);
+}
+
+.sbt-blueprint-field-value:empty:before {
+    content: attr(placeholder);
+    color: var(--sbt-text-dim);
+    opacity: 0.6;
+}
+
+/* 玩家补充字段（绝对优先级） */
+.sbt-player-supplement-field {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--sbt-border-color);
+}
+
+.sbt-player-supplement-input {
+    min-height: 60px;
+    border-left: 3px solid var(--sbt-primary-accent);
+}
+
+.sbt-player-supplement-input:focus {
+    border-left-color: var(--sbt-primary-accent);
 }
 
 /* 节拍卡片 */
@@ -2932,494 +3127,489 @@ input:checked + .sbt-slider:before {
     padding-left: 10px;
 }
 
-/* =========================== V4.0: 叙事控制塔样式 =========================== */
+/* ============================================
+   叙事模式选择器样式（紧凑版）
+   ============================================ */
 
-.sbt-rhythm-card {
-    background-color: var(--sbt-bg-dark);
-    border: 1px solid var(--sbt-border-color);
-    border-radius: 6px;
-    margin-bottom: 15px;
-    overflow: hidden;
+.sbt-narrative-mode-selector {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
-.sbt-rhythm-card-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    padding: 10px 15px;
-    font-weight: 600;
-    font-size: 0.95em;
-}
-
-.sbt-rhythm-card-body {
-    padding: 15px;
-}
-
-/* 节奏指令样式 */
-.sbt-rhythm-constraint {
-    margin-bottom: 12px;
-    padding: 10px;
-    background-color: rgba(255, 100, 100, 0.1);
-    border-left: 3px solid #ff6464;
-    border-radius: 4px;
-}
-
-.sbt-rhythm-label {
-    font-weight: 600;
-    color: var(--sbt-text-medium);
-    margin-bottom: 6px;
-    display: block;
-}
-
-.sbt-constraint-badge {
-    display: inline-block;
-    padding: 4px 10px;
-    background-color: rgba(255, 100, 100, 0.2);
-    border: 1px solid #ff6464;
-    color: #ff6464;
-    border-radius: 12px;
-    font-size: 0.85em;
-    margin-right: 6px;
-    margin-top: 4px;
-}
-
-.sbt-rhythm-field {
-    margin-bottom: 8px;
+.sbt-mode-option-compact {
     display: flex;
     align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.sbt-rhythm-field .sbt-rhythm-label {
-    margin-bottom: 0;
-    margin-right: 8px;
+.sbt-mode-option-compact:hover {
+    background-color: var(--sbt-bg-medium);
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-mode-option-compact input[type="radio"] {
+    margin: 0;
+    cursor: pointer;
     flex-shrink: 0;
 }
 
-.sbt-rhythm-value {
+.sbt-mode-icon-compact {
+    font-size: 1.5em;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.sbt-mode-info-compact {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+}
+
+.sbt-mode-info-compact strong {
+    color: var(--sbt-text-light);
+    font-size: 0.95em;
+}
+
+.sbt-mode-info-compact span {
+    color: var(--sbt-text-medium);
+    font-size: 0.85em;
+}
+
+/* === 史官复盘通知中的按钮样式 === */
+.sbt-compact-focus-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 5px 10px;
+    margin-top: 8px;
+    font-size: 0.85em;
+    font-weight: 500;
+    color: var(--sbt-text-light);
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.15), rgba(10, 132, 255, 0.05));
+    border: 1px solid rgba(10, 132, 255, 0.3);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-compact-focus-btn:hover {
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.25), rgba(10, 132, 255, 0.15));
+    border-color: rgba(10, 132, 255, 0.5);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(10, 132, 255, 0.2);
+}
+
+.sbt-compact-focus-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(10, 132, 255, 0.15);
+}
+
+.sbt-compact-focus-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.sbt-compact-focus-btn i {
+    font-size: 0.9em;
+}
+
+
+
+/* === 关系详情模态框样式 === */
+.sbt-relationship-detail-modal {
+    padding: 12px;
+}
+
+.sbt-rel-modal-header {
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--sbt-border-color);
+}
+
+.sbt-rel-modal-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.sbt-rel-participant {
+    font-size: 1.1em;
+    font-weight: 700;
+    color: var(--sbt-text-light);
+}
+
+.sbt-rel-modal-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.sbt-rel-type-badge {
+    font-size: 0.85em;
+    padding: 4px 10px;
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.2), rgba(10, 132, 255, 0.1));
+    border: 1px solid rgba(10, 132, 255, 0.3);
+    border-radius: 4px;
     color: var(--sbt-text-light);
     font-weight: 500;
 }
 
-.sbt-rhythm-threshold {
-    margin-top: 12px;
-    padding: 10px;
-    background-color: rgba(255, 200, 0, 0.1);
-    border-left: 3px solid #ffc800;
+.sbt-rel-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
     border-radius: 4px;
+    font-size: 0.8em;
+    font-weight: 500;
 }
 
-.sbt-threshold-item {
-    padding: 4px 0;
+.sbt-rel-status-badge i {
     font-size: 0.9em;
+}
+
+.sbt-rel-status-badge.reunion-pending {
+    background-color: rgba(243, 156, 18, 0.2);
+    color: #f39c12;
+    border: 1px solid rgba(243, 156, 18, 0.4);
+}
+
+.sbt-rel-status-badge.first-meeting {
+    background-color: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+    border: 1px solid rgba(52, 152, 219, 0.4);
+}
+
+.sbt-rel-status-badge.active {
+    background-color: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+    border: 1px solid rgba(46, 204, 113, 0.4);
+}
+
+.sbt-rel-status-badge.separated {
+    background-color: rgba(149, 165, 166, 0.2);
+    color: #95a5a6;
+    border: 1px solid rgba(149, 165, 166, 0.4);
+}
+
+.sbt-rel-modal-body {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.sbt-rel-detail-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.sbt-rel-weight-field {
+    padding: 10px;
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.05), rgba(10, 132, 255, 0.02));
+    border-radius: 6px;
+    border: 1px solid rgba(10, 132, 255, 0.15);
+}
+
+.sbt-rel-detail-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--sbt-text-light);
+}
+
+.sbt-rel-detail-label i {
+    color: var(--sbt-primary-accent);
+    font-size: 0.9em;
+}
+
+.sbt-rel-detail-value {
+    color: var(--sbt-text-light);
+    line-height: 1.5;
+    font-size: 0.9em;
+}
+
+.sbt-rel-weight-display {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sbt-rel-weight-bar {
+    height: 10px;
+    background-color: var(--sbt-input-bg);
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.sbt-rel-weight-fill {
+    height: 100%;
+    border-radius: 6px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sbt-rel-weight-fill.weight-low {
+    background: linear-gradient(90deg, #95a5a6, #b2bec3);
+}
+
+.sbt-rel-weight-fill.weight-medium {
+    background: linear-gradient(90deg, #3498db, #5dade2);
+    box-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
+}
+
+.sbt-rel-weight-fill.weight-high {
+    background: linear-gradient(90deg, #e74c3c, #ec7063);
+    box-shadow: 0 0 10px rgba(231, 76, 60, 0.3);
+}
+
+.sbt-rel-weight-fill.weight-critical {
+    background: linear-gradient(90deg, #e74c3c, #c0392b);
+    box-shadow: 0 0 15px rgba(231, 76, 60, 0.5);
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+}
+
+.sbt-rel-weight-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.sbt-rel-weight-value {
+    font-size: 1.1em;
+    font-weight: 700;
+    color: var(--sbt-primary-accent);
+}
+
+.sbt-rel-weight-label {
+    font-size: 0.85em;
     color: var(--sbt-text-medium);
 }
 
-.sbt-rhythm-opportunity {
-    margin-top: 12px;
+.sbt-rel-timeline-section {
     padding: 10px;
-    background-color: rgba(154, 200, 255, 0.1);
+    background-color: var(--sbt-input-bg);
+    border-radius: 6px;
+}
+
+.sbt-rel-section-title {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: var(--sbt-text-light);
+    margin-bottom: 10px;
+}
+
+.sbt-rel-section-title i {
+    color: var(--sbt-primary-accent);
+    font-size: 0.9em;
+}
+
+.sbt-rel-timeline-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.sbt-rel-timeline-item {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    background-color: var(--sbt-card-bg);
+    border-radius: 4px;
+    border: 1px solid var(--sbt-border-color);
+}
+
+.sbt-rel-timeline-item i {
+    color: var(--sbt-primary-accent);
+    font-size: 1em;
+    margin-top: 2px;
+}
+
+.sbt-rel-timeline-content {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.sbt-rel-timeline-label {
+    font-size: 0.75em;
+    color: var(--sbt-text-medium);
+}
+
+.sbt-rel-timeline-value {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: var(--sbt-text-light);
+}
+
+.sbt-rel-tension-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.sbt-rel-tension-tag {
+    display: inline-block;
+    padding: 4px 10px;
+    background-color: rgba(155, 89, 182, 0.15);
+    color: #9b59b6;
+    border: 1px solid rgba(155, 89, 182, 0.3);
+    border-radius: 12px;
+    font-size: 0.85em;
+    font-weight: 500;
+}
+
+.sbt-rel-event-card {
+    padding: 10px;
+    margin-bottom: 8px;
+    background-color: rgba(10, 132, 255, 0.05);
     border-left: 3px solid var(--sbt-primary-accent);
     border-radius: 4px;
 }
 
-.sbt-opportunity-item {
-    padding: 4px 0;
+.sbt-rel-event-card:last-child {
+    margin-bottom: 0;
+}
+
+.sbt-rel-event-content {
     font-size: 0.9em;
-    color: var(--sbt-text-medium);
-    font-style: italic;
+    line-height: 1.4;
+    color: var(--sbt-text-light);
+    margin-bottom: 6px;
 }
 
-/* 故事线进度条样式 */
-.sbt-storyline-progress-item {
-    margin-bottom: 15px;
-    padding: 12px;
-    background-color: var(--sbt-bg-darker);
-    border: 1px solid var(--sbt-border-color);
-    border-radius: 4px;
-}
-
-.sbt-progress-header {
+.sbt-rel-event-meta {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    font-size: 0.8em;
+}
+
+.sbt-rel-event-chapter {
+    color: var(--sbt-text-medium);
+}
+
+.sbt-rel-event-impact {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-weight: 600;
+}
+
+/* === 关系模态框编辑功能样式 === */
+.sbt-rel-modal-title-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
     margin-bottom: 8px;
 }
 
-.sbt-progress-title {
-    font-weight: 600;
-    color: var(--sbt-text-light);
-    font-size: 0.9em;
-}
-
-.sbt-progress-percent {
-    font-weight: 700;
-    color: var(--sbt-primary-accent);
-    font-size: 1em;
-}
-
-.sbt-progress-bar-wrapper {
-    width: 100%;
-    height: 8px;
-    background-color: var(--sbt-bg-darker);
-    border: 1px solid var(--sbt-border-color);
-    border-radius: 4px;
-    overflow: hidden;
-    margin-bottom: 6px;
-}
-
-.sbt-progress-bar {
-    height: 100%;
-    transition: width 0.5s ease, background-color 0.5s ease;
-    border-radius: 2px;
-}
-
-.sbt-progress-meta {
+.sbt-rel-modal-actions {
     display: flex;
-    justify-content: space-between;
-    font-size: 0.8em;
-    color: var(--sbt-text-dim);
+    gap: 6px;
 }
 
-.sbt-progress-stage {
-    font-style: italic;
-}
-
-.sbt-progress-delta {
-    color: var(--sbt-success-color);
-    font-weight: 500;
-}
-
-/* 情感强度曲线样式 */
-.sbt-intensity-chart {
-    display: flex;
-    align-items: flex-end;
-    justify-content: space-around;
-    height: 120px;
-    padding: 10px;
-    background-color: var(--sbt-bg-darker);
-    border: 1px solid var(--sbt-border-color);
-    border-radius: 4px;
-    margin-bottom: 12px;
-}
-
-.sbt-intensity-bar-wrapper {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    flex: 1;
-    max-width: 40px;
-}
-
-.sbt-intensity-bar {
-    width: 100%;
-    min-height: 10%;
-    border-radius: 3px 3px 0 0;
-    transition: height 0.5s ease, background-color 0.5s ease;
-}
-
-.sbt-intensity-label {
-    margin-top: 4px;
-    font-size: 0.75em;
-    color: var(--sbt-text-dim);
-}
-
-.sbt-last-rhythm {
-    padding: 10px;
-    background-color: var(--sbt-bg-darker);
-    border: 1px solid var(--sbt-border-color);
-    border-radius: 4px;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-}
-
-.sbt-last-rhythm-item {
+.sbt-rel-modal-actions button {
+    padding: 4px 10px;
     font-size: 0.85em;
-    color: var(--sbt-text-medium);
-}
-
-.sbt-cooldown-required {
-    color: #9ac8ff;
-    font-weight: 600;
-}
-
-/* --- 叙事模式标签样式 --- */
-.sbt-mode-badge {
-    display: inline-block;
-    font-size: 0.9em;
-    font-weight: bold;
-    padding: 4px 12px;
     border-radius: 4px;
-    text-align: center;
-}
-
-.sbt-mode-badge.linear-mode {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
-}
-
-.sbt-mode-badge.freeroom-mode {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    color: #fff;
-    box-shadow: 0 2px 8px rgba(240, 147, 251, 0.3);
-}
-
-/* === V5.0 叙事节奏环样式 (Narrative Rhythm Clock) === */
-
-.sbt-rhythm-clock-visual {
-    margin-bottom: 15px;
-}
-
-.sbt-rhythm-phases {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 15px;
-    background: var(--sbt-bg-medium);
-    border-radius: 8px;
-}
-
-.sbt-rhythm-phase {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background: var(--sbt-bg-dark);
-    border: 2px solid var(--sbt-border-color);
-    transition: all 0.3s ease;
-    cursor: default;
-}
-
-.sbt-rhythm-phase i {
-    font-size: 1.2em;
-    color: var(--sbt-text-medium);
-    margin-bottom: 4px;
-}
-
-.sbt-rhythm-phase .sbt-phase-name {
-    font-size: 0.7em;
-    color: var(--sbt-text-medium);
-}
-
-.sbt-rhythm-phase.active {
-    border-color: var(--phase-color);
-    background: linear-gradient(135deg, var(--sbt-bg-dark) 0%, var(--sbt-bg-medium) 100%);
-    box-shadow: 0 0 15px rgba(var(--phase-color), 0.3);
-    transform: scale(1.1);
-}
-
-.sbt-rhythm-phase.active i {
-    color: var(--phase-color);
-}
-
-.sbt-rhythm-phase.active .sbt-phase-name {
-    color: var(--phase-color);
-    font-weight: 600;
-}
-
-.sbt-phase-arrow {
-    color: var(--sbt-text-medium);
-    font-size: 0.8em;
-    opacity: 0.5;
-}
-
-.sbt-rhythm-current {
-    padding: 12px 15px;
-    background: var(--sbt-bg-medium);
-    border-radius: 6px;
-    margin-bottom: 12px;
-}
-
-.sbt-rhythm-current-header {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 6px;
-}
-
-.sbt-rhythm-current-header i {
-    font-size: 1.1em;
-}
-
-.sbt-rhythm-current-phase {
-    font-size: 1.1em;
-    font-weight: 600;
-}
-
-.sbt-rhythm-current-desc {
-    color: var(--sbt-text-medium);
-    font-size: 0.9em;
-    padding-left: 24px;
-}
-
-.sbt-rhythm-stats {
-    display: flex;
-    gap: 20px;
-    padding: 10px 15px;
-    background: var(--sbt-bg-dark);
-    border-radius: 6px;
-    margin-bottom: 12px;
-}
-
-.sbt-rhythm-stat-item {
-    display: flex;
-    gap: 8px;
-    align-items: center;
-}
-
-.sbt-rhythm-stat-label {
-    color: var(--sbt-text-medium);
-    font-size: 0.85em;
-}
-
-.sbt-rhythm-stat-value {
+    border: 1px solid var(--sbt-border-color);
+    background: var(--sbt-card-bg);
     color: var(--sbt-text-light);
-    font-weight: 600;
-    font-size: 0.9em;
-}
-
-.sbt-rhythm-recommendation {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 15px;
-    background: linear-gradient(90deg, rgba(156, 39, 176, 0.1) 0%, transparent 100%);
-    border-left: 3px solid #9c27b0;
-    border-radius: 4px;
-    font-size: 0.9em;
-}
-
-.sbt-rhythm-recommendation i {
-    color: #9c27b0;
-}
-
-/* ============================================
-   V7.0: 叙事模式选择器样式
-   ============================================ */
-
-.sbt-narrative-mode-selector {
-    margin-top: 15px;
-}
-
-.sbt-mode-options {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 15px;
-    margin-bottom: 10px;
-}
-
-.sbt-mode-option {
     cursor: pointer;
-    transition: all 0.3s ease;
+    transition: all 0.2s ease;
 }
 
-.sbt-mode-option input[type="radio"] {
-    display: none;
-}
-
-.sbt-mode-card {
-    background: var(--sbt-bg-medium);
-    border: 2px solid var(--sbt-border-color);
-    border-radius: 12px;
-    padding: 20px;
-    transition: all 0.3s ease;
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-}
-
-.sbt-mode-option:hover .sbt-mode-card {
+.sbt-rel-modal-actions button:hover {
+    background: var(--sbt-input-bg);
     border-color: var(--sbt-primary-accent);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.2);
 }
 
-.sbt-mode-option.active .sbt-mode-card {
-    border-color: var(--sbt-primary-accent);
-    background: linear-gradient(135deg, var(--sbt-bg-medium) 0%, rgba(10, 132, 255, 0.1) 100%);
-    box-shadow: 0 0 20px rgba(10, 132, 255, 0.3);
+.sbt-save-relationship-btn {
+    background: linear-gradient(135deg, rgba(46, 204, 113, 0.2), rgba(46, 204, 113, 0.1)) !important;
+    border-color: rgba(46, 204, 113, 0.4) !important;
 }
 
-.sbt-mode-icon {
-    font-size: 3em;
-    text-align: center;
-    margin-bottom: 15px;
-    line-height: 1;
+.sbt-save-relationship-btn:hover {
+    background: linear-gradient(135deg, rgba(46, 204, 113, 0.3), rgba(46, 204, 113, 0.15)) !important;
 }
 
-.sbt-mode-title {
-    font-size: 1.2em;
-    font-weight: 600;
+.sbt-rel-weight-input {
+    width: 100px;
+    padding: 6px 10px;
+    font-size: 0.95em;
+    background-color: var(--sbt-input-bg);
     color: var(--sbt-text-light);
-    margin: 0 0 10px 0;
-    text-align: center;
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
 }
 
-.sbt-mode-description {
-    font-size: 0.9em;
+.sbt-rel-weight-hint {
+    font-size: 0.8em;
     color: var(--sbt-text-medium);
-    text-align: center;
-    margin: 0 0 15px 0;
-    font-style: italic;
+    margin-top: 4px;
 }
 
-.sbt-mode-features {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-    flex: 1;
+.sbt-rel-tension-editable {
+    cursor: text;
+    border: 1px dashed rgba(155, 89, 182, 0.5);
 }
 
-.sbt-mode-features li {
-    padding: 8px 0;
-    font-size: 0.9em;
-    color: var(--sbt-text-medium);
-    display: flex;
+.sbt-rel-tension-editable:focus {
+    outline: none;
+    border-style: solid;
+    background-color: rgba(155, 89, 182, 0.25);
+}
+
+.sbt-tension-delete {
+    color: #e74c3c;
+    cursor: pointer;
+    font-size: 0.8em;
+    margin-left: 2px;
+    transition: all 0.2s ease;
+}
+
+.sbt-tension-delete:hover {
+    color: #c0392b;
+    transform: scale(1.2);
+}
+
+.sbt-add-tension-btn {
+    display: inline-flex;
     align-items: center;
-    gap: 8px;
+    gap: 4px;
+    padding: 4px 10px;
+    font-size: 0.85em;
+    background: rgba(155, 89, 182, 0.15);
+    border: 1px dashed rgba(155, 89, 182, 0.5);
+    border-radius: 12px;
+    color: #9b59b6;
+    cursor: pointer;
+    transition: all 0.2s ease;
 }
 
-.sbt-mode-features li i {
-    color: var(--sbt-success-color);
-    flex-shrink: 0;
+.sbt-add-tension-btn:hover {
+    background: rgba(155, 89, 182, 0.25);
+    border-style: solid;
 }
-
-.sbt-mode-option.active .sbt-mode-features li i {
-    color: var(--sbt-primary-accent);
-}
-
-/* 网文模式特殊样式 */
-.sbt-mode-option[data-mode="web_novel"] .sbt-mode-features li i {
-    color: var(--sbt-warning-color);
-}
-
-.sbt-mode-option[data-mode="web_novel"].active .sbt-mode-card {
-    background: linear-gradient(135deg, var(--sbt-bg-medium) 0%, rgba(255, 159, 10, 0.1) 100%);
-    box-shadow: 0 0 20px rgba(255, 159, 10, 0.3);
-    border-color: var(--sbt-warning-color);
-}
-
-.sbt-mode-option[data-mode="web_novel"]:hover .sbt-mode-card {
-    border-color: var(--sbt-warning-color);
-    box-shadow: 0 4px 12px rgba(255, 159, 10, 0.2);
-}
-
-/* 响应式设计 */
-@media (max-width: 768px) {
-    .sbt-mode-options {
-        grid-template-columns: 1fr;
-    }
-
-    .sbt-mode-card {
-        padding: 15px;
-    }
-
-    .sbt-mode-icon {
-        font-size: 2.5em;
-    }
-}
-

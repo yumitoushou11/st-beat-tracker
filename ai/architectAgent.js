@@ -258,6 +258,16 @@ _createPrompt(context) {
     *   **绝对禁令:** 严禁在一个章节内试图推进超过 **2条** 核心故事线。
     *   **最佳实践:** **1条主线 + 1条关系线**（或仅1条强相关线）。试图推进更多会导致节奏崩坏和焦点模糊。
 
+**1.5. 情感基调校准协议 (V12.0 新增核心):**
+*   **最高原则:** **情感和谐大于一切**。一章的核心体验必须是纯粹的。
+*   **执行流程:**
+    1.  **定义核心基调:** 在选择故事线之前，从 \`playerNarrativeFocus\` 或最重要的主线任务中，提炼本章的**“核心情感基调”** (例如：“温馨治愈”、“紧张悬疑”)。
+    2.  **筛选相容弧光:** 然后，你**只能**选择那些与这个核心基调**“相容”**或能形成**“有效对比”**的次要故事线。
+*   **判断标准:**
+    *   ✅ **相容:** 情感方向一致 (例如: 核心基调是“温馨治愈”，搭配“友情升温”的关系线)。
+    *   ❌ **不相容 (绝对禁止):** 情感方向冲突且互相破坏 (例如: 核心基调是“温馨治愈”，却搭配一条“高压控制、充满对峙”的关系线)。
+*   **【强制输出要求：情感策略自辩】** 在 \`design_notes\` 中**必须**新增 \`emotional_tone_strategy\` 字段，解释你的情感调度逻辑。
+
 2.  **选择逻辑 (Selection Logic):**
     *   **优先:** \`current_status: "active"\` 且与 \`playerNarrativeFocus\` 高度相关的故事线。
     *   **次优:** 接近关键阈值（如 \`midpoint\`）的故事线。
@@ -270,6 +280,34 @@ _createPrompt(context) {
 **【输出验证】**
 在 \`design_notes.storyline_weaving\` 中，明确指出你选择了哪 1-2 条故事线，并解释为何它们是本章的最佳选择。
 
+---
+## **第零点五章：事件优先级决策协议 (Event Prioritization Protocol)**
+---
+**【核心法则】** 构建剧本时，必须严格遵循以下**降序**优先级。**高梯队需求未满足前，禁止处理低梯队内容。**
+
+**第一梯队：玩家神谕 (Tier 1 - Player Commands)**
+*   **源头A:** \`chapter_blueprint.player_supplement\` (**绝对优先级，不被迷雾覆盖**)
+    *   **法则:** 玩家在审阅剧本后的**直接补充和特殊要求**。这是玩家对AI生成的剧本的修正或强化指令。
+    *   **执行:** **无条件执行**。无论与其他数据（关系图谱、故事线、甚至playerNarrativeFocus）是否冲突，**player_supplement永远优先**。
+    *   **迷雾豁免:** 即使在"迷雾模式"下，回合执导也能看到此字段。
+*   **源头B:** \`playerNarrativeFocus\`
+    *   **法则:** **高优先级否决权**。玩家的显式指令（如"独自行动"、"只关注生存"）凌驾于除player_supplement之外的所有数据。
+
+**第二梯队：高能关系 (Tier 2 - High-Voltage Relations)**
+*   **源头:** \`relationship_graph\`
+*   **判据:** \`emotional_weight\` ≥ 9、\`reunion_pending: tru\` (等待重逢)、\`first_scene_together: false\` (且权重≥6)。
+*   **法则:** 若无玩家反向指令，此类事件（重逢/初见/决裂）**必须**作为本章核心爆点（S级事件），**严禁**沦为背景板或被一笔带过。
+
+**第三梯队：主线律动 (Tier 3 - Main Quest Rhythm)**
+*   **源头:** \`storyline_progress\` (主线) & \`narrative_rhythm_clock\`
+*   **法则:** 确保故事推进符合当前主线氛围（如“暴雪求生”的压迫感）和节奏相位（Inhale/Exhale）。
+
+**第四梯队：其它填充 (Tier 4 - Others)**
+*   **源头:** 次要支线、日常琐事。
+*   **法则:** 仅在上述梯队留有余地时填入，作为调剂。
+
+**【输出验证】**
+在 \`design_notes.event_priority_report\` 中，必须依据此梯队逻辑分配 \`S/A/B\` 级事件。
 ---
 ## **第二章：节拍构造与红线协议 (Beat Construction & Red Protocols)**
 ---
@@ -340,6 +378,9 @@ _createPrompt(context) {
 
 **0. 开场白 (Opening Scene):**
 ${openingSceneContext ? `\`\`\`\n${openingSceneContext}\n\`\`\`` : "无。"}
+
+**【【 绝对优先级：玩家剧本补充 】】**
+${chapter?.chapter_blueprint?.player_supplement ? `玩家在审阅上一章剧本后，提供了以下**绝对优先级**的补充说明：\n\`\`\`\n${chapter.chapter_blueprint.player_supplement}\n\`\`\`\n**你必须确保新章节剧本完全符合上述玩家补充的要求。这是最高优先级指令。**` : "无玩家补充。"}
 
 **1. 焦点与故事线 (Focus & Storylines):**
 *   **短期焦点:** \`${playerNarrativeFocus}\`
@@ -432,6 +473,7 @@ ${JSON.stringify(chronology, null, 2)}
    *   **最后节拍 (Last Beat):** 完成本章剧情，抛出钩子。
    *   **终章信标 (Endgame Beacon):** 描述最后节拍**之后 (T+1时刻)** 发生的、**无歧义的可观测事件**。
        *   **核心铁律:** 信标必须是新动作/新声音，**严禁重复**最后节拍的内容！
+       *   **单一性原则:** 终章信标是**唯一**的，必须是**单一、具体、可观测**的事件。
        *   ❌ 最后节拍："青烛消失" -> 信标："当青烛消失时"。 (重复，逻辑死锁)
        *   ✅ 最后节拍："青烛消失" -> 信标："当房间恢复寂静，主角**转身捡起**地上的碎片时"。 (时序递进)
        *   ✅ 最后节拍："两人互道晚安" -> 信标："当卧室的灯光**熄灭**后"。 (环境变化)
@@ -445,7 +487,18 @@ ${JSON.stringify(chronology, null, 2)}
 \`\`\`json
 {
   "design_notes": {
+    "player_focus_execution": {
+      "player_instruction": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
+      "execution_logic": "[详细说明：你是如何将玩家意见作为最高优先级执行的？包括：1)如何理解玩家意图 2)在哪些决策点优先采用玩家意见 3)当玩家意见与其他数据（关系图谱/故事线）冲突时，你如何确保玩家意见的最高优先级]",
+      "conflict_resolution": "[如果玩家意见与关系图谱、故事线等数据产生冲突，你是如何处理的？具体说明被否决的内容及原因]"
+    },
     "dual_horizon_analysis": "[平衡短期焦点与长期故事线的策略]",
+    // V12.0 新增字段
+    "emotional_tone_strategy": {
+        "core_emotional_tone": "[你判断本章的核心情感基调是什么？]",
+        "chosen_storylines_and_reasoning": "[你最终选择了哪1-2条故事线？]",
+        "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的，并说明你为何认为它们不会产生情感冲突。]"
+    },
     "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
     "event_priority_report": {
       "S_tier_events": ["[核心关系里程碑]"],
@@ -526,7 +579,7 @@ ${JSON.stringify(chronology, null, 2)}
         "instructions": ["[艺术指令1]", "[艺术指令2]", "[艺术指令3]"]
       }
     },
-    "endgame_beacons": ["[T+1时刻的可观测事件]"]
+    "endgame_beacon": "[T+1时刻的单一、可观测事件]"
   }
 }
 \`\`\`

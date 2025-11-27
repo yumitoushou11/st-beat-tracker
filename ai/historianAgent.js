@@ -409,12 +409,13 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
         - 从【本章完整对话记录】中，识别所有在本章中有实际互动的角色对
         - 在 \`staticMatrices.relationship_graph.edges\` 中，查找对应的关系边
 
-    2.  **时间线更新 (Timeline Updates)**
-        - 对于每条活跃的关系边，必须更新以下时间线字段：
-        - \`timeline.last_interaction\`: 更新为当前章节标识（使用占位符 "{{current_chapter_uid}}"）
-        - \`timeline.separation_duration\`: 如果两人见面，重置为 "none"
-        - \`timeline.reunion_pending\`: 如果两人见面且之前为 true，更新为 false
 
+    2.  **时间线更新与压力释放 (Timeline Updates & Pressure Release)**
+        - 对于每条活跃的关系边，更新以下字段：
+        - \`timeline.last_interaction\`: 更新为 "{{current_chapter_uid}}"
+        - \`timeline.separation_duration\`: **必须**重置为 "none"
+        - **【关键：压力释放】**: 如果两人在本章完成了实质性的互动（如对话、对视、共处），**必须**将 \`timeline.reunion_pending\` 强制更新为 \`false\`。
+        - **目的**: 告诉系统“重逢事件已消耗”，防止建筑师在下一章重复聚焦此关系。
     3.  **叙事状态更新 (Narrative Status Updates)**
         - \`narrative_status.first_scene_together\`: 如果两人在本章首次同框，更新为 true
         - \`narrative_status.major_events\`: 如果本章发生重大关系事件，添加事件记录
