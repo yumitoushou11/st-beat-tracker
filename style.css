@@ -228,8 +228,7 @@ html {
 .sbt-progress-fill.mood { position: absolute; top: 0; height: 100%; }
 .sbt-progress-bar { width: 100%; background-color: var(--sbt-bg-medium); border-radius: 6px; height: 12px; margin-top: 4px; position: relative; overflow: hidden; }
 .sbt-progress-fill { height: 100%; border-radius: 6px; }
-.sbt-progress-fill.affinity {
-}
+
 
 /* 满好感度样式（删除了动画） */
 .sbt-progress-fill.is-maxed {
@@ -636,6 +635,7 @@ input:checked + .sbt-slider:before {
     text-align: center;
     min-height: 85px;
     justify-content: center;
+    position: relative; /* 为绝对定位的按钮容器提供定位参照 */
 }
 
 .sbt-archive-card:hover {
@@ -723,6 +723,77 @@ input:checked + .sbt-slider:before {
 .sbt-archive-status.completed {
     background-color: var(--sbt-text-medium);
     color: var(--sbt-bg-darker);
+}
+
+/* 【档案隐藏功能】隐藏实体的样式 */
+.sbt-item-hidden {
+    opacity: 0.5;
+    position: relative;
+}
+
+.sbt-item-hidden::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(128, 128, 128, 0.05) 10px,
+        rgba(128, 128, 128, 0.05) 20px
+    );
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+.sbt-hidden-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    font-size: 0.7em;
+    background-color: rgba(128, 128, 128, 0.3);
+    color: var(--sbt-text-medium);
+    border-radius: 8px;
+    margin-left: 6px;
+    font-weight: normal;
+}
+
+/* 隐藏/显示按钮样式 */
+.sbt-worldview-toggle-visibility-btn,
+.sbt-storyline-toggle-visibility-btn,
+.sbt-character-toggle-visibility-btn {
+    background: none;
+    border: none;
+    color: var(--sbt-text-medium);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+    font-size: 1em;
+}
+
+.sbt-worldview-toggle-visibility-btn:hover,
+.sbt-storyline-toggle-visibility-btn:hover,
+.sbt-character-toggle-visibility-btn:hover {
+    background-color: var(--sbt-bg-medium);
+    color: var(--sbt-primary-color);
+}
+
+/* 角色卡片的操作按钮容器 */
+.sbt-archive-card-actions {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    gap: 4px;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.sbt-archive-card:hover .sbt-archive-card-actions {
+    opacity: 1;
 }
 
 /* --- [SECTION 13] 角色详情面板 --- */

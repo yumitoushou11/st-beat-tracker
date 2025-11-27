@@ -48,6 +48,28 @@ export class StoryBeatEngine {
         // V2.0: 实体清单缓存
         this.entityManifestCache = null; // 缓存生成的实体清单
         this.lastStaticMatricesChecksum = null; // 用于检测 staticMatrices 是否变化
+
+        // 【调试模式辅助方法】
+        this.debugLog = (...args) => {
+            if (localStorage.getItem('sbt-debug-mode') === 'true') {
+                this.debugLog(...args);
+            }
+        };
+        this.debugGroup = (...args) => {
+            if (localStorage.getItem('sbt-debug-mode') === 'true') {
+                this.debugGroup(...args);
+            }
+        };
+        this.debugGroupEnd = () => {
+            if (localStorage.getItem('sbt-debug-mode') === 'true') {
+                this.debugGroupEnd();
+            }
+        };
+        this.debugWarn = (...args) => {
+            if (localStorage.getItem('sbt-debug-mode') === 'true') {
+                console.warn(...args);
+            }
+        };
          }
 
     _setStatus(newStatus) {
@@ -134,11 +156,11 @@ export class StoryBeatEngine {
      * 用于TurnConductor进行ID匹配，以及动态上下文召回
      */
     _getOrGenerateEntityManifest() {
-        console.group('[ENGINE-V2-PROBE] 实体清单缓存管理');
+        this.debugGroup('[ENGINE-V2-PROBE] 实体清单缓存管理');
 
         if (!this.currentChapter || !this.currentChapter.staticMatrices) {
-            console.warn('⚠️ Chapter 或 staticMatrices 不存在，无法生成清单');
-            console.groupEnd();
+            this.debugWarn('⚠️ Chapter 或 staticMatrices 不存在，无法生成清单');
+            this.debugGroupEnd();
             return { content: '', totalCount: 0 };
         }
 
@@ -147,21 +169,21 @@ export class StoryBeatEngine {
 
         // 如果缓存存在且校验和匹配，直接返回缓存
         if (this.entityManifestCache && this.lastStaticMatricesChecksum === currentChecksum) {
-            console.log('✓ 缓存命中，直接返回已缓存的实体清单');
-            console.groupEnd();
+            this.debugLog('✓ 缓存命中，直接返回已缓存的实体清单');
+            this.debugGroupEnd();
             return this.entityManifestCache;
         }
 
         // 否则，重新生成清单
-        console.log('✓ 缓存失效或不存在，正在重新生成实体清单...');
+        this.debugLog('✓ 缓存失效或不存在，正在重新生成实体清单...');
         const manifest = this._generateEntityManifest(this.currentChapter.staticMatrices);
 
         // 更新缓存
         this.entityManifestCache = manifest;
         this.lastStaticMatricesChecksum = currentChecksum;
 
-        console.log(`✓ 清单已生成并缓存，共 ${manifest.totalCount} 条实体`);
-        console.groupEnd();
+        this.debugLog(`✓ 清单已生成并缓存，共 ${manifest.totalCount} 条实体`);
+        this.debugGroupEnd();
 
         return manifest;
     }
@@ -222,12 +244,12 @@ export class StoryBeatEngine {
      * @returns {string} 格式化的完整世界观档案
      */
     _generateFullWorldviewContext() {
-        console.group('[ENGINE-FREE-ROAM] 生成完整世界观档案');
+        this.debugGroup('[ENGINE-FREE-ROAM] 生成完整世界观档案');
 
         const chapter = this.currentChapter;
         if (!chapter || !chapter.staticMatrices) {
             console.error('❌ 错误：无法获取章节数据');
-            console.groupEnd();
+            this.debugGroupEnd();
             return '';
         }
 
@@ -256,7 +278,7 @@ export class StoryBeatEngine {
             }
         }
 
-        console.log(`✓ 收集到 ${allEntityIds.length} 个实体ID`);
+        this.debugLog(`✓ 收集到 ${allEntityIds.length} 个实体ID`);
 
         const contextContent = this._retrieveEntitiesByIdsInternal(
             allEntityIds,
@@ -272,8 +294,8 @@ export class StoryBeatEngine {
             contextContent
         ].join('\n') : '';
 
-        console.log(`✓ 完整世界观档案生成完成，长度: ${finalContent.length} 字符`);
-        console.groupEnd();
+        this.debugLog(`✓ 完整世界观档案生成完成，长度: ${finalContent.length} 字符`);
+        this.debugGroupEnd();
 
         return finalContent;
     }
@@ -285,12 +307,12 @@ export class StoryBeatEngine {
      * @returns {string} 格式化的章节级实体详细信息
      */
     _generateChapterStaticContext(chapterContextIds, sourceChapter = null) {
-        console.group('[ENGINE-V3-PROBE] 章节级静态上下文生成');
-        console.log('章节规划实体ID列表:', chapterContextIds);
+        this.debugGroup('[ENGINE-V3-PROBE] 章节级静态上下文生成');
+        this.debugLog('章节规划实体ID列表:', chapterContextIds);
 
         if (!chapterContextIds || chapterContextIds.length === 0) {
-            console.log('✓ 本章无预设实体');
-            console.groupEnd();
+            this.debugLog('✓ 本章无预设实体');
+            this.debugGroupEnd();
             return '';
         }
 
@@ -309,9 +331,9 @@ export class StoryBeatEngine {
             contextContent
         ].join('\n') : '';
 
-        console.log(`✓ 章节级静态上下文生成完成，长度: ${finalContent.length} 字符`);
-        console.log('生成的内容预览（前200字符）:', finalContent.substring(0, 200));
-        console.groupEnd();
+        this.debugLog(`✓ 章节级静态上下文生成完成，长度: ${finalContent.length} 字符`);
+        this.debugLog('生成的内容预览（前200字符）:', finalContent.substring(0, 200));
+        this.debugGroupEnd();
 
         return finalContent;
     }
@@ -324,12 +346,12 @@ export class StoryBeatEngine {
      * @returns {string} 格式化的实体详细信息（不含标题）
      */
     _retrieveEntitiesByIdsInternal(entityIds, contextLabel = '上下文', sourceChapter = null) {
-        console.group(`[ENGINE-V3-PROBE] ${contextLabel}召回`);
-        console.log('需要召回的实体ID列表:', entityIds);
+        this.debugGroup(`[ENGINE-V3-PROBE] ${contextLabel}召回`);
+        this.debugLog('需要召回的实体ID列表:', entityIds);
 
         if (!entityIds || entityIds.length === 0) {
-            console.log('✓ 无需召回');
-            console.groupEnd();
+            this.debugLog('✓ 无需召回');
+            this.debugGroupEnd();
             return '';
         }
 
@@ -337,7 +359,7 @@ export class StoryBeatEngine {
         const chapter = sourceChapter || this.currentChapter;
         if (!chapter || !chapter.staticMatrices) {
             console.error('❌ 错误：无法获取 staticMatrices，章节对象为空');
-            console.groupEnd();
+            this.debugGroupEnd();
             return '';
         }
 
@@ -387,35 +409,41 @@ export class StoryBeatEngine {
             }
 
             if (entity) {
-                console.log(`✓ 找到实体: ${entityId} (${category})`);
+                // 【档案隐藏功能】检查实体是否被隐藏
+                if (entity.isHidden === true) {
+                    this.debugLog(`⊘ 跳过隐藏实体: ${entityId} (${category})`);
+                    continue; // 跳过这个实体，不添加到召回列表
+                }
+
+                this.debugLog(`✓ 找到实体: ${entityId} (${category})`);
                 retrievedEntities.push({
                     id: entityId,
                     category: category,
                     data: entity
                 });
             } else {
-                console.warn(`⚠️ 未找到实体: ${entityId}`);
+                this.debugWarn(`⚠️ 未找到实体: ${entityId}`);
 
                 // 诊断信息：列出可能的原因
                 if (entityId.startsWith('quest_') || entityId.startsWith('arc_')) {
-                    console.group('🔍 故事线ID诊断');
-                    console.log('当前 staticMatrices.storylines 结构:');
+                    this.debugGroup('🔍 故事线ID诊断');
+                    this.debugLog('当前 staticMatrices.storylines 结构:');
                     if (staticMatrices.storylines) {
                         for (const cat of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
                             const ids = staticMatrices.storylines[cat] ? Object.keys(staticMatrices.storylines[cat]) : [];
-                            console.log(`  ${cat}:`, ids.length > 0 ? ids : '(空)');
+                            this.debugLog(`  ${cat}:`, ids.length > 0 ? ids : '(空)');
                         }
                     } else {
-                        console.log('  storylines不存在');
+                        this.debugLog('  storylines不存在');
                     }
-                    console.log('💡 建议: 如果这是新故事线，ID应该使用 NEW: 前缀');
-                    console.groupEnd();
+                    this.debugLog('💡 建议: 如果这是新故事线，ID应该使用 NEW: 前缀');
+                    this.debugGroupEnd();
                 }
             }
         }
 
-        console.log(`✓ 成功召回 ${retrievedEntities.length}/${entityIds.length} 个实体`);
-        console.groupEnd();
+        this.debugLog(`✓ 成功召回 ${retrievedEntities.length}/${entityIds.length} 个实体`);
+        this.debugGroupEnd();
 
         // 格式化输出（仅内容，不含标题）
         if (retrievedEntities.length === 0) {
@@ -433,12 +461,12 @@ export class StoryBeatEngine {
      * @returns {string} 格式化的实时召回内容
      */
     _retrieveEntitiesByIds(realtimeContextIds) {
-        console.group('[ENGINE-V3-PROBE] 回合级动态上下文召回');
-        console.log('turnConductor 识别的实体ID:', realtimeContextIds);
+        this.debugGroup('[ENGINE-V3-PROBE] 回合级动态上下文召回');
+        this.debugLog('turnConductor 识别的实体ID:', realtimeContextIds);
 
         if (!realtimeContextIds || realtimeContextIds.length === 0) {
-            console.log('✓ 无需召回');
-            console.groupEnd();
+            this.debugLog('✓ 无需召回');
+            this.debugGroupEnd();
             return '';
         }
 
@@ -446,17 +474,17 @@ export class StoryBeatEngine {
         const chapterContextIds = this.currentChapter?.chapter_blueprint?.chapter_context_ids || [];
         const outOfPlanIds = realtimeContextIds.filter(id => !chapterContextIds.includes(id));
 
-        console.log(`章节规划实体: ${chapterContextIds.length} 个`);
-        console.log(`规划外实体: ${outOfPlanIds.length} 个`, outOfPlanIds);
+        this.debugLog(`章节规划实体: ${chapterContextIds.length} 个`);
+        this.debugLog(`规划外实体: ${outOfPlanIds.length} 个`, outOfPlanIds);
 
         if (outOfPlanIds.length === 0) {
-            console.log('✓ 所有识别的实体均已在章节级注入，无需额外召回');
-            console.groupEnd();
+            this.debugLog('✓ 所有识别的实体均已在章节级注入，无需额外召回');
+            this.debugGroupEnd();
             return '';
         }
 
         const contextContent = this._retrieveEntitiesByIdsInternal(outOfPlanIds, '回合级动态上下文');
-        console.groupEnd();
+        this.debugGroupEnd();
 
         // V3.2: 返回时不带标题，因为外层会统一添加
         return contextContent;
@@ -485,11 +513,11 @@ onPromptReady = async (eventData) => {
         return;
     }
 
-    // 通过守卫后才输出诊断日志
-    this.diagnose(`PROBE [PROMPT-READY-ENTRY]: onPromptReady 事件触发。当前锁状态: ${this.isConductorActive}`);
+    // 通过守卫后才输出调试日志
+    this.info(`PROBE [PROMPT-READY-ENTRY]: onPromptReady 事件触发。当前锁状态: ${this.isConductorActive}`);
     if (this.currentChapter) {
-    console.log('%c[SBE DEBUG] Chapter State Snapshot (Before Turn):', 'color: #7f00ff; font-weight: bold;', JSON.parse(JSON.stringify(this.currentChapter)));
-}
+        this.info('[SBE DEBUG] Chapter State Snapshot (Before Turn):', JSON.parse(JSON.stringify(this.currentChapter)));
+    }
     if (typeof eventData !== 'object' || eventData === null || eventData.dryRun) {
         return;
     }
@@ -632,18 +660,18 @@ const spoilerBlockPlaceholder = {
             lastExchange = historicalContext + lastExchange;
 
             // V2.0: 准备 TurnConductor 所需的完整上下文
-            console.group('[ENGINE-V2-PROBE] 准备 TurnConductor 输入上下文');
+            this.debugGroup('[ENGINE-V2-PROBE] 准备 TurnConductor 输入上下文');
             const conductorContext = {
                 lastExchange: lastExchange,
                 chapterBlueprint: this.currentChapter.chapter_blueprint,
                 chapter: this.currentChapter // V2.0: 传递完整的 chapter 实例
             };
-            console.log('✓ chapter 实例已传递（包含 staticMatrices 和 stylistic_archive）');
-            console.groupEnd();
+            this.debugLog('✓ chapter 实例已传递（包含 staticMatrices 和 stylistic_archive）');
+            this.debugGroupEnd();
 
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
 
-            this.diagnose('[PROBE][CONDUCTOR-DECISION] 收到回合指挥官的完整决策:', JSON.parse(JSON.stringify(conductorDecision)));
+            this.info('[PROBE][CONDUCTOR-DECISION] 收到回合指挥官的完整决策:', JSON.parse(JSON.stringify(conductorDecision)));
 
             // 【V4.0】边界验证日志
             if (conductorDecision.micro_instruction?.scope_limit_reasoning) {
@@ -660,9 +688,9 @@ const spoilerBlockPlaceholder = {
             // V2.0: 处理实时上下文召回
             let dynamicContextInjection = '';
             if (conductorDecision.realtime_context_ids && conductorDecision.realtime_context_ids.length > 0) {
-                console.group('[ENGINE-V2-PROBE] 实时上下文召回流程');
+                this.debugGroup('[ENGINE-V2-PROBE] 实时上下文召回流程');
                 this.info(`检测到 ${conductorDecision.realtime_context_ids.length} 个需要实时召回的实体`);
-                console.log('实体ID列表:', conductorDecision.realtime_context_ids);
+                this.debugLog('实体ID列表:', conductorDecision.realtime_context_ids);
 
                 dynamicContextInjection = this._retrieveEntitiesByIds(conductorDecision.realtime_context_ids);
 
@@ -671,7 +699,7 @@ const spoilerBlockPlaceholder = {
                 } else {
                     this.warn('⚠️ 动态上下文生成失败或为空');
                 }
-                console.groupEnd();
+                this.debugGroupEnd();
             } else {
                 this.info('[ENGINE-V2] 本回合无需实时上下文召回');
             }
@@ -771,12 +799,12 @@ if (this.currentChapter.chapter_blueprint) {
     recallPlaceholder.content = recallContent.join('\n');
 
     // V3.0 调试：验证第2层召回内容
-    console.group('[ENGINE-V3-DEBUG] 第2层召回内容验证');
-    console.log('recallContent 总长度:', recallPlaceholder.content.length);
-    console.log('是否包含章节级实体档案:', recallPlaceholder.content.includes('📂 章节级核心实体档案'));
-    console.log('是否包含char_yumi_pc:', recallPlaceholder.content.includes('char_yumi_pc'));
-    console.log('是否包含本回合额外召回:', recallPlaceholder.content.includes('本回合额外召回'));
-    console.groupEnd();
+    this.debugGroup('[ENGINE-V3-DEBUG] 第2层召回内容验证');
+    this.debugLog('recallContent 总长度:', recallPlaceholder.content.length);
+    this.debugLog('是否包含章节级实体档案:', recallPlaceholder.content.includes('📂 章节级核心实体档案'));
+    this.debugLog('是否包含char_yumi_pc:', recallPlaceholder.content.includes('char_yumi_pc'));
+    this.debugLog('是否包含本回合额外召回:', recallPlaceholder.content.includes('本回合额外召回'));
+    this.debugGroupEnd();
 
     // 【V3.2 重构】第3层：本章创作蓝图（纯净版，不再包含实体档案）
     // 【V4.1 增强】实现剧本动态掩码（信息迷雾）
@@ -806,25 +834,25 @@ if (this.currentChapter.chapter_blueprint) {
     this.info(`✓ 第3层创作蓝图已注入（当前节拍: ${currentBeat}，已应用动态掩码）`);
 
     // V4.1 调试：验证掩码效果
-    console.group('[ENGINE-V4.1-DEBUG] 剧本动态掩码验证');
-    console.log('当前节拍:', currentBeat);
-    console.log('原始节拍数量:', this.currentChapter.chapter_blueprint.plot_beats?.length || 0);
-    console.log('掩码后节拍结构:');
+    this.debugGroup('[ENGINE-V4.1-DEBUG] 剧本动态掩码验证');
+    this.debugLog('当前节拍:', currentBeat);
+    this.debugLog('原始节拍数量:', this.currentChapter.chapter_blueprint.plot_beats?.length || 0);
+    this.debugLog('掩码后节拍结构:');
     maskedBlueprint.plot_beats?.forEach((beat, idx) => {
         const contentPreview = beat.plot_summary?.substring(0, 50) || beat.description?.substring(0, 50) || beat.summary?.substring(0, 50) || '无内容';
         const visibility = beat.status === '【待解锁】' ? '(已屏蔽)' : '(完整可见)';
-        console.log(`  节拍${idx + 1}: ${beat.status} ${visibility} - ${contentPreview}...`);
+        this.debugLog(`  节拍${idx + 1}: ${beat.status} ${visibility} - ${contentPreview}...`);
     });
     const beaconPreview = maskedBlueprint.endgame_beacon?.substring(0, 50) || maskedBlueprint.endgame_beacons?.[0]?.substring(0, 50) || '无';
-    console.log('终章信标状态:', beaconPreview);
-    console.groupEnd();
+    this.debugLog('终章信标状态:', beaconPreview);
+    this.debugGroupEnd();
 
     // V3.0 调试：验证第3层内容
-    console.group('[ENGINE-V3-DEBUG] 第3层蓝图内容验证');
-    console.log('scriptContent 总长度:', scriptContent.length);
-    console.log('蓝图包含plot_beats:', scriptContent.includes('plot_beats'));
-    console.log('蓝图包含endgame信标:', scriptContent.includes('endgame_beacon'));
-    console.groupEnd();
+    this.debugGroup('[ENGINE-V3-DEBUG] 第3层蓝图内容验证');
+    this.debugLog('scriptContent 总长度:', scriptContent.length);
+    this.debugLog('蓝图包含plot_beats:', scriptContent.includes('plot_beats'));
+    this.debugLog('蓝图包含endgame信标:', scriptContent.includes('endgame_beacon'));
+    this.debugGroupEnd();
 
     // 【V3.2 重构】第4层：通用核心法则与关系指南
     const regularSystemPrompt = this._buildRegularSystemPrompt();
@@ -1119,34 +1147,34 @@ _syncUiWithRetry() {
         this.currentChapter = Chapter.fromJSON(piece.leader);
 
         // V4.2 调试：验证回退后的关键数据
-        console.group('[ENGINE-V4.2-ROLLBACK-DEBUG] 状态回退验证');
-        console.log('章节UID:', this.currentChapter.uid);
-        console.log('终章信标数量:', this.currentChapter.chapter_blueprint?.endgame_beacons?.length || 0);
-        console.log('终章信标内容:', this.currentChapter.chapter_blueprint?.endgame_beacons);
-        console.log('章节衔接点存在:', !!this.currentChapter.meta?.lastChapterHandoff);
+        this.debugGroup('[ENGINE-V4.2-ROLLBACK-DEBUG] 状态回退验证');
+        this.debugLog('章节UID:', this.currentChapter.uid);
+        this.debugLog('终章信标数量:', this.currentChapter.chapter_blueprint?.endgame_beacons?.length || 0);
+        this.debugLog('终章信标内容:', this.currentChapter.chapter_blueprint?.endgame_beacons);
+        this.debugLog('章节衔接点存在:', !!this.currentChapter.meta?.lastChapterHandoff);
         if (this.currentChapter.meta?.lastChapterHandoff) {
-            console.log('衔接点 - 结束快照:', this.currentChapter.meta.lastChapterHandoff.ending_snapshot?.substring(0, 100));
-            console.log('衔接点 - 下章起点:', this.currentChapter.meta.lastChapterHandoff.action_handoff?.substring(0, 100));
+            this.debugLog('衔接点 - 结束快照:', this.currentChapter.meta.lastChapterHandoff.ending_snapshot?.substring(0, 100));
+            this.debugLog('衔接点 - 下章起点:', this.currentChapter.meta.lastChapterHandoff.action_handoff?.substring(0, 100));
         }
-        console.log('故事梗概:', this.currentChapter.meta?.longTermStorySummary?.substring(0, 100));
-        console.groupEnd();
+        this.debugLog('故事梗概:', this.currentChapter.meta?.longTermStorySummary?.substring(0, 100));
+        this.debugGroupEnd();
 
         // [DEBUG] 打印所有楼层的 leader 数据
         {
-            console.group('[DEBUG] 全楼层 Leader 扫描');
+            this.debugGroup('[DEBUG] 全楼层 Leader 扫描');
             const chat = this.USER.getContext().chat;
-            console.log('总消息数:', chat.length);
+            this.debugLog('总消息数:', chat.length);
             let count = 0;
             for (let i = 0; i < chat.length; i++) {
                 if (chat[i]?.leader) {
                     count++;
-                    console.log(`#${i}: UID=${chat[i].leader.uid}`);
-                    console.log(`  meta.longTermStorySummary: ${chat[i].leader.meta?.longTermStorySummary?.substring(0, 100) || '无'}`);
-                    console.log(`  老路径 longTermStorySummary: ${chat[i].leader.longTermStorySummary?.substring(0, 100) || '无'}`);
+                    this.debugLog(`#${i}: UID=${chat[i].leader.uid}`);
+                    this.debugLog(`  meta.longTermStorySummary: ${chat[i].leader.meta?.longTermStorySummary?.substring(0, 100) || '无'}`);
+                    this.debugLog(`  老路径 longTermStorySummary: ${chat[i].leader.longTermStorySummary?.substring(0, 100) || '无'}`);
                 }
             }
-            console.log(`找到 ${count} 条带 leader 的消息`);
-            console.groupEnd();
+            this.debugLog(`找到 ${count} 条带 leader 的消息`);
+            this.debugGroupEnd();
         }
 
         this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
@@ -1454,12 +1482,12 @@ _syncUiWithRetry() {
 
             // 更新故事线动态和静态
             if (updates.storylines) {
-                console.group('[SBE-PROBE] 故事线更新流程启动');
+                this.debugGroup('[SBE-PROBE] 故事线更新流程启动');
                 this.info(`检测到故事线更新请求，分类数量: ${Object.keys(updates.storylines).length}`);
-                console.log('史官输出的完整 updates.storylines:', JSON.parse(JSON.stringify(updates.storylines)));
+                this.debugLog('史官输出的完整 updates.storylines:', JSON.parse(JSON.stringify(updates.storylines)));
 
                 for (const category in updates.storylines) { // main_quests, side_quests...
-                    console.group(`[SBE-PROBE] 处理分类: ${category}`);
+                    this.debugGroup(`[SBE-PROBE] 处理分类: ${category}`);
                     this.info(`  -> 当前分类: ${category}, 故事线数量: ${Object.keys(updates.storylines[category]).length}`);
 
                     if (!workingChapter.dynamicState.storylines[category]) {
@@ -1471,19 +1499,19 @@ _syncUiWithRetry() {
                         this.info(`  -> 已初始化 staticMatrices.storylines.${category}`);
                     }
 
-                    console.log(`现有的 staticMatrices.storylines.${category} 故事线:`, Object.keys(workingChapter.staticMatrices.storylines[category]));
+                    this.debugLog(`现有的 staticMatrices.storylines.${category} 故事线:`, Object.keys(workingChapter.staticMatrices.storylines[category]));
 
                     for (const storylineId in updates.storylines[category]) {
-                        console.group(`[SBE-PROBE] 处理故事线: ${storylineId}`);
+                        this.debugGroup(`[SBE-PROBE] 处理故事线: ${storylineId}`);
                         const storylineUpdate = updates.storylines[category][storylineId];
                         this.info(`  -> 正在处理故事线: ${category}/${storylineId}`);
-                        console.log('史官提供的更新内容:', JSON.parse(JSON.stringify(storylineUpdate)));
+                        this.debugLog('史官提供的更新内容:', JSON.parse(JSON.stringify(storylineUpdate)));
 
                         // 确保故事线在 staticMatrices 中存在
                         if (!workingChapter.staticMatrices.storylines[category][storylineId]) {
                             this.warn(`❌ 警告：尝试更新不存在的故事线 ${category}/${storylineId}，跳过此更新`);
-                            console.log('现有故事线列表:', Object.keys(workingChapter.staticMatrices.storylines[category]));
-                            console.groupEnd();
+                            this.debugLog('现有故事线列表:', Object.keys(workingChapter.staticMatrices.storylines[category]));
+                            this.debugGroupEnd();
                             continue;
                         }
 
@@ -1493,7 +1521,7 @@ _syncUiWithRetry() {
                             this.info(`  -> 已初始化 dynamicState.storylines.${category}.${storylineId}`);
                         }
                         const dynamicStoryline = workingChapter.dynamicState.storylines[category][storylineId];
-                        console.log('更新前的动态状态:', JSON.parse(JSON.stringify(dynamicStoryline)));
+                        this.debugLog('更新前的动态状态:', JSON.parse(JSON.stringify(dynamicStoryline)));
 
                         let dynamicUpdated = false;
                         if (storylineUpdate.current_status) {
@@ -1531,7 +1559,7 @@ _syncUiWithRetry() {
 
                         // 【关键修复】更新静态字段
                         const staticStoryline = workingChapter.staticMatrices.storylines[category][storylineId];
-                        console.log('更新前的静态状态:', JSON.parse(JSON.stringify(staticStoryline)));
+                        this.debugLog('更新前的静态状态:', JSON.parse(JSON.stringify(staticStoryline)));
 
                         let staticUpdated = false;
                         // 更新基本字段（如果史官提供了新值）
@@ -1572,13 +1600,13 @@ _syncUiWithRetry() {
                             this.warn(`  ⚠️ 故事线 ${category}/${storylineId} 没有任何字段被更新`);
                         }
 
-                        console.log('更新后的动态状态:', JSON.parse(JSON.stringify(dynamicStoryline)));
-                        console.log('更新后的静态状态:', JSON.parse(JSON.stringify(staticStoryline)));
-                        console.groupEnd();
+                        this.debugLog('更新后的动态状态:', JSON.parse(JSON.stringify(dynamicStoryline)));
+                        this.debugLog('更新后的静态状态:', JSON.parse(JSON.stringify(staticStoryline)));
+                        this.debugGroupEnd();
                     }
-                    console.groupEnd();
+                    this.debugGroupEnd();
                 }
-                console.groupEnd();
+                this.debugGroupEnd();
             } else {
                 this.info("史官未提供任何故事线更新（updates.storylines 为空）");
             }
@@ -1597,11 +1625,11 @@ _syncUiWithRetry() {
 
         // V6.0 步骤三B：更新年表时间
         if (delta.chronology_update) {
-            console.group('[ENGINE-V6-CHRONOLOGY] 时间流逝更新流程');
+            this.debugGroup('[ENGINE-V6-CHRONOLOGY] 时间流逝更新流程');
             this.info(" -> 检测到年表更新请求...");
 
             const chronUpdate = delta.chronology_update;
-            console.log('收到时间更新:', chronUpdate);
+            this.debugLog('收到时间更新:', chronUpdate);
 
             if (!workingChapter.dynamicState.chronology) {
                 workingChapter.dynamicState.chronology = {
@@ -1655,15 +1683,15 @@ _syncUiWithRetry() {
                 }
             }
 
-            console.log('最终时间状态:', JSON.parse(JSON.stringify(chron)));
-            console.log('时间转换类型:', chronUpdate.transition_type);
-            console.log('推理:', chronUpdate.reasoning);
-            console.groupEnd();
+            this.debugLog('最终时间状态:', JSON.parse(JSON.stringify(chron)));
+            this.debugLog('时间转换类型:', chronUpdate.transition_type);
+            this.debugLog('推理:', chronUpdate.reasoning);
+            this.debugGroupEnd();
         }
 
         // V2.0 步骤四：更新宏观叙事弧光
         if (delta.updates?.meta?.active_narrative_arcs) {
-            console.group('[ENGINE-V2-PROBE] 宏观叙事弧光更新流程');
+            this.debugGroup('[ENGINE-V2-PROBE] 宏观叙事弧光更新流程');
             this.info(" -> 检测到宏观叙事弧光更新请求...");
 
             if (!workingChapter.meta.active_narrative_arcs) {
@@ -1672,7 +1700,7 @@ _syncUiWithRetry() {
             }
 
             const arcUpdates = delta.updates.meta.active_narrative_arcs;
-            console.log(`收到 ${arcUpdates.length} 条弧光更新`, arcUpdates);
+            this.debugLog(`收到 ${arcUpdates.length} 条弧光更新`, arcUpdates);
 
             for (const arcUpdate of arcUpdates) {
                 const existingArcIndex = workingChapter.meta.active_narrative_arcs.findIndex(
@@ -1724,13 +1752,13 @@ _syncUiWithRetry() {
                 }
             }
 
-            console.log(`当前活跃弧光数量: ${workingChapter.meta.active_narrative_arcs.length}`);
-            console.groupEnd();
+            this.debugLog(`当前活跃弧光数量: ${workingChapter.meta.active_narrative_arcs.length}`);
+            this.debugGroupEnd();
         }
 
         // V3.0 步骤五：处理关系图谱更新 (Relationship Graph Updates)
         if (delta.relationship_updates && Array.isArray(delta.relationship_updates)) {
-            console.group('[ENGINE-V3-PROBE] 关系图谱更新流程');
+            this.debugGroup('[ENGINE-V3-PROBE] 关系图谱更新流程');
             this.info(" -> 检测到关系图谱更新请求...");
 
             // 确保relationship_graph存在
@@ -1740,7 +1768,7 @@ _syncUiWithRetry() {
             }
 
             const relationshipUpdates = delta.relationship_updates;
-            console.log(`收到 ${relationshipUpdates.length} 条关系边更新`, relationshipUpdates);
+            this.debugLog(`收到 ${relationshipUpdates.length} 条关系边更新`, relationshipUpdates);
 
             for (const relUpdate of relationshipUpdates) {
                 const { relationship_id, updates } = relUpdate;
@@ -1756,7 +1784,7 @@ _syncUiWithRetry() {
                 }
 
                 const edge = workingChapter.staticMatrices.relationship_graph.edges[edgeIndex];
-                console.log(`正在更新关系边: ${relationship_id}`, updates);
+                this.debugLog(`正在更新关系边: ${relationship_id}`, updates);
 
                 // 应用更新 - 使用点标记法路径
                 for (const [path, value] of Object.entries(updates)) {
@@ -1801,13 +1829,13 @@ _syncUiWithRetry() {
                 this.info(`  ✅ 关系边 ${relationship_id} 更新完成`);
             }
 
-            console.log(`关系图谱当前边数: ${workingChapter.staticMatrices.relationship_graph.edges.length}`);
-            console.groupEnd();
+            this.debugLog(`关系图谱当前边数: ${workingChapter.staticMatrices.relationship_graph.edges.length}`);
+            this.debugGroupEnd();
         }
 
         // V2.0 步骤六：合并文体档案更新
         if (delta.stylistic_analysis_delta) {
-            console.group('[ENGINE-V2-PROBE] 文体档案合并流程');
+            this.debugGroup('[ENGINE-V2-PROBE] 文体档案合并流程');
             this.info(" -> 检测到文体档案更新请求...");
 
             if (!workingChapter.dynamicState.stylistic_archive) {
@@ -1881,7 +1909,7 @@ _syncUiWithRetry() {
                 this.diagnose('[文体诊断]', stylisticDelta.stylistic_diagnosis);
             }
 
-            console.groupEnd();
+            this.debugGroupEnd();
         }
 
         // V4.0 步骤七：更新叙事控制塔 (Narrative Control Tower)
@@ -1900,7 +1928,7 @@ _syncUiWithRetry() {
      * @param {object} delta - 史官生成的增量数据
      */
     _updateNarrativeControlTower(workingChapter, delta) {
-        console.group('[ENGINE-V4] 叙事控制塔更新流程');
+        this.debugGroup('[ENGINE-V4] 叙事控制塔更新流程');
         this.info(" -> 开始更新叙事控制塔...");
 
         // 确保 narrative_control_tower 存在
@@ -2127,12 +2155,12 @@ _syncUiWithRetry() {
         // === 生成节奏指令 (Rhythm Directive) ===
         this._calculateRhythmDirective(workingChapter);
 
-        console.log('[V4] 控制塔状态:', {
+        this.debugLog('[V4] 控制塔状态:', {
             recent_intensity: tower.recent_chapters_intensity,
             storyline_progress: tower.storyline_progress,
             rhythm_directive: tower.rhythm_directive
         });
-        console.groupEnd();
+        this.debugGroupEnd();
     }
 
     /**
@@ -2249,7 +2277,7 @@ _syncUiWithRetry() {
     async _runGenesisFlow(firstMessageContent = null) {
         this._setStatus(ENGINE_STATUS.BUSY_GENESIS);
         this.info(`--- 创世纪流程启动 (ECI模型 V3.1) ---`);
-        console.group(`BRIDGE-PROBE [GENESIS-FLOW-ECI]`);
+        this.debugGroup(`BRIDGE-PROBE [GENESIS-FLOW-ECI]`);
         const loadingToast = this.toastr.info(
             "正在初始化...", "创世纪...",
             { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
@@ -2291,9 +2319,9 @@ _syncUiWithRetry() {
             this.info("GENESIS: ECI静态数据库已成功注入当前Chapter实例。");
 
             // 4. 【验证日志】
-            console.groupCollapsed('[SBE-DIAGNOSE] Chapter state before planning:');
+            this.debugGroupCollapsed('[SBE-DIAGNOSE] Chapter state before planning:');
             console.dir(JSON.parse(JSON.stringify(this.currentChapter)));
-            console.groupEnd();
+            this.debugGroupEnd();
 
             // 5. 获取玩家导演焦点
             this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
@@ -2342,11 +2370,11 @@ _syncUiWithRetry() {
 
                     // V3.0: 生成并缓存章节级静态上下文
                     const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
-                    console.group('[ENGINE-V3-DEBUG] GENESIS - 章节上下文缓存');
-                    console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
+                    this.debugGroup('[ENGINE-V3-DEBUG] GENESIS - 章节上下文缓存');
+                    this.debugLog('建筑师返回的 chapter_context_ids:', chapterContextIds);
                     this.currentChapter.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
-                    console.log('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
-                    console.groupEnd();
+                    this.debugLog('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
+                    this.debugGroupEnd();
                     this.info(`GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
                 } else {
                     throw new Error("建筑师未能生成有效的开篇创作蓝图。");
@@ -2359,13 +2387,13 @@ _syncUiWithRetry() {
             this.currentChapter = null; 
         } finally {
             this._setStatus(ENGINE_STATUS.IDLE);
-            console.groupEnd();
+            this.debugGroupEnd();
             if (loadingToast) this.toastr.clear(loadingToast);
         }
     }
     onCommitState = async (messageIndex) => {
      try {
-            this.diagnose(`PROBE [COMMIT-1]: onCommitState 事件触发，消息索引: ${messageIndex}。检查待办任务...`, {
+            this.info(`PROBE [COMMIT-1]: onCommitState 事件触发，消息索引: ${messageIndex}。检查待办任务...`, {
                 isGenesisPending: this.isGenesisStatePendingCommit,
                 isTransitionPending: this.isTransitionPending
             });
@@ -2418,7 +2446,7 @@ _syncUiWithRetry() {
             }
 
         } else {
-            this.diagnose("PROBE [COMMIT-2-SKIP]: 无待处理的创世纪或转换任务。");
+            this.info("PROBE [COMMIT-2-SKIP]: 无待处理的创世纪或转换任务。");
         }
          } catch (error) {
             this.diagnose("在 onCommitState 流程中发生严重错误:", error);
@@ -2431,13 +2459,21 @@ _syncUiWithRetry() {
     }
 
 async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') {
+        // 【总开关保护】检查引擎是否已启用
+        const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
+        if (!isEngineEnabled) {
+            this.toastr.warning('叙事流引擎已关闭，章节转换已中止', '功能已禁用');
+            this.info('[Guard-MasterSwitch] 章节转换流程中止：引擎总开关已关闭。');
+            return;
+        }
+
         this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
         const loadingToast = this.toastr.info(
             "正在启动章节转换流程...", "章节转换中...",
             { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
         );
         this.info(`--- 章节转换流程启动 (ECI事务模型 V3.1 - 断点恢复增强版) ---`);
-        console.group(`BRIDGE-PROBE [CHAPTER-TRANSITION-RESILIENT]: ${eventUid}`);
+        this.debugGroup(`BRIDGE-PROBE [CHAPTER-TRANSITION-RESILIENT]: ${eventUid}`);
 
         try {
             const activeCharId = this.USER.getContext()?.characterId;
@@ -2558,7 +2594,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
 
                     this._setStatus(ENGINE_STATUS.IDLE);
                     if (loadingToast) this.toastr.clear(loadingToast);
-                    console.groupEnd();
+                    this.debugGroupEnd();
                     return;
                 }
 
@@ -2662,14 +2698,14 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
 
                 // V3.0: 生成并缓存章节级静态上下文
                 const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
-                console.group('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
-                console.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
+                this.debugGroup('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
+                this.debugLog('建筑师返回的 chapter_context_ids:', chapterContextIds);
                 updatedNewChapter.cachedChapterStaticContext = this._generateChapterStaticContext(
                     chapterContextIds,
                     updatedNewChapter
                 );
-                console.log('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
-                console.groupEnd();
+                this.debugLog('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
+                this.debugGroupEnd();
                 this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
             }
 
@@ -2712,11 +2748,11 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             if (loadingToast) {
                 this.toastr.clear(loadingToast);
             }
-            console.groupEnd();
+            this.debugGroupEnd();
         }
     }
     async _runStrategicReview(chapterContext, startIndex, endIndex) {
-        console.group("BRIDGE-PROBE [STRATEGIC-REVIEW]");
+        this.debugGroup("BRIDGE-PROBE [STRATEGIC-REVIEW]");
         this.info("史官正在复盘本章历史...");
 
         let reviewDelta = null;
@@ -2743,7 +2779,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
         } catch (error) {
             this.diagnose("在 _runStrategicReview 过程中发生错误:", error);
         } finally {
-            console.groupEnd();
+            this.debugGroupEnd();
             return reviewDelta;
         }
     }
@@ -2752,6 +2788,14 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
 /**创世纪流程启动器。*/
 async startGenesisProcess() {
     this.info("--- 用户通过UI启动创世纪流程 ---");
+
+    // 【总开关保护】检查引擎是否已启用
+    const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
+    if (!isEngineEnabled) {
+        this.toastr.warning('叙事流引擎已关闭，请先在设置中启用总开关', '功能已禁用');
+        this.info('[Guard-MasterSwitch] 创世纪流程中止：引擎总开关已关闭。');
+        return;
+    }
 
     if (typeof TavernHelper?.setChatMessages !== 'function') {
         this.toastr.error("核心辅助插件 (TavernHelper) 未找到或版本不兼容。", "依赖缺失");
@@ -2873,6 +2917,14 @@ ${JSON.stringify(this.currentChapter.chapter_blueprint, null, 2)}
 }
 
 async reanalyzeWorldbook() {
+    // 【总开关保护】检查引擎是否已启用
+    const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
+    if (!isEngineEnabled) {
+        this.toastr.warning('叙事流引擎已关闭，请先在设置中启用总开关', '功能已禁用');
+        this.info('[Guard-MasterSwitch] 世界书重新分析中止：引擎总开关已关闭。');
+        return;
+    }
+
     if (!confirm("【高级操作】\n\n您确定要重新分析世界书吗？\n\n- 这会清除此角色的【静态设定缓存】。\n- 只有在您【更新了世界书文件】后，此操作才有意义。\n- 分析完成后，新的设定将【立即应用】到当前的游戏状态中。\n\n此操作不可逆，请谨慎操作。")) {
         return;
     }
@@ -2953,6 +3005,14 @@ async reanalyzeWorldbook() {
 
 
 async forceChapterTransition() {
+    // 【总开关保护】检查引擎是否已启用
+    const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
+    if (!isEngineEnabled) {
+        this.toastr.warning('叙事流引擎已关闭，请先在设置中启用总开关', '功能已禁用');
+        this.info('[Guard-MasterSwitch] 强制章节转换中止：引擎总开关已关闭。');
+        return;
+    }
+
     const isRetryAvailable = !!this.LEADER.pendingTransition;
     let confirmationMessage = "您确定要立即结束当前篇章，并开始规划下一章吗？\n\n系统将以最新的AI回复作为本章的终点进行复盘。";
     
@@ -3022,11 +3082,11 @@ async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessag
         firstMessageContent: firstMessageContent
     };
     
-    console.group(`BRIDGE-PROBE [PLAN-CHAPTER]`);
+    this.debugGroup(`BRIDGE-PROBE [PLAN-CHAPTER]`);
     this.diagnose(`PLAN-1: 正在调用 ArchitectAgent (${isGenesis ? '创世纪模式' : '常规模式'})...`);
-    console.groupCollapsed("传递给 ArchitectAgent 的完整 'context' 对象:");
+    this.debugGroupCollapsed("传递给 ArchitectAgent 的完整 'context' 对象:");
     console.dir(JSON.parse(JSON.stringify(contextForArchitect)));
-    console.groupEnd();
+    this.debugGroupEnd();
 
     try {
         const architectResult = await this.architectAgent.execute(contextForArchitect);
@@ -3043,11 +3103,17 @@ async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessag
         this.diagnose(`章节建筑师在规划时失败:`, error);
         return null;
     } finally {
-        console.groupEnd();
+        this.debugGroupEnd();
     }
 }
     
     setNarrativeFocus(focusText) {
+        // 【轻度保护】如果引擎关闭，记录警告但允许设置焦点
+        const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
+        if (!isEngineEnabled) {
+            this.warn('[Guard-Info] 引擎已关闭，但允许设置叙事焦点');
+        }
+
         if (this.currentChapter && typeof focusText === 'string') {
             this.currentChapter.playerNarrativeFocus = focusText.trim();
 
@@ -3064,6 +3130,12 @@ async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessag
 
     async saveCharacterEdit(charId, updatedChapterState) {
         this.info(`--- 保存角色 ${charId} 的编辑内容 ---`);
+
+        // 【轻度保护】如果引擎关闭，记录警告但允许编辑（不触发AI）
+        const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
+        if (!isEngineEnabled) {
+            this.warn('[Guard-Info] 引擎已关闭，但允许编辑操作（不会触发AI）');
+        }
 
         try {
             // 查找最后一条AI消息作为锚点

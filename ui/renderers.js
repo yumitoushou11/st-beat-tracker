@@ -5,6 +5,28 @@ import { showWorldviewDetailModal } from './renderers/worldviewModal.js';
 import { showStorylineDetailModal } from './renderers/storylineModal.js';
 import { showRelationshipDetailModal } from './renderers/relationshipModal.js';
 
+// 【调试模式辅助函数】
+const debugLog = (...args) => {
+    if (localStorage.getItem('sbt-debug-mode') === 'true') {
+        console.log(...args);
+    }
+};
+const debugGroup = (...args) => {
+    if (localStorage.getItem('sbt-debug-mode') === 'true') {
+        console.group(...args);
+    }
+};
+const debugGroupEnd = () => {
+    if (localStorage.getItem('sbt-debug-mode') === 'true') {
+        console.groupEnd();
+    }
+};
+const debugWarn = (...args) => {
+    if (localStorage.getItem('sbt-debug-mode') === 'true') {
+        console.warn(...args);
+    }
+};
+
 
 /**
  * @description 渲染核心记忆列表。
@@ -61,16 +83,16 @@ function renderLineMatrix(matrix, container) {
 function renderCharacterRelationships(chapterState, container) {
     try {
         if (!container || container.length === 0) {
-            console.warn("[关系渲染器] 探针报告：目标容器不存在，渲染中止。");
+            debugWarn("[关系渲染器] 探针报告：目标容器不存在，渲染中止。");
             return;
         }
             container.empty();
 
     const matrix = chapterState.staticMatrices.characters;
-        console.group("[关系渲染器] 探针1号：输入数据检查");
-        console.log("收到的完整 chapterState:", chapterState);
-        console.log("提取的角色矩阵 (matrix):", matrix);
-        console.groupEnd();
+        debugGroup("[关系渲染器] 探针1号：输入数据检查");
+        debugLog("收到的完整 chapterState:", chapterState);
+        debugLog("提取的角色矩阵 (matrix):", matrix);
+        debugGroupEnd();
     if (!matrix || Object.keys(matrix).length <= 1) {
         container.html('<p class="sbt-instructions">暂无其他角色可显示。</p>');
         return;
@@ -81,16 +103,16 @@ function renderCharacterRelationships(chapterState, container) {
         const char = matrix[id];
         return char?.core?.isProtagonist || char?.isProtagonist;
     });
-        console.group("[关系渲染器] 探针2号：主角ID查找");
-        console.log("查找到的主角ID (protagonistId):", protagonistId);
-        console.groupEnd();
+        debugGroup("[关系渲染器] 探针2号：主角ID查找");
+        debugLog("查找到的主角ID (protagonistId):", protagonistId);
+        debugGroupEnd();
 
         if (!protagonistId) {
             container.html('<p class="sbt-instructions">错误：在角色档案中未找到主角 (isProtagonist: true)。</p>');
             console.error("[关系渲染器] 探针报告：关键错误！未能找到主角ID。请检查AI生成的角色档案中 'isProtagonist' 字段是否存在且为布尔值 true。");
             return;
         }
-                console.log("[关系渲染器] 探针报告：主角查找成功，准备进入渲染循环...");
+                debugLog("[关系渲染器] 探针报告：主角查找成功，准备进入渲染循环...");
     for (const charId in matrix) {
         if (charId === protagonistId) continue;
         const char = matrix[charId];
@@ -184,17 +206,29 @@ function renderArchiveCharacters(characters, container) {
             subtitle = `${identity} · ${details}`;
         }
 
+        // 【档案隐藏功能】检查是否被隐藏
+        const isHidden = char.isHidden === true;
+        const hiddenClass = isHidden ? 'sbt-item-hidden' : '';
+        const eyeIcon = isHidden ? 'fa-eye-slash' : 'fa-eye';
+        const eyeTitle = isHidden ? '显示此角色（当前已隐藏，不会被AI使用）' : '隐藏此角色（暂时不让AI使用）';
+
         const cardHtml = `
-            <div class="sbt-archive-card" data-char-id="${charId}">
+            <div class="sbt-archive-card ${hiddenClass}" data-char-id="${charId}">
                 <div class="sbt-archive-card-icon">
                     <i class="fa-solid fa-user"></i>
                 </div>
                 <div class="sbt-archive-card-title">
                     ${name}
                     ${isProtagonist ? '<i class="fa-solid fa-crown" style="color: var(--sbt-warning-color);" title="主角"></i>' : ''}
+                    ${isHidden ? '<span class="sbt-hidden-badge">已隐藏</span>' : ''}
                 </div>
                 <div class="sbt-archive-card-subtitle">
                     ${subtitle}
+                </div>
+                <div class="sbt-archive-card-actions">
+                    <button class="sbt-character-toggle-visibility-btn" data-char-id="${charId}" title="${eyeTitle}">
+                        <i class="fa-solid ${eyeIcon}"></i>
+                    </button>
                 </div>
             </div>
         `;
@@ -245,13 +279,25 @@ function renderArchiveWorldview(worldviewData, category, container, categoryKey)
             descText = typeof desc === 'string' ? desc : JSON.stringify(desc);
         }
 
+        // 【档案隐藏功能】检查是否被隐藏
+        const isHidden = item.isHidden === true;
+        const hiddenClass = isHidden ? 'sbt-item-hidden' : '';
+        const eyeIcon = isHidden ? 'fa-eye-slash' : 'fa-eye';
+        const eyeTitle = isHidden ? '显示此档案（当前已隐藏，不会被AI使用）' : '隐藏此档案（暂时不让AI使用）';
+
         const itemHtml = `
-            <div class="sbt-archive-item sbt-worldview-card" data-item-id="${id}" data-category="${categoryKey}">
+            <div class="sbt-archive-item sbt-worldview-card ${hiddenClass}" data-item-id="${id}" data-category="${categoryKey}">
                 <div class="sbt-worldview-card-content">
-                    <div class="sbt-archive-item-title">${item.name || id}</div>
+                    <div class="sbt-archive-item-title">
+                        ${item.name || id}
+                        ${isHidden ? '<span class="sbt-hidden-badge">已隐藏</span>' : ''}
+                    </div>
                     <div class="sbt-archive-item-desc">${descText}</div>
                 </div>
                 <div class="sbt-worldview-card-actions">
+                    <button class="sbt-worldview-toggle-visibility-btn" data-item-id="${id}" data-category="${categoryKey}" title="${eyeTitle}">
+                        <i class="fa-solid ${eyeIcon}"></i>
+                    </button>
                     <button class="sbt-worldview-edit-btn" data-item-id="${id}" data-category="${categoryKey}" data-category-name="${category}" title="编辑${category}">
                         <i class="fa-solid fa-pen-to-square"></i>
                     </button>
@@ -329,14 +375,24 @@ function renderArchiveStorylines(storylineData, container, category, categoryNam
             historyHtml += '</div>';
         }
 
+        // 【档案隐藏功能】检查是否被隐藏
+        const isHidden = line.isHidden === true;
+        const hiddenClass = isHidden ? 'sbt-item-hidden' : '';
+        const eyeIcon = isHidden ? 'fa-eye-slash' : 'fa-eye';
+        const eyeTitle = isHidden ? '显示此故事线（当前已隐藏，不会被AI使用）' : '隐藏此故事线（暂时不让AI使用）';
+
         const itemHtml = `
-            <div class="sbt-archive-item sbt-storyline-card" data-storyline-id="${id}" data-category="${category}">
+            <div class="sbt-archive-item sbt-storyline-card ${hiddenClass}" data-storyline-id="${id}" data-category="${category}">
                 <div class="sbt-archive-item-header">
                     <div class="sbt-archive-item-title">
                         ${line.title || id}
                         <span class="sbt-archive-status ${status}">${statusText}</span>
+                        ${isHidden ? '<span class="sbt-hidden-badge">已隐藏</span>' : ''}
                     </div>
                     <div class="sbt-storyline-actions">
+                        <button class="sbt-storyline-toggle-visibility-btn" data-storyline-id="${id}" data-category="${category}" title="${eyeTitle}">
+                            <i class="fa-solid ${eyeIcon}"></i>
+                        </button>
                         <button class="sbt-storyline-edit-btn" data-storyline-id="${id}" data-category="${category}" data-category-name="${categoryName}" title="编辑${categoryName}">
                             <i class="fa-solid fa-pen-to-square"></i>
                         </button>
@@ -518,7 +574,7 @@ function renderRelationshipGraph(chapterState) {
         e.stopPropagation();
 
         const edgeId = $(this).data('edge-id');
-        console.log('[SBT] Opening relationship details:', edgeId);
+        debugLog('[SBT] Opening relationship details:', edgeId);
         showRelationshipDetailModal(edgeId, chapterState);
     });
 }
@@ -850,11 +906,11 @@ export function updateDashboard(chapterState) {
     if (!chapterState || $('#beat-tracker-component-wrapper').length === 0) return;
 
     // V4.2 调试：验证UI收到的章节数据
-    console.group('[RENDERERS-V4.2-DEBUG] updateDashboard 收到数据');
-    console.log('章节UID:', chapterState.uid);
-    console.log('终章信标:', chapterState.chapter_blueprint?.endgame_beacons);
-    console.log('章节衔接点:', chapterState.meta?.lastChapterHandoff);
-    console.groupEnd();
+    debugGroup('[RENDERERS-V4.2-DEBUG] updateDashboard 收到数据');
+    debugLog('章节UID:', chapterState.uid);
+    debugLog('终章信标:', chapterState.chapter_blueprint?.endgame_beacons);
+    debugLog('章节衔接点:', chapterState.meta?.lastChapterHandoff);
+    debugGroupEnd();
 
     // --- 1. 【V3.6 革新】渲染双轨制故事摘要（编年史+衔接点） ---
     const summaryContainer = $('#sbt-story-summary-content');

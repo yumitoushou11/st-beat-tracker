@@ -23,9 +23,20 @@ applicationFunctionManager.eventSource.on(applicationFunctionManager.event_types
         ...jsonUtils,
         updateDashboard,
         getCharacterBoundWorldbookEntries,
-        log: (message, ...args) => console.log(`[SBT-LOG] ${message}`, ...args),
-        info: (message, ...args) => console.info(`[SBT-INFO] ${message}`, ...args),
-        warn: (message, ...args) => console.warn(`[SBT-WARN] ${message}`, ...args),
+        // 【调试模式】日志方法 - 只在调试模式开启时输出
+        log: (message, ...args) => {
+            const isDebugMode = localStorage.getItem('sbt-debug-mode') === 'true';
+            if (isDebugMode) console.log(`[SBT-LOG] ${message}`, ...args);
+        },
+        info: (message, ...args) => {
+            const isDebugMode = localStorage.getItem('sbt-debug-mode') === 'true';
+            if (isDebugMode) console.info(`[SBT-INFO] ${message}`, ...args);
+        },
+        warn: (message, ...args) => {
+            const isDebugMode = localStorage.getItem('sbt-debug-mode') === 'true';
+            if (isDebugMode) console.warn(`[SBT-WARN] ${message}`, ...args);
+        },
+        // 【诊断日志】始终输出，用于错误追踪
         diagnose: (message, ...args) => console.error(`[SBT-DIAGNOSE] ${message}`, ...args),
         eventBus: eventBus
     };

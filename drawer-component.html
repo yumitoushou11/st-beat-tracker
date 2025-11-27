@@ -317,11 +317,25 @@
                     <div class="sbt-control-card">
                         <label for="sbt-enable-conductor-stream-toggle" class="sbt-toggle-switch-container">
                             <div class="sbt-toggle-label">
-                                <span class="sbt-toggle-text">流式显示回合裁判分析</span>
+                                <span class="sbt-toggle-text">显示回合裁判分析</span>
                                 <i class="fa-solid fa-circle-info fa-fw" title="开启后，在回合裁判执行时，将在创作工坊面板实时显示AI的分析过程（原始JSON流），让您在等待时有内容可看。"></i>
                             </div>
                             <div class="sbt-toggle-switch">
                                 <input type="checkbox" id="sbt-enable-conductor-stream-toggle">
+                                <span class="sbt-slider"></span>
+                            </div>
+                        </label>
+                    </div>
+
+                    <!-- 调试模式开关 -->
+                    <div class="sbt-control-card">
+                        <label for="sbt-debug-mode-toggle" class="sbt-toggle-switch-container">
+                            <div class="sbt-toggle-label">
+                                <span class="sbt-toggle-text">开启调试模式</span>
+                                <i class="fa-solid fa-circle-info fa-fw" title="开启后，将在浏览器控制台输出详细的调试日志（LOG/INFO/WARN）。关闭后仅输出错误诊断信息（DIAGNOSE），保持控制台清爽。建议开发调试时开启，正常使用时关闭。"></i>
+                            </div>
+                            <div class="sbt-toggle-switch">
+                                <input type="checkbox" id="sbt-debug-mode-toggle">
                                 <span class="sbt-slider"></span>
                             </div>
                         </label>

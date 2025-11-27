@@ -142,8 +142,6 @@ $('#extensions-settings-button').after(html);
             // 调用 updateDashboard 显示数据
             updateDashboard(tempChapterState);
 
-            deps.toastr.info(`已加载缓存数据: ${firstCharId}`, '静态数据');
-
         } catch (error) {
             deps.diagnose('[UIManager] 加载缓存静态数据时出错:', error);
         }
@@ -326,6 +324,40 @@ $('#extensions-settings-button').after(html);
 
             deps.toastr.success(`已更新终章信标 ${beaconIndex + 1}`, '保存成功');
         }
+    });
+
+    // -- 角色档案: 隐藏/显示切换按钮 --
+    $wrapper.on('click', '.sbt-character-toggle-visibility-btn', function(e) {
+        e.stopPropagation();
+        const $btn = $(this);
+        const charId = $btn.data('char-id');
+
+        if (!currentChapterState) return;
+
+        // 获取角色数据
+        const char = currentChapterState.staticMatrices.characters[charId];
+        if (!char) return;
+
+        // 切换隐藏状态
+        char.isHidden = !char.isHidden;
+
+        // 保存状态（即使失败也继续更新UI）
+        if (typeof deps.onSaveCharacterEdit === 'function') {
+            deps.onSaveCharacterEdit('character_visibility_toggled', currentChapterState)
+                .catch(err => {
+                    deps.warn('[角色隐藏] 状态保存失败，但UI已更新:', err);
+                });
+        }
+
+        // 触发更新事件
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        // 显示提示
+        const charName = char.core?.name || char.name || charId;
+        const action = char.isHidden ? '隐藏' : '显示';
+        deps.toastr.success(`已${action}角色：${charName}`, '角色可见性已更新');
     });
 
     $wrapper.on('click', '#sbt-archive-characters .sbt-archive-card', function() {
@@ -703,6 +735,40 @@ $('#extensions-settings-button').after(html);
         showWorldviewDetailModal(itemId, category, categoryName, currentChapterState, false, false);
     });
 
+    // -- 世界观: 隐藏/显示切换按钮 --
+    $wrapper.on('click', '.sbt-worldview-toggle-visibility-btn', function(e) {
+        e.stopPropagation();
+        const $btn = $(this);
+        const itemId = $btn.data('item-id');
+        const category = $btn.data('category');
+
+        if (!currentChapterState) return;
+
+        // 获取当前档案数据
+        const item = currentChapterState.staticMatrices.worldview[category][itemId];
+        if (!item) return;
+
+        // 切换隐藏状态
+        item.isHidden = !item.isHidden;
+
+        // 保存状态（即使失败也继续更新UI）
+        if (typeof deps.onSaveCharacterEdit === 'function') {
+            deps.onSaveCharacterEdit('worldview_visibility_toggled', currentChapterState)
+                .catch(err => {
+                    deps.warn('[世界观隐藏] 状态保存失败，但UI已更新:', err);
+                });
+        }
+
+        // 触发更新事件
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        // 显示提示
+        const action = item.isHidden ? '隐藏' : '显示';
+        deps.toastr.success(`已${action}档案：${item.name || itemId}`, '档案可见性已更新');
+    });
+
     // -- 世界观: 点击卡片上的编辑按钮直接进入编辑模式 --
     $wrapper.on('click', '.sbt-worldview-edit-btn', function(e) {
         e.stopPropagation(); // 防止触发卡片点击事件
@@ -1002,10 +1068,21 @@ $('#extensions-settings-button').after(html);
         // 默认设置为开启 (true)。只有当localStorage明确存为'false'时才关闭。
         const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
         $masterToggle.prop('checked', isEngineEnabled);
-        
+
+        // 【双重防护】初始化时同步按钮的禁用状态
+        $('#sbt-start-genesis-btn').prop('disabled', !isEngineEnabled);
+        $('#sbt-force-transition-btn').prop('disabled', !isEngineEnabled);
+        $('#sbt-reanalyze-worldbook-btn').prop('disabled', !isEngineEnabled);
+
         $wrapper.on('change', '#sbt-master-enable-toggle', function() {
             const isChecked = $(this).is(':checked');
             localStorage.setItem('sbt-engine-enabled', isChecked);
+
+            // 【双重防护】禁用/启用所有主要功能按钮
+            $('#sbt-start-genesis-btn').prop('disabled', !isChecked);
+            $('#sbt-force-transition-btn').prop('disabled', !isChecked);
+            $('#sbt-reanalyze-worldbook-btn').prop('disabled', !isChecked);
+
             deps.toastr.info(`叙事流引擎已 ${isChecked ? '开启' : '关闭'}`, "引擎状态切换");
         });
     const $toggle = $('#sbt-enable-focus-popup-toggle');
@@ -1034,7 +1111,27 @@ $('#extensions-settings-button').after(html);
     $wrapper.on('change', '#sbt-enable-conductor-stream-toggle', function() {
         const isChecked = $(this).is(':checked');
         localStorage.setItem('sbt-conductor-stream-enabled', isChecked);
-        deps.toastr.info(`流式显示回合裁判分析已 ${isChecked ? '开启' : '关闭'}`, "设置已更新");
+        deps.toastr.info(`显示回合裁判分析已 ${isChecked ? '开启' : '关闭'}`, "设置已更新");
+    });
+
+    // -- 调试模式开关 --
+    const $debugModeToggle = $('#sbt-debug-mode-toggle');
+    // 默认关闭调试模式，只有明确设为'true'时才开启
+    const isDebugModeEnabled = localStorage.getItem('sbt-debug-mode') === 'true';
+    $debugModeToggle.prop('checked', isDebugModeEnabled);
+
+    $wrapper.on('change', '#sbt-debug-mode-toggle', function() {
+        const isChecked = $(this).is(':checked');
+        localStorage.setItem('sbt-debug-mode', isChecked);
+        deps.toastr.info(
+            `调试模式已 ${isChecked ? '开启' : '关闭'}`,
+            isChecked ? "控制台将输出详细日志" : "控制台将保持简洁"
+        );
+        if (isChecked) {
+            console.log('[SBT-INFO] 调试模式已开启，详细日志将在控制台显示。');
+        } else {
+            console.log('[SBT-INFO] 调试模式已关闭，仅显示错误诊断信息。');
+        }
     });
 
     // -- V4.2: 章节节拍数量区间控制 --
@@ -1140,6 +1237,49 @@ $('#extensions-settings-button').after(html);
 
         // 显示新建模态框
         showStorylineDetailModal(tempId, category, categoryName, currentChapterState, true, true);
+    });
+
+    // -- 故事线: 隐藏/显示切换按钮 --
+    $wrapper.on('click', '.sbt-storyline-toggle-visibility-btn', function(e) {
+        e.stopPropagation();
+        const $btn = $(this);
+        const lineId = $btn.data('storyline-id');
+        const category = $btn.data('category');
+
+        if (!currentChapterState) return;
+
+        // 获取动态状态中的故事线数据
+        const dynamicLine = currentChapterState.dynamicState.storylines?.[category]?.[lineId];
+        const staticLine = currentChapterState.staticMatrices.storylines?.[category]?.[lineId];
+
+        if (!dynamicLine && !staticLine) return;
+
+        // 优先修改动态状态，回退到静态
+        const line = dynamicLine || staticLine;
+
+        // 切换隐藏状态
+        line.isHidden = !line.isHidden;
+
+        // 如果两边都存在，同步设置
+        if (dynamicLine) dynamicLine.isHidden = line.isHidden;
+        if (staticLine) staticLine.isHidden = line.isHidden;
+
+        // 保存状态（即使失败也继续更新UI）
+        if (typeof deps.onSaveCharacterEdit === 'function') {
+            deps.onSaveCharacterEdit('storyline_visibility_toggled', currentChapterState)
+                .catch(err => {
+                    deps.warn('[故事线隐藏] 状态保存失败，但UI已更新:', err);
+                });
+        }
+
+        // 触发更新事件
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+        }
+
+        // 显示提示
+        const action = line.isHidden ? '隐藏' : '显示';
+        deps.toastr.success(`已${action}故事线：${line.title || lineId}`, '故事线可见性已更新');
     });
 
     // -- V8.0: 故事线追踪 - 编辑故事线按钮 --
