@@ -15,6 +15,7 @@ import { HistorianAgent } from './ai/historianAgent.js';
 import { ArchitectAgent } from './ai/architectAgent.js';
  import { deepmerge } from './utils/deepmerge.js';
 import { TurnConductorAgent } from './ai/turnConductorAgent.js';
+import { promptManager } from './promptManager.js';
 export class StoryBeatEngine {
     constructor(dependencies) {
         this.deps = dependencies;
@@ -57,12 +58,17 @@ export class StoryBeatEngine {
         };
         this.debugGroup = (...args) => {
             if (localStorage.getItem('sbt-debug-mode') === 'true') {
-                this.debugGroup(...args);
+                console.group(...args);
+            }
+        };
+        this.debugGroupCollapsed = (...args) => {
+            if (localStorage.getItem('sbt-debug-mode') === 'true') {
+                console.groupCollapsed(...args);
             }
         };
         this.debugGroupEnd = () => {
             if (localStorage.getItem('sbt-debug-mode') === 'true') {
-                this.debugGroupEnd();
+                console.groupEnd();
             }
         };
         this.debugWarn = (...args) => {
@@ -111,7 +117,37 @@ export class StoryBeatEngine {
         this.historianAgent = new HistorianAgent(agentDependencies);
         this.architectAgent = new ArchitectAgent(agentDependencies);
         this.turnConductorAgent = new TurnConductorAgent(agentDependencies);
+
+        // 注入promptManager到支持自定义提示词的Agents
+        this.architectAgent.setPromptManager(promptManager);
+        this.turnConductorAgent.setPromptManager(promptManager);
+
+        // 设置默认提示词到promptManager供UI显示
+        this._initializeDefaultPrompts();
+
         this.info("核心AI Agent已根据双轨制API实例化。");
+    }
+
+    /**
+     * 初始化默认提示词到promptManager
+     * 这样UI才能通过"导出"功能查看完整的默认提示词
+     */
+    _initializeDefaultPrompts() {
+        try {
+            // 注册建筑师默认提示词的getter回调
+            promptManager.setDefaultArchitectPromptGetter(() => {
+                return this.architectAgent.getCompleteDefaultPrompt();
+            });
+
+            // 注册回合执导默认提示词的getter回调
+            promptManager.setDefaultConductorPromptGetter(() => {
+                return this.turnConductorAgent.getCompleteDefaultPrompt();
+            });
+
+            this.info("[promptManager] 默认提示词getter回调已注册");
+        } catch (error) {
+            this.diagnose("[promptManager] 初始化默认提示词时发生错误:", error);
+        }
     }
 
     async start() {

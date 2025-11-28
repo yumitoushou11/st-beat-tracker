@@ -78,6 +78,42 @@
                     </h5>
                     <div id="sbt-design-notes-content" class="sbt-library-items collapsed" style="white-space: pre-wrap;"></div>
                 </div>
+
+                <!-- 叙事操作 -->
+                <div class="sbt-library-category">
+                    <h5 class="sbt-category-header">
+                        <i class="fa-solid fa-play-circle fa-fw"></i> 叙事操作
+                    </h5>
+                    <div class="sbt-library-items">
+                        <!-- V4.2: 手动输入开场白 -->
+                        <div class="sbt-control-card">
+                            <label for="sbt-manual-opening-scene" class="sbt-toggle-label">
+                                <span class="sbt-toggle-text">创世纪开场白（可选）</span>
+                                <i class="fa-solid fa-circle-info fa-fw" title="如果AI无法读取角色自带的开场白，可以在此手动输入。留空则由AI自由创作开篇场景。"></i>
+                            </label>
+                            <textarea
+                                id="sbt-manual-opening-scene"
+                                class="sbt-manual-opening-textarea"
+                                placeholder="在此输入开场白内容（可选）&#10;&#10;提示：如果角色卡自带开场白但AI读取失败，可以复制粘贴到此处作为临时补丁。留空则由AI自动创作。"
+                                rows="4"
+                            ></textarea>
+                        </div>
+
+                        <button id="sbt-start-genesis-btn" class="sbt-primary-btn">
+                            <i class="fa-solid fa-book-sparkles fa-fw"></i> 开始新的叙事篇章
+                        </button>
+
+                        <div id="sbt-force-transition-btn-wrapper" style="display: none; margin-top: 15px;">
+                            <button id="sbt-force-transition-btn" class="sbt-primary-btn">
+                                <i class="fa-solid fa-wand-magic-sparkles fa-fw"></i> 立即进行章节转换
+                            </button>
+                            <p class="sbt-instructions-small" style="text-align: center; margin-top: 8px;">
+                                将以当前聊天为终点，立刻开始史官复盘并规划下一章。
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
             </div> <!-- 创作工坊面板结束 -->
 
             <!-- ======================= 2. 世界档案面板 ======================= -->
@@ -389,40 +425,6 @@
                     </div>
                 </div>
 
-                <!-- 叙事操作 - 大分区 -->
-                <div class="sbt-library-section">
-                    <h4 class="sbt-library-title">
-                        <i class="fa-solid fa-play-circle fa-fw"></i> 叙事操作
-                    </h4>
-
-                    <!-- V4.2: 手动输入开场白 -->
-                    <div class="sbt-control-card">
-                        <label for="sbt-manual-opening-scene" class="sbt-toggle-label">
-                            <span class="sbt-toggle-text">创世纪开场白（可选）</span>
-                            <i class="fa-solid fa-circle-info fa-fw" title="如果AI无法读取角色自带的开场白，可以在此手动输入。留空则由AI自由创作开篇场景。"></i>
-                        </label>
-                        <textarea
-                            id="sbt-manual-opening-scene"
-                            class="sbt-manual-opening-textarea"
-                            placeholder="在此输入开场白内容（可选）&#10;&#10;提示：如果角色卡自带开场白但AI读取失败，可以复制粘贴到此处作为临时补丁。留空则由AI自动创作。"
-                            rows="4"
-                        ></textarea>
-                    </div>
-
-                    <button id="sbt-start-genesis-btn" class="sbt-primary-btn">
-                        <i class="fa-solid fa-book-sparkles fa-fw"></i> 开始新的叙事篇章
-                    </button>
-
-                    <div id="sbt-force-transition-btn-wrapper" style="display: none; margin-top: 15px;">
-                        <button id="sbt-force-transition-btn" class="sbt-primary-btn">
-                            <i class="fa-solid fa-wand-magic-sparkles fa-fw"></i> 立即进行章节转换
-                        </button>
-                        <p class="sbt-instructions-small" style="text-align: center; margin-top: 8px;">
-                            将以当前聊天为终点，立刻开始史官复盘并规划下一章。
-                        </p>
-                    </div>
-                </div>
-
                 <!-- 高级操作 - 大分区 -->
                 <div class="sbt-library-section">
                     <h4 class="sbt-library-title">
@@ -459,9 +461,9 @@
                                     <i class="fa-solid fa-circle-info fa-fw" title="SillyTavern预设: 使用酒馆已配置的预设 (最简单, 零配置)&#10;SillyTavern代理: 通过SillyTavern后端转发 (推荐, 可解决CORS问题)&#10;直接调用: 浏览器直接访问API (可能遇到跨域问题)" style="cursor: help;"></i>
                                 </label>
                                 <select id="sbt-api-provider-select" class="sbt-select">
-                                    <option value="sillytavern_preset">🎯 SillyTavern 预设 (推荐)</option>
-                                    <option value="sillytavern_proxy_openai">SillyTavern 代理</option>
-                                    <option value="direct_openai">直接调用 (Direct Fetch)</option>
+                                    <option value="sillytavern_proxy_openai">SillyTavern 代理（推荐）</option>
+                                    <option value="direct_openai">直接调用</option>
+                                    <option value="sillytavern_preset">SillyTavern 预设（无key可以用） </option>
                                 </select>
                             </div>
                             <div class="sbt-form-group" id="sbt-preset-selector-wrapper" style="display: none;">
@@ -512,9 +514,9 @@
                                     <i class="fa-solid fa-circle-info fa-fw" title="SillyTavern预设: 使用酒馆已配置的预设 (最简单, 零配置)&#10;SillyTavern代理: 通过SillyTavern后端转发 (推荐, 可解决CORS问题)&#10;直接调用: 浏览器直接访问API (可能遇到跨域问题)" style="cursor: help;"></i>
                                 </label>
                                 <select id="sbt-conductor-api-provider-select" class="sbt-select">
-                                    <option value="sillytavern_preset">🎯 SillyTavern 预设 (推荐)</option>
-                                    <option value="sillytavern_proxy_openai">SillyTavern 代理</option>
-                                    <option value="direct_openai">直接调用 (Direct Fetch)</option>
+                                    <option value="sillytavern_proxy_openai">SillyTavern 代理（推荐）</option>
+                                    <option value="direct_openai">直接调用</option>
+                                    <option value="sillytavern_preset">SillyTavern 预设（无key可以用） </option>
                                 </select>
                             </div>
                             <div class="sbt-form-group" id="sbt-conductor-preset-selector-wrapper" style="display: none;">
@@ -553,6 +555,84 @@
                     <button id="sbt-save-settings-btn" class="sbt-primary-btn">
                         <i class="fa-solid fa-save fa-fw"></i> 保存并应用所有设置
                     </button>
+                </div>
+
+                <!-- 提示词管理 - 大分区 -->
+                <div class="sbt-library-section">
+                    <h4 class="sbt-library-title">
+                        <i class="fa-solid fa-file-code fa-fw"></i> 提示词管理
+                    </h4>
+                    <p class="sbt-instructions">
+                        自定义建筑师和回合执导的提示词。可以导出、导入或恢复默认设置。
+                    </p>
+
+                    <div class="sbt-settings-card">
+                        <!-- 建筑师提示词 -->
+                        <div class="sbt-library-category" style="margin-bottom: 20px;">
+                            <h5 class="sbt-category-header collapsed">
+                                <i class="fa-solid fa-feather-pointed fa-fw"></i> 建筑师提示词
+                            </h5>
+                            <div class="sbt-library-items collapsed" style="margin-top: 10px;">
+                                <p class="sbt-instructions" style="margin-bottom: 10px;">
+                                    <i class="fa-solid fa-info-circle fa-fw"></i>
+                                    点击标题展开查看和编辑提示词。留空将使用系统默认提示词。
+                                </p>
+                                <textarea
+                                    id="sbt-architect-prompt"
+                                    class="sbt-prompt-textarea"
+                                    rows="6"
+                                    placeholder="加载中..."
+                                ></textarea>
+                                <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                                    <button id="sbt-save-architect-prompt" class="sbt-secondary-btn">
+                                        <i class="fa-solid fa-save fa-fw"></i> 保存
+                                    </button>
+                                    <button id="sbt-export-architect-prompt" class="sbt-secondary-btn">
+                                        <i class="fa-solid fa-download fa-fw"></i> 导出
+                                    </button>
+                                    <button id="sbt-import-architect-prompt" class="sbt-secondary-btn">
+                                        <i class="fa-solid fa-upload fa-fw"></i> 导入
+                                    </button>
+                                    <button id="sbt-reset-architect-prompt" class="sbt-danger-btn">
+                                        <i class="fa-solid fa-rotate-left fa-fw"></i> 恢复默认
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 回合执导提示词 -->
+                        <div class="sbt-library-category">
+                            <h5 class="sbt-category-header collapsed">
+                                <i class="fa-solid fa-compass-drafting fa-fw"></i> 回合执导提示词
+                            </h5>
+                            <div class="sbt-library-items collapsed" style="margin-top: 10px;">
+                                <p class="sbt-instructions" style="margin-bottom: 10px;">
+                                    <i class="fa-solid fa-info-circle fa-fw"></i>
+                                    点击标题展开查看和编辑提示词。留空将使用系统默认提示词。
+                                </p>
+                                <textarea
+                                    id="sbt-conductor-prompt"
+                                    class="sbt-prompt-textarea"
+                                    rows="6"
+                                    placeholder="加载中..."
+                                ></textarea>
+                                <div style="display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap;">
+                                    <button id="sbt-save-conductor-prompt" class="sbt-secondary-btn">
+                                        <i class="fa-solid fa-save fa-fw"></i> 保存
+                                    </button>
+                                    <button id="sbt-export-conductor-prompt" class="sbt-secondary-btn">
+                                        <i class="fa-solid fa-download fa-fw"></i> 导出
+                                    </button>
+                                    <button id="sbt-import-conductor-prompt" class="sbt-secondary-btn">
+                                        <i class="fa-solid fa-upload fa-fw"></i> 导入
+                                    </button>
+                                    <button id="sbt-reset-conductor-prompt" class="sbt-danger-btn">
+                                        <i class="fa-solid fa-rotate-left fa-fw"></i> 恢复默认
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 数据库管理 - 大分区 -->

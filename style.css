@@ -3684,3 +3684,30 @@ input:checked + .sbt-slider:before {
     background: rgba(155, 89, 182, 0.25);
     border-style: solid;
 }
+
+/* --- 提示词管理样式 (Prompt Manager Styles) --- */
+.sbt-prompt-textarea {
+    width: 100%;
+    min-height: 200px;
+    padding: 12px;
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 6px;
+    color: var(--sbt-text-light);
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.9em;
+    line-height: 1.5;
+    resize: vertical;
+    transition: border-color 0.2s ease;
+}
+
+.sbt-prompt-textarea:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.2);
+}
+
+.sbt-prompt-textarea::placeholder {
+    color: var(--sbt-text-medium);
+    opacity: 0.5;
+}

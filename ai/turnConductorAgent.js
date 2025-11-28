@@ -4,7 +4,58 @@ import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 
 export class TurnConductorAgent extends Agent {
-   
+
+    constructor(...args) {
+        super(...args);
+        // 获取promptManager实例
+        this.promptManager = null;
+    }
+
+    /**
+     * 注入promptManager实例
+     * @param {PromptManager} manager - 提示词管理器实例
+     */
+    setPromptManager(manager) {
+        this.promptManager = manager;
+    }
+
+    /**
+     * 获取完整的默认提示词（包含示例数据，用于导出）
+     * @returns {string} 完整的默认提示词
+     */
+    getCompleteDefaultPrompt() {
+        // 创建示例上下文数据用于生成完整模板
+        const exampleContext = {
+            lastExchange: {
+                user: '示例用户输入',
+                assistant: '示例AI回复'
+            },
+            chapterBlueprint: {
+                title: '示例章节',
+                plot_beats: ['示例节拍1', '示例节拍2']
+            },
+            staticMatrices: {
+                characters: {},
+                worldview: {},
+                items: {},
+                locations: {}
+            },
+            stylisticArchive: {
+                imagery_and_metaphors: [],
+                frequent_descriptors: { adjectives: [], adverbs: [] },
+                sensory_patterns: []
+            },
+            narrativeRhythmClock: {
+                current_phase: "inhale",
+                cycle_count: 0,
+                current_phase_duration: 0
+            }
+        };
+
+        // 调用_createPrompt生成完整模板（带示例数据）
+        return this._createPrompt(exampleContext);
+    }
+
     async execute(context) {
         // V2.0 探针1：启动日志
         this.diagnose(`--- 叙事守护者AI V8.0 (V2.0 边界守护哲学) 启动 --- 正在守护当前回合...`);
@@ -129,6 +180,15 @@ export class TurnConductorAgent extends Agent {
 // ai/turnConductorAgent.js
 
 _createPrompt(context) {
+    // 【新增】如果有自定义提示词，直接使用（不进行变量替换）
+    if (this.promptManager && this.promptManager.hasCustomConductorPrompt()) {
+        const customPrompt = this.promptManager.getConductorPrompt();
+        console.log("[回合执导] 使用自定义提示词");
+        // 自定义提示词会加上安全通行证前缀
+        return BACKEND_SAFE_PASS_PROMPT + customPrompt;
+    }
+
+    // 【默认流程】使用系统默认提示词（带动态数据注入）
     const { lastExchange, chapterBlueprint, staticMatrices, stylisticArchive, narrativeRhythmClock } = context;
     const activeChapterBlueprint = chapterBlueprint || { title: "错误", plot_beats: ["未找到有效的创作蓝图。"] };
 

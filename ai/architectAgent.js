@@ -58,7 +58,7 @@ const WEB_NOVEL_STRATEGY_PROMPT = `
 **1. 爽点构建四大法则 (The 4 Pillars)**
 *   **预期差:** 铺垫NPC的轻视/绝望(压抑) -> 主角展示超常力量(爆发) -> NPC震惊/打脸(反馈)。
 *   **即时反馈:** 付出必须当场兑现。获得道具=当场使用；救人=当场获赠重宝/情报。**禁止延迟满足。**
-*   **特权感:** 强调"只有主角能做到"。神兽只亲近他，神器只认主他。
+*   **特权感:** 强调"只有主角能做到"。神器只认主他，冰山美女只对他笑，神兽只亲近他，。
 *   **危机即机遇:** 敌人=快递员，困境=展示舞台。吃瘪必须当场找回场子。
 
 **2. 创新执行协议 (Creative Execution Protocol)**
@@ -136,7 +136,21 @@ const CLASSIC_RPG_STRATEGY_PROMPT = `
 `;
 
 export class ArchitectAgent extends Agent {
-   
+
+    constructor(...args) {
+        super(...args);
+        // 获取promptManager实例
+        this.promptManager = null;
+    }
+
+    /**
+     * 注入promptManager实例
+     * @param {PromptManager} manager - 提示词管理器实例
+     */
+    setPromptManager(manager) {
+        this.promptManager = manager;
+    }
+
     async execute(context) {
         this.diagnose(`--- 章节建筑师AI V9.2 (Function Fix) 启动 --- 正在动态规划新章节...`);
         const prompt = this._createPrompt(context);
@@ -191,7 +205,242 @@ export class ArchitectAgent extends Agent {
 
 // architectAgent.js
 
+/**
+ * 获取基础提示词模板
+ * @returns {string} 基础提示词
+ */
+_getBasePromptTemplate() {
+    // 如果有自定义提示词且promptManager已注入，则使用自定义的
+    if (this.promptManager && this.promptManager.hasCustomArchitectPrompt()) {
+        return this.promptManager.getArchitectPrompt();
+    }
+
+    // 否则使用默认的basePrompt
+    return this._getDefaultBasePrompt();
+}
+
+/**
+ * 动态生成JSON输出标准
+ * @param {Object} config - 配置对象
+ * @param {string} config.narrativeMode - 叙事模式 (classic_rpg/web_novel)
+ * @param {string} config.beatCountRange - 节拍数量区间
+ * @param {string} config.playerNarrativeFocus - 玩家叙事焦点
+ * @param {boolean} config.hasImmersionMode - 是否启用沉浸模式
+ * @returns {string} JSON输出标准的文本描述
+ */
+_generateOutputSpecification(config) {
+    const { narrativeMode, beatCountRange, playerNarrativeFocus, hasImmersionMode } = config;
+
+    // 基础输出结构（所有模式共用）
+    let outputSpec = `**【【【 JSON 输出结构 】】】**
+
+\`\`\`json
+{
+  "design_notes": {
+    "player_focus_execution": {
+      "player_instruction": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
+      "execution_logic": "[详细说明：你是如何将玩家意见作为最高优先级执行的？]",
+      "conflict_resolution": "[如果玩家意见与关系图谱、故事线等数据产生冲突，你是如何处理的？]"
+    },
+    "dual_horizon_analysis": "[平衡短期焦点与长期故事线的策略]",
+    "emotional_tone_strategy": {
+        "core_emotional_tone": "[你判断本章的核心情感基调是什么？]",
+        "chosen_storylines_and_reasoning": "[你最终选择了哪1-2条故事线？]",
+        "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的]"
+    },
+    "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
+    "event_priority_report": {
+      "S_tier_events": ["[核心关系里程碑]"],
+      "A_tier_events": ["[核心物理目标]"],
+      "B_tier_events": ["[背景/次要互动]"],
+      "priority_conflict_resolution": "[S级与A级事件冲突时的取舍逻辑]",
+      "beat_allocation": { "S_tier_beats": 0, "A_tier_beats": 0, "B_tier_beats": 0, "total_beats": 0 }
+    },
+    "aesthetic_innovation_report": "[识别高频元素并提出创新替代方案]",
+`;
+
+    // 根据叙事模式添加对应字段
+    if (narrativeMode === 'web_novel') {
+        outputSpec += `
+    // ========== 网文模式专属字段 ==========
+    "satisfaction_blueprint": {
+      "core_pleasure_source": "[快感类型：打脸/升级/掉宝/情感共鸣等]",
+      "expectation_setup": "[预期差铺垫：如何压抑？]",
+      "climax_payoff": "[高潮反馈：如何爆发？]",
+      "tangible_rewards": "[实质奖励及即时价值]",
+      "hook_design": "[钩子类型及具体事件]"
+    },
+`;
+    } else {
+        outputSpec += `
+    // ========== 正剧模式专属字段 ==========
+    "classic_rpg_breath": {
+      "current_phase": "[Inhale/Hold/Exhale/Pause - 当前呼吸相位]",
+      "scene_sequel_type": "[Scene/Sequel - 章节类型]",
+      "pacing_rationale": "[节奏选择理由]",
+      "atmospheric_focus": "[氛围基调]"
+    },
+`;
+    }
+
+    // 如果启用沉浸模式，添加沉浸模式字段
+    if (hasImmersionMode) {
+        outputSpec += `
+    // ========== 沉浸模式专属字段 ==========
+    "elevation_design_logic": {
+      "reference_strategy": "[参考策略或自创]",
+      "unique_spark": "[核心创意点]",
+      "irreplaceability_defense": "[独特性自辩]",
+      "pacing_allocation": {
+        "phase_A_content": "[日常填充物]",
+        "phase_B_bridge": "[变调契机]",
+        "phase_C_landing": "[情感落地]"
+      }
+    },
+`;
+    }
+
+    // 添加通用字段
+    outputSpec += `
+    "new_entities_proposal": "[可选：NEW:前缀实体的定义说明]",
+    "storyline_weaving": "[选择了哪1-2条故事线及理由]",
+    "connection_and_hook": "[承上启下说明 + 软着陆/情感悬崖]",
+    "self_scrutiny_report": {
+      "anti_performance": "[如何确保角色行为由情境驱动？去表演化检查]",
+      "anti_thematic_greed": "[如何确保聚焦唯一核心体验？]",
+      "ending_safety_check": "[自检：终章信标是否描述了T+1时刻的新事件？]"
+    }
+  },
+
+  "chapter_blueprint": {
+    "title": "[章节名]",
+    "chapter_context_ids": ["char_A", "loc_B", "NEW:item_C"],
+    "director_brief": {
+      "player_narrative_focus": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
+      "emotional_arc": "[情感曲线]",
+      "core_conflict": "[核心冲突]"
+    },
+    "plot_beats": [
+      {
+        "beat_id": "【节拍1：完整事件名称】",
+        "type": "Action",  // Action | Dialogue Scene | Transition | Internal Transition | Reflection
+        "physical_event": "[动作序列 + 语言交互 + 状态改变]",
+        "environment_state": "[可选：光影/声音/氛围]",
+        "state_change": "[可选：关系/任务更新 (情感冲击:X/10)]",
+        "exit_condition": "[仅Dialogue Scene：可观测结束条件]",
+        "is_highlight": false,
+        "subtext_design": "[可选：潜台词/借题发挥逻辑]"
+      }
+      // 数量必须在 ${beatCountRange} 范围内
+    ],
+    "chapter_core_and_highlight": {
+      "creative_core": "[唯一核心体验]",
+      "highlight_design_logic": {
+        "target_beat_id": "[对应哪个节拍？]",
+        "amplification_technique": "[你用了什么手段？]",
+        "unique_execution": "[具体怎么写的？]",
+        "emotional_impact_goal": "[预期的效果]"
+      },
+      "highlight_directive": {
+        "target_beat": "[高光节拍ID]",
+        "instructions": ["[艺术指令1]", "[艺术指令2]", "[艺术指令3]"]
+      }
+    },
+    "endgame_beacon": "[T+1时刻的单一、可观测事件]"
+  }
+}
+\`\`\`
+`;
+
+    return outputSpec;
+}
+
+/**
+ * 获取完整的默认提示词（包含示例数据，用于导出）
+ * @returns {string} 完整的默认提示词
+ */
+getCompleteDefaultPrompt() {
+    // 创建示例上下文数据用于生成完整模板
+    const exampleContext = {
+        chapter: {
+            staticMatrices: {
+                characters: {},
+                worldview: {},
+                storylines: {
+                    main_quests: {},
+                    side_quests: {},
+                    relationship_arcs: {},
+                    personal_arcs: {}
+                },
+                relationship_graph: { edges: [] }
+            },
+            dynamicState: {
+                storylines: {
+                    main_quests: {},
+                    side_quests: {},
+                    relationship_arcs: {},
+                    personal_arcs: {}
+                },
+                stylistic_archive: {
+                    imagery_and_metaphors: [],
+                    frequent_descriptors: { adjectives: [], adverbs: [] },
+                    sensory_patterns: []
+                },
+                chronology: {
+                    day_count: 1,
+                    time_slot: "evening",
+                    weather: null,
+                    last_rest_chapter: null
+                }
+            },
+            meta: {
+                longTermStorySummary: "故事摘要示例",
+                lastChapterHandoff: {
+                    ending_snapshot: "故事从这里开始",
+                    action_handoff: "开始讲述故事"
+                },
+                narrative_control_tower: {
+                    narrative_mode: { current_mode: 'classic_rpg' }
+                }
+            },
+            playerNarrativeFocus: '示例玩家焦点',
+            chapter_blueprint: {}
+        },
+        firstMessageContent: null
+    };
+
+    // 调用_createPrompt生成完整模板（带示例数据）
+    return this._createPrompt(exampleContext);
+}
+
+/**
+ * 获取默认的基础提示词（用于UI显示）
+ * @returns {string} 简短的默认提示词说明
+ */
+_getDefaultBasePrompt() {
+    // UI中显示简短提示
+    return `提示：建筑师提示词为约900行的复杂模板，包含动态数据注入。
+
+如需查看完整内容，请使用"导出"功能。导出的文件将包含当前使用的完整提示词模板。
+
+如需自定义，您可以：
+1. 点击"导出"按钮，将默认模板保存为文件
+2. 在文本编辑器中编辑该文件
+3. 使用"导入"按钮加载您修改后的模板
+
+注意：模板中的动态数据（如角色信息、故事线等）会在运行时被系统自动注入。`;
+}
+
 _createPrompt(context) {
+    // 【新增】如果有自定义提示词，直接使用（不进行变量替换）
+    if (this.promptManager && this.promptManager.hasCustomArchitectPrompt()) {
+        const customPrompt = this.promptManager.getArchitectPrompt();
+        this.info("[建筑师] 使用自定义提示词");
+        // 自定义提示词会加上安全通行证前缀
+        return BACKEND_SAFE_PASS_PROMPT + customPrompt;
+    }
+
+    // 【默认流程】使用系统默认提示词（带动态数据注入）
     const { chapter, firstMessageContent } = context;
             const currentWorldState = deepmerge(
             chapter.staticMatrices,
@@ -241,7 +490,7 @@ _createPrompt(context) {
     };
     const currentMode = narrativeMode.current_mode;
 
-    const basePrompt = `
+    let basePrompt = `
 # **指令：自省式叙事蓝图创作 (Self-Reflective Narrative Blueprinting) V11.0**
 
 **身份确认:** 你是一位顶级的、懂得“克制”与“聚焦”艺术的“**叙事建筑师**”。你的任务是设计一个**高度专注的、服务于单一核心情感体验的创作蓝图**。
@@ -482,114 +731,24 @@ ${JSON.stringify(chronology, null, 2)}
    *   在 \`chapter_context_ids\` 中列出本章涉及的所有实体 ID (char/loc/item/quest)。
    *   若需引入新实体，使用 \`NEW:char_xxx\` 格式。
 
-**【【【 V8.0 JSON 输出结构 】】】**
+`;
 
-\`\`\`json
-{
-  "design_notes": {
-    "player_focus_execution": {
-      "player_instruction": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
-      "execution_logic": "[详细说明：你是如何将玩家意见作为最高优先级执行的？包括：1)如何理解玩家意图 2)在哪些决策点优先采用玩家意见 3)当玩家意见与其他数据（关系图谱/故事线）冲突时，你如何确保玩家意见的最高优先级]",
-      "conflict_resolution": "[如果玩家意见与关系图谱、故事线等数据产生冲突，你是如何处理的？具体说明被否决的内容及原因]"
-    },
-    "dual_horizon_analysis": "[平衡短期焦点与长期故事线的策略]",
-    // V12.0 新增字段
-    "emotional_tone_strategy": {
-        "core_emotional_tone": "[你判断本章的核心情感基调是什么？]",
-        "chosen_storylines_and_reasoning": "[你最终选择了哪1-2条故事线？]",
-        "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的，并说明你为何认为它们不会产生情感冲突。]"
-    },
-    "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
-    "event_priority_report": {
-      "S_tier_events": ["[核心关系里程碑]"],
-      "A_tier_events": ["[核心物理目标]"],
-      "B_tier_events": ["[背景/次要互动]"],
-      "priority_conflict_resolution": "[S级与A级事件冲突时的取舍逻辑]",
-      "beat_allocation": { "S_tier_beats": 0, "A_tier_beats": 0, "B_tier_beats": 0, "total_beats": 0 }
-    },
-    "aesthetic_innovation_report": "[识别高频元素并提出创新替代方案]",
+    // V13.0: 动态生成JSON输出标准
+    const isImmersionModeExplicit = playerNarrativeFocus.includes('[IMMERSION_MODE]');
+    const dynamicOutputSpec = this._generateOutputSpecification({
+        narrativeMode: currentMode,
+        beatCountRange: beatCountRange,
+        playerNarrativeFocus: playerNarrativeFocus,
+        hasImmersionMode: isImmersionModeExplicit
+    });
 
-    // 动态注入策略模块 (根据模式自动生成)
-    "satisfaction_blueprint": {  // 网文模式 (web_novel)
-      "core_pleasure_source": "[快感类型。正剧模式填'N/A']",
-      "expectation_setup": "[预期差铺垫。正剧模式填'N/A']",
-      "climax_payoff": "[高潮反馈。正剧模式填'N/A']",
-      "tangible_rewards": "[实质奖励及即时价值。正剧模式填'N/A']",
-      "hook_design": "[钩子类型及具体事件。正剧模式填'N/A']",
-      "silence_check_report": "[逐拍检查对话/声音来源]"
-    },
-    "classic_rpg_breath": {  // 正剧模式 (classic_rpg)
-      "current_phase": "[Inhale/Hold/Exhale/Pause。网文模式填'N/A']",
-      "scene_sequel_type": "[Scene/Sequel。网文模式填'N/A']",
-      "pacing_rationale": "[节奏选择理由。网文模式填'N/A']",
-      "atmospheric_focus": "[氛围基调。网文模式填'N/A']"
-    },
-    "elevation_design_logic": {  // 沉浸模式 ([IMMERSION_MODE])
-      "reference_strategy": "[参考策略或自创]",
-      "unique_spark": "[核心创意点]",
-      "irreplaceability_defense": "[独特性自辩]",
-      "pacing_allocation": {
-        "phase_A_content": "[日常填充物]",
-        "phase_B_bridge": "[变调契机]",
-        "phase_C_landing": "[情感落地]"
-      }
-    },
-
-    "new_entities_proposal": "[可选：NEW:前缀实体的定义说明]",
-    "storyline_weaving": "[选择了哪1-2条故事线及理由]",
-    "connection_and_hook": "[承上启下说明 + 软着陆/情感悬崖]",
-    "self_scrutiny_report": {
-      "anti_performance": "[如何确保角色行为由情境驱动？去表演化检查]",
-      "anti_thematic_greed": "[如何确保聚焦唯一核心体验？]",
-      "ending_safety_check": "[自检：终章信标是否描述了T+1时刻的新事件？]"
-    }
-  },
-
-  "chapter_blueprint": {
-    "title": "[章节名]",
-    "chapter_context_ids": ["char_A", "loc_B", "NEW:item_C"],
-    "director_brief": {
-      "player_narrative_focus": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
-      "emotional_arc": "[情感曲线]",
-      "core_conflict": "[核心冲突]"
-    },
-    "plot_beats": [
-      {
-        "beat_id": "【节拍1：完整事件名称】",
-        "type": "Action",  // Action | Dialogue Scene | Transition | Internal Transition | Reflection
-        "physical_event": "[动作序列 + 语言交互 + 状态改变]",
-        "environment_state": "[可选：光影/声音/氛围]",
-        "state_change": "[可选：关系/任务更新 (情感冲击:X/10)]",
-        "exit_condition": "[仅Dialogue Scene：可观测结束条件]",
-        "is_highlight": false,
-        "subtext_design": "[可选：潜台词/借题发挥逻辑]"
-      }
-      // 数量必须在 ${beatCountRange} 范围内
-    ],
-    "chapter_core_and_highlight": {
-      "creative_core": "[唯一核心体验]",
-      "highlight_design_logic": {
-        "target_beat_id": "[高光节拍ID]",
-        "amplification_technique": "[增幅手段]",
-        "unique_execution": "[独家设计描述]",
-        "emotional_impact_goal": "[预期情感效果]"
-      },
-      "highlight_directive": {
-        "target_beat": "[高光节拍ID]",
-        "instructions": ["[艺术指令1]", "[艺术指令2]", "[艺术指令3]"]
-      }
-    },
-    "endgame_beacon": "[T+1时刻的单一、可观测事件]"
-  }
-}
-\`\`\`
-
+    basePrompt += dynamicOutputSpec + `
 `;
 
     let finalPrompt = basePrompt;
 
     // 【试验阶段】检测是否需要注入ABC情感沉浸流模块（只使用显式开关）
-    const isImmersionModeExplicit = playerNarrativeFocus.includes('[IMMERSION_MODE]');
+    // 注意：isImmersionModeExplicit 已在上方动态输出标准生成时定义
 
     if (isImmersionModeExplicit) {
         this.info("💕 [试验] 检测到[IMMERSION_MODE]标记，正在挂载【ABC沉浸流】战术模块...");

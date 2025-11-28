@@ -1,7 +1,9 @@
 // ui/settings/settingsUI.js
 // 设置面板相关的UI逻辑
 
-import { getApiSettings, saveApiSettings, getNarrativeModeSettings, saveNarrativeModeSettings } from '../../stateManager.js';
+import { getApiSettings, saveApiSettings, getNarrativeModeSettings, saveNarrativeModeToCharacter } from '../../stateManager.js';
+import { promptManager } from '../../promptManager.js';
+import { USER } from '../../src/engine-adapter.js';
 
 /**
  * 填充设置面板UI
@@ -88,25 +90,35 @@ export function populateNarrativeModeSelector(deps) {
 }
 
 /**
- * V7.0: 绑定叙事模式切换处理器（全局配置版本）
+ * V8.0: 绑定叙事模式切换处理器（角色卡专属版本）
  * @param {jQuery} $wrapper - 容器元素
  * @param {Object} deps - 依赖注入对象
  * @param {Function} getCurrentChapterFn - 获取当前章节的函数（可选，如果有章节则同步更新）
  */
 export function bindNarrativeModeSwitchHandler($wrapper, deps, getCurrentChapterFn) {
     // 应用按钮点击处理
-    $wrapper.on('click', '#sbt-apply-narrative-mode', () => {
+    $wrapper.on('click', '#sbt-apply-narrative-mode', async () => {
         const selectedMode = $('input[name="narrative_mode"]:checked').val();
 
         try {
-            const modeSettings = getNarrativeModeSettings();
-            const oldMode = modeSettings.default_mode;
+            const context = USER.getContext();
+            const character = context.characters?.[context.characterId];
 
-            // V7.0: 保存到全局配置
-            saveNarrativeModeSettings({ default_mode: selectedMode });
+            if (!character) {
+                deps.toastr.warning('请先选择一个角色卡', '无法保存');
+                return;
+            }
 
             const modeIcon = selectedMode === 'web_novel' ? '🔥' : '🎭';
             const modeName = selectedMode === 'web_novel' ? '网文模式' : '正剧模式';
+
+            // V8.0: 保存到角色卡
+            const success = await saveNarrativeModeToCharacter({ default_mode: selectedMode });
+
+            if (!success) {
+                deps.toastr.error('保存到角色卡失败，请查看控制台日志', '保存失败');
+                return;
+            }
 
             // 如果当前有活跃章节，同步更新章节的模式配置
             const currentChapter = getCurrentChapterFn?.();
@@ -121,19 +133,19 @@ export function bindNarrativeModeSwitchHandler($wrapper, deps, getCurrentChapter
                 deps.saveChapterToStorage?.(currentChapter);
 
                 deps.toastr.success(
-                    `${modeIcon} ${modeName}<br><small>已应用到全局设置 + 当前章节</small>`,
-                    "叙事模式已切换",
+                    `${modeIcon} ${modeName}<br><small>已保存到角色卡「${character.name}」+ 当前章节</small>`,
+                    "本卡叙事策略已设置",
                     { timeOut: 5000, escapeHtml: false }
                 );
             } else {
                 deps.toastr.success(
-                    `${modeIcon} ${modeName}<br><small>已保存为全局默认，将在创世纪时生效</small>`,
-                    "叙事模式已设置",
+                    `${modeIcon} ${modeName}<br><small>已保存到角色卡「${character.name}」，将在创世纪时生效</small>`,
+                    "本卡叙事策略已设置",
                     { timeOut: 5000, escapeHtml: false }
                 );
             }
 
-            deps.info(`[UIManager] 叙事模式全局默认已从 ${oldMode} 切换到 ${selectedMode}`);
+            deps.info(`[UIManager] 角色「${character.name}」的叙事模式已设置为 ${selectedMode}`);
         } catch (error) {
             deps.diagnose("[UIManager] 应用叙事模式时发生错误:", error);
             deps.toastr.error(`应用失败: ${error.message}`, "操作错误");
@@ -165,24 +177,60 @@ export function bindSettingsSaveHandler($wrapper, deps) {
             }
         };
 
-        // 智能填充：如果回合裁判的URL或Key为空，则自动使用主API的配置
-        if (!newSettings.conductor.apiUrl || !newSettings.conductor.apiKey) {
+        // 智能填充：如果回合裁判未配置，则自动使用主API的配置
+        let conductorNeedsAutoFill = false;
+
+        if (newSettings.conductor.apiProvider === 'sillytavern_preset') {
+            // 预设模式：检查是否选择了预设
+            conductorNeedsAutoFill = !newSettings.conductor.tavernProfile;
+        } else {
+            // 其他模式：检查 URL 和 Key
+            conductorNeedsAutoFill = !newSettings.conductor.apiUrl || !newSettings.conductor.apiKey;
+        }
+
+        if (conductorNeedsAutoFill) {
             newSettings.conductor = { ...newSettings.main };
             // 将自动填充后的值更新回UI，让用户看到结果
             $('#sbt-conductor-api-provider-select').val(newSettings.conductor.apiProvider);
             $('#sbt-conductor-api-url-input').val(newSettings.conductor.apiUrl);
             $('#sbt-conductor-api-key-input').val(newSettings.conductor.apiKey);
             $('#sbt-conductor-model-name-input').val(newSettings.conductor.modelName);
+            $('#sbt-conductor-preset-select').val(newSettings.conductor.tavernProfile || '');
             deps.toastr.info("回合裁判API未配置，将自动使用核心大脑的设置。", "自动填充");
         }
 
-        // 检查主API配置是否完整
-        if (!newSettings.main.apiUrl || !newSettings.main.apiKey) {
-            deps.toastr.warning("核心大脑的 API URL 和 API Key 不能为空。", "设置不完整");
-            return;
+        // 检查主API配置是否完整（根据提供商类型检查）
+        if (newSettings.main.apiProvider === 'sillytavern_preset') {
+            // 预设模式：检查是否选择了预设
+            if (!newSettings.main.tavernProfile) {
+                deps.toastr.warning("请先选择一个 SillyTavern 预设。", "设置不完整");
+                return;
+            }
+        } else {
+            // 其他模式：检查 URL 和 Key
+            if (!newSettings.main.apiUrl || !newSettings.main.apiKey) {
+                deps.toastr.warning("核心大脑的 API URL 和 API Key 不能为空。", "设置不完整");
+                return;
+            }
         }
 
+        // 保存设置
         saveApiSettings(newSettings);
+
+        // 调试日志：显示保存的配置
+        console.log('[SBT-设置保存] 主LLM配置:', {
+            provider: newSettings.main.apiProvider,
+            tavernProfile: newSettings.main.tavernProfile,
+            hasUrl: !!newSettings.main.apiUrl,
+            hasKey: !!newSettings.main.apiKey
+        });
+        console.log('[SBT-设置保存] 回合裁判配置:', {
+            provider: newSettings.conductor.apiProvider,
+            tavernProfile: newSettings.conductor.tavernProfile,
+            hasUrl: !!newSettings.conductor.apiUrl,
+            hasKey: !!newSettings.conductor.apiKey
+        });
+
         $(document).trigger('sbt-api-settings-saved', [newSettings]);
         deps.toastr.success("所有API设置已保存并应用！", "操作成功");
     });
@@ -210,6 +258,7 @@ export function bindAPITestHandlers($wrapper, deps) {
                 apiUrl: String($('#sbt-api-url-input').val()).trim(),
                 apiKey: String($('#sbt-api-key-input').val()).trim(),
                 modelName: String($('#sbt-model-name-input').val()).trim(),
+                tavernProfile: String($('#sbt-preset-select').val() || '').trim(), // 新增：读取预设 ID
             };
             deps.mainLlmService.updateConfig(tempConfig);
             const successMessage = await deps.mainLlmService.testConnection();
@@ -237,6 +286,7 @@ export function bindAPITestHandlers($wrapper, deps) {
                 apiUrl: String($('#sbt-conductor-api-url-input').val()).trim(),
                 apiKey: String($('#sbt-conductor-api-key-input').val()).trim(),
                 modelName: String($('#sbt-conductor-model-name-input').val()).trim(),
+                tavernProfile: String($('#sbt-conductor-preset-select').val() || '').trim(), // 新增：读取预设 ID
             };
             deps.conductorLlmService.updateConfig(tempConfig);
             const successMessage = await deps.conductorLlmService.testConnection();
@@ -251,17 +301,19 @@ export function bindAPITestHandlers($wrapper, deps) {
 
 /**
  * 加载 SillyTavern 预设列表
- * @param {Object} deps - 依赖注入对象
+ * @param {Object} deps - 依赖注入对象（可选，不再需要）
  */
 export function loadSillyTavernPresets(deps) {
     console.log('[SBT-预设] 正在加载 SillyTavern 预设列表');
 
     try {
-        const context = deps.USER.getContext();
+        // 直接使用导入的 USER 对象获取上下文
+        const context = USER.getContext();
         const tavernProfiles = context.extensionSettings?.connectionManager?.profiles || [];
 
         if (!tavernProfiles || tavernProfiles.length === 0) {
             console.warn('[SBT-预设] 未找到 SillyTavern 预设');
+            deps?.toastr?.warning('未找到可用的 SillyTavern 预设。请先在连接管理器中配置预设。', '预设加载失败');
             return;
         }
 
@@ -359,5 +411,186 @@ export function bindPresetSelectorHandlers($wrapper, deps) {
     $wrapper.on('change', '#sbt-conductor-preset-select', function() {
         const profileId = $(this).val();
         console.log(`[SBT-预设] 回合裁判预设已选择: ${profileId}`);
+    });
+}
+
+/**
+ * 填充提示词管理UI
+ * @param {Object} deps - 依赖注入对象
+ */
+export function populatePromptManagerUI(deps) {
+    try {
+        // 加载建筑师提示词
+        if (promptManager.hasCustomArchitectPrompt()) {
+            const architectPrompt = promptManager.getArchitectPrompt();
+            $('#sbt-architect-prompt').val(architectPrompt);
+        } else {
+            $('#sbt-architect-prompt').attr('placeholder', '当前使用系统默认提示词（约900行）。\n\n💡 如需查看完整内容，请点击"导出"按钮。\n📝 如需自定义，请在此编辑后点击"保存"。\n\n建议：先导出查看默认内容，再基于默认内容进行修改。');
+        }
+
+        // 加载回合执导提示词
+        if (promptManager.hasCustomConductorPrompt()) {
+            const conductorPrompt = promptManager.getConductorPrompt();
+            $('#sbt-conductor-prompt').val(conductorPrompt);
+        } else {
+            $('#sbt-conductor-prompt').attr('placeholder', '当前使用系统默认提示词（约800行）。\n\n💡 如需查看完整内容，请点击"导出"按钮。\n📝 如需自定义，请在此编辑后点击"保存"。\n\n建议：先导出查看默认内容，再基于默认内容进行修改。');
+        }
+
+        deps.info("[UIManager] 提示词管理UI已加载");
+    } catch (error) {
+        deps.diagnose("[UIManager] 填充提示词管理UI时发生错误:", error);
+    }
+}
+
+/**
+ * 绑定提示词管理事件处理器
+ * @param {jQuery} $wrapper - 容器元素
+ * @param {Object} deps - 依赖注入对象
+ */
+export function bindPromptManagerHandlers($wrapper, deps) {
+    // 保存建筑师提示词
+    $wrapper.on('click', '#sbt-save-architect-prompt', function() {
+        try {
+            const prompt = $('#sbt-architect-prompt').val();
+            promptManager.saveArchitectPrompt(prompt);
+
+            if (deps.toastr) {
+                deps.toastr.success('建筑师提示词已保存', '保存成功');
+            }
+            deps.info("[UIManager] 建筑师提示词已保存");
+        } catch (error) {
+            if (deps.toastr) {
+                deps.toastr.error('保存失败: ' + error.message, '错误');
+            }
+            deps.diagnose("[UIManager] 保存建筑师提示词时发生错误:", error);
+        }
+    });
+
+    // 导出建筑师提示词
+    $wrapper.on('click', '#sbt-export-architect-prompt', function() {
+        try {
+            promptManager.exportArchitectPrompt();
+            if (deps.toastr) {
+                deps.toastr.info('建筑师提示词已导出', '导出');
+            }
+        } catch (error) {
+            if (deps.toastr) {
+                deps.toastr.error('导出失败: ' + error.message, '错误');
+            }
+            deps.diagnose("[UIManager] 导出建筑师提示词时发生错误:", error);
+        }
+    });
+
+    // 导入建筑师提示词
+    $wrapper.on('click', '#sbt-import-architect-prompt', async function() {
+        try {
+            const content = await promptManager.importArchitectPrompt();
+            if (content) {
+                $('#sbt-architect-prompt').val(content);
+                if (deps.toastr) {
+                    deps.toastr.success('建筑师提示词已导入', '导入成功');
+                }
+                deps.info("[UIManager] 建筑师提示词已导入");
+            }
+        } catch (error) {
+            if (deps.toastr) {
+                deps.toastr.error('导入失败: ' + error.message, '错误');
+            }
+            deps.diagnose("[UIManager] 导入建筑师提示词时发生错误:", error);
+        }
+    });
+
+    // 重置建筑师提示词
+    $wrapper.on('click', '#sbt-reset-architect-prompt', function() {
+        if (confirm('确定要恢复建筑师提示词为默认值吗?这将清除您的自定义修改。')) {
+            try {
+                promptManager.resetArchitectPrompt();
+                const defaultPrompt = promptManager.getArchitectPrompt();
+                $('#sbt-architect-prompt').val(defaultPrompt);
+
+                if (deps.toastr) {
+                    deps.toastr.success('建筑师提示词已恢复为默认值', '重置成功');
+                }
+                deps.info("[UIManager] 建筑师提示词已重置");
+            } catch (error) {
+                if (deps.toastr) {
+                    deps.toastr.error('重置失败: ' + error.message, '错误');
+                }
+                deps.diagnose("[UIManager] 重置建筑师提示词时发生错误:", error);
+            }
+        }
+    });
+
+    // 保存回合执导提示词
+    $wrapper.on('click', '#sbt-save-conductor-prompt', function() {
+        try {
+            const prompt = $('#sbt-conductor-prompt').val();
+            promptManager.saveConductorPrompt(prompt);
+
+            if (deps.toastr) {
+                deps.toastr.success('回合执导提示词已保存', '保存成功');
+            }
+            deps.info("[UIManager] 回合执导提示词已保存");
+        } catch (error) {
+            if (deps.toastr) {
+                deps.toastr.error('保存失败: ' + error.message, '错误');
+            }
+            deps.diagnose("[UIManager] 保存回合执导提示词时发生错误:", error);
+        }
+    });
+
+    // 导出回合执导提示词
+    $wrapper.on('click', '#sbt-export-conductor-prompt', function() {
+        try {
+            promptManager.exportConductorPrompt();
+            if (deps.toastr) {
+                deps.toastr.info('回合执导提示词已导出', '导出');
+            }
+        } catch (error) {
+            if (deps.toastr) {
+                deps.toastr.error('导出失败: ' + error.message, '错误');
+            }
+            deps.diagnose("[UIManager] 导出回合执导提示词时发生错误:", error);
+        }
+    });
+
+    // 导入回合执导提示词
+    $wrapper.on('click', '#sbt-import-conductor-prompt', async function() {
+        try {
+            const content = await promptManager.importConductorPrompt();
+            if (content) {
+                $('#sbt-conductor-prompt').val(content);
+                if (deps.toastr) {
+                    deps.toastr.success('回合执导提示词已导入', '导入成功');
+                }
+                deps.info("[UIManager] 回合执导提示词已导入");
+            }
+        } catch (error) {
+            if (deps.toastr) {
+                deps.toastr.error('导入失败: ' + error.message, '错误');
+            }
+            deps.diagnose("[UIManager] 导入回合执导提示词时发生错误:", error);
+        }
+    });
+
+    // 重置回合执导提示词
+    $wrapper.on('click', '#sbt-reset-conductor-prompt', function() {
+        if (confirm('确定要恢复回合执导提示词为默认值吗?这将清除您的自定义修改。')) {
+            try {
+                promptManager.resetConductorPrompt();
+                const defaultPrompt = promptManager.getConductorPrompt();
+                $('#sbt-conductor-prompt').val(defaultPrompt);
+
+                if (deps.toastr) {
+                    deps.toastr.success('回合执导提示词已恢复为默认值', '重置成功');
+                }
+                deps.info("[UIManager] 回合执导提示词已重置");
+            } catch (error) {
+                if (deps.toastr) {
+                    deps.toastr.error('重置失败: ' + error.message, '错误');
+                }
+                deps.diagnose("[UIManager] 重置回合执导提示词时发生错误:", error);
+            }
+        }
     });
 }

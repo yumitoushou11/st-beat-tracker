@@ -17,7 +17,8 @@ export class LLMApiService {
             model_name: config.model_name || "",
             temperature: config.temperature || 1.0,
             max_tokens: config.max_tokens || 63000,
-            stream: config.stream || false
+            stream: config.stream || false,
+            tavernProfile: config.tavernProfile || "" // 新增：SillyTavern 预设 ID
         };
 
         this.deps = dependencies;
@@ -46,20 +47,30 @@ export class LLMApiService {
 
         if (newConfig.temperature !== undefined) this.config.temperature = newConfig.temperature;
 
-        console.info("[LLMApiService] 配置已更新。提供商:", this.config.api_provider, "| URL:", this.config.api_url ? "已设置" : "空");
+        // 新增：SillyTavern 预设 ID
+        if (newConfig.tavernProfile !== undefined) this.config.tavernProfile = newConfig.tavernProfile;
+
+        console.info("[LLMApiService] 配置已更新。提供商:", this.config.api_provider, "| 预设ID:", this.config.tavernProfile || "未设置");
     }
 async testConnection() {
-    if (!this.config.api_url || !this.config.api_key) {
-        throw new Error("API URL 和 API Key 不能为空。请先在设置中填写。");
+    // 如果是预设模式，检查预设ID而不是URL/Key
+    if (this.config.api_provider === 'sillytavern_preset') {
+        if (!this.config.tavernProfile) {
+            throw new Error("未选择 SillyTavern 预设。请先在设置中选择一个预设。");
+        }
+    } else {
+        if (!this.config.api_url || !this.config.api_key) {
+            throw new Error("API URL 和 API Key 不能为空。请先在设置中填写。");
+        }
     }
 
-    console.info(`[LLMApiService] 正在使用模型 [${this.config.model_name}] 测试连接...`);
+    console.info(`[LLMApiService] 正在测试连接... (提供商: ${this.config.api_provider})`);
 
     const testMessages = [{ role: 'user', content: "Hello! Please reply with only one word: 'Success'." }];
 
     try {
         const responseText = await this.#executeApiCall(testMessages, null);
-        
+
         if (responseText && responseText.toLowerCase().includes('success')) {
             return `连接成功！模型返回: "${responseText}"`;
         } else {
@@ -83,9 +94,18 @@ async testConnection() {
 }
     async callLLM(prompt, streamCallback = null) {
         if (!prompt) throw new Error("输入内容不能为空");
-        if (!this.config.api_url || !this.config.api_key || !this.config.model_name) {
-            console.error('[DEBUG-PROBE-3] API 配置不完整:', JSON.stringify(this.config, null, 2));
-            throw new Error("API配置不完整，请在设置中检查。");
+
+        // 根据提供商模式验证配置
+        if (this.config.api_provider === 'sillytavern_preset') {
+            if (!this.config.tavernProfile) {
+                console.error('[DEBUG-PROBE-3] SillyTavern 预设未配置:', JSON.stringify(this.config, null, 2));
+                throw new Error("未选择 SillyTavern 预设，请在设置中选择。");
+            }
+        } else {
+            if (!this.config.api_url || !this.config.api_key || !this.config.model_name) {
+                console.error('[DEBUG-PROBE-3] API 配置不完整:', JSON.stringify(this.config, null, 2));
+                throw new Error("API配置不完整，请在设置中检查。");
+            }
         }
 
         return await this.#callLLMWithRetry(prompt, streamCallback);
@@ -177,6 +197,10 @@ async testConnection() {
 
         // ================== 策略分发器 ==================
         switch (this.config.api_provider) {
+            case 'sillytavern_preset':
+                console.log("策略: SillyTavern 预设模式");
+                return this.#callViaSillyTavernPreset(messages, streamCallback);
+
             case 'sillytavern_proxy_openai':
                 console.log("策略: SillyTavern 代理模式");
                 return this.#callViaSillyTavernProxy(messages, streamCallback);
@@ -186,6 +210,107 @@ async testConnection() {
                 console.log("策略: 直接 Fetch 模式");
                 return this.#callViaDirectFetch(messages, streamCallback);
         }
+    }
+
+    /**
+     * @private
+     * 策略零：使用 SillyTavern 预设
+     * 直接使用用户在 SillyTavern 连接管理器中配置的预设，零配置，最佳用户体验
+     * @param {Array} messages - 消息数组
+     * @param {Function|null} streamCallback - 流式回调（注意：预设模式暂不支持流式传输）
+     */
+    async #callViaSillyTavernPreset(messages, streamCallback) {
+        console.log('[SBT-预设模式] 使用 SillyTavern 预设调用');
+
+        // 注意：ConnectionManagerRequestService 不支持流式传输
+        if (streamCallback) {
+            console.warn('[SBT-预设模式] 预设模式暂不支持流式传输，将使用标准响应模式');
+        }
+
+        // 1. 检查依赖：TavernHelper 是 SillyTavern 提供的辅助工具
+        if (!window.TavernHelper || !window.TavernHelper.triggerSlash) {
+            throw new Error('TavernHelper 不可用，无法使用 SillyTavern 预设模式。请确保您的 SillyTavern 版本支持此功能。');
+        }
+
+        const context = this.USER.getContext();
+        if (!context) {
+            throw new Error('无法获取 SillyTavern 上下文');
+        }
+
+        // 2. 获取预设 ID
+        const profileId = this.config.tavernProfile;
+        if (!profileId) {
+            throw new Error('未配置 SillyTavern 预设 ID');
+        }
+
+        let originalProfile = '';
+        let responsePromise;
+
+        // 3. 配置文件切换之舞（保证恢复）
+        try {
+            // 3.1 保存当前用户的活动配置文件名
+            originalProfile = await window.TavernHelper.triggerSlash('/profile');
+            console.log(`[SBT-预设模式] 当前配置文件: ${originalProfile}`);
+
+            // 3.2 找到目标配置文件的完整信息
+            const targetProfile = context.extensionSettings?.connectionManager?.profiles?.find(p => p.id === profileId);
+            if (!targetProfile) {
+                throw new Error(`未找到配置文件 ID: ${profileId}`);
+            }
+            const targetProfileName = targetProfile.name;
+
+            // 3.3 如果当前配置不是目标配置，则执行切换
+            if (originalProfile !== targetProfileName) {
+                console.log(`[SBT-预设模式] 切换配置文件: ${originalProfile} -> ${targetProfileName}`);
+                await window.TavernHelper.triggerSlash(`/profile await=true "${targetProfileName.replace(/"/g, '\\"')}"`);
+            }
+
+            // 3.4 使用 ConnectionManagerRequestService 发送请求
+            if (!context.ConnectionManagerRequestService) {
+                throw new Error('ConnectionManagerRequestService 不可用');
+            }
+            console.log(`[SBT-预设模式] 通过配置文件 ${targetProfileName} 发送请求`);
+            responsePromise = context.ConnectionManagerRequestService.sendRequest(
+                targetProfile.id,
+                messages,
+                this.config.max_tokens || 4000
+            );
+
+        } finally {
+            // 3.5 恢复原始配置（无论成功与否）
+            try {
+                const currentProfileAfterCall = await window.TavernHelper.triggerSlash('/profile');
+                if (originalProfile && originalProfile !== currentProfileAfterCall) {
+                    console.log(`[SBT-预设模式] 恢复原始配置文件: ${currentProfileAfterCall} -> ${originalProfile}`);
+                    await window.TavernHelper.triggerSlash(`/profile await=true "${originalProfile.replace(/"/g, '\\"')}"`);
+                }
+            } catch (restoreError) {
+                console.error('[SBT-预设模式] 恢复配置文件失败:', restoreError);
+            }
+        }
+
+        // 4. 等待并处理响应
+        const result = await responsePromise;
+        if (!result) {
+            throw new Error('未收到 API 响应');
+        }
+
+        // 5. 提取响应内容（兼容不同的响应格式）
+        let content = '';
+        if (typeof result === 'string') {
+            content = result;
+        } else if (result.choices && result.choices[0]?.message?.content) {
+            content = result.choices[0].message.content;
+        } else if (result.content) {
+            content = result.content;
+        } else if (result.text) {
+            content = result.text;
+        } else {
+            console.warn('[SBT-预设模式] 未知的响应格式:', result);
+            content = JSON.stringify(result);
+        }
+
+        return this.#cleanResponse(content);
     }
 
     /**

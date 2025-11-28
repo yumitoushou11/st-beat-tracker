@@ -972,50 +972,31 @@ export function updateDashboard(chapterState) {
     if (notesContainer.length > 0) {
         const notes = chapterState.activeChapterDesignNotes;
         if (notes && typeof notes === 'object') {
-            // 内部函数，用于安全地渲染报告的每个条目
-            const renderScrutinyItem = (report, key, title) => {
-                if (report && report[key]) {
-                    return `
-                        <p style="margin-top: 10px; margin-bottom: 5px;"><strong>${title}:</strong></p>
-                        <p style="margin-top: 0; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color); font-style: italic;">${report[key]}</p>
-                    `;
-                }
-                return '';
+            // 通用渲染函数（极简紧凑版）
+            const renderField = (icon, label, content) => {
+                if (!content || content === 'N/A') return '';
+                return `<div style="margin: 3px 0;"><strong><i class="${icon} fa-fw"></i> ${label}:</strong> <span style="margin-left: 6px;">${content}</span></div>`;
             };
 
-            // 渲染玩家焦点执行报告（最高优先级）
+            // 渲染玩家焦点执行报告（简洁版）
             let playerFocusHtml = '';
             if (notes.player_focus_execution && typeof notes.player_focus_execution === 'object') {
                 const focusExec = notes.player_focus_execution;
-                playerFocusHtml = `
-                    <div style="background: linear-gradient(135deg, #1a237e 0%, #283593 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 3px solid #FFD700; box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);">
-                        <h6 style="font-size: 1.2em; margin-bottom: 15px; color: #FFD700;"><i class="fa-solid fa-crown fa-fw"></i> 玩家意见执行报告 (最高优先级)</h6>
+                const hasContent = focusExec.player_instruction || focusExec.execution_logic || focusExec.conflict_resolution;
 
-                        ${focusExec.player_instruction ? `
-                        <div style="margin-bottom: 15px; padding: 15px; background: rgba(255, 215, 0, 0.1); border-radius: 8px; border-left: 4px solid #FFD700;">
-                            <strong style="color: #FFD700;"><i class="fa-solid fa-scroll fa-fw"></i> 玩家指令:</strong>
-                            <p style="margin-top: 8px; padding-left: 10px; color: #fff; font-size: 1.05em; font-weight: 500;">${focusExec.player_instruction}</p>
+                if (hasContent) {
+                    playerFocusHtml = `
+                        <div style="background: var(--sbt-background-dark); padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #FFD700;">
+                            <h6 style="margin: 0 0 6px 0; color: #FFD700;"><i class="fa-solid fa-crown fa-fw"></i> 玩家意见执行</h6>
+                            ${focusExec.player_instruction ? `<div style="margin: 3px 0;"><strong>指令:</strong> <span style="margin-left: 6px;">${focusExec.player_instruction}</span></div>` : ''}
+                            ${focusExec.execution_logic ? `<div style="margin: 3px 0;"><strong>逻辑:</strong> <span style="margin-left: 6px;">${focusExec.execution_logic}</span></div>` : ''}
+                            ${focusExec.conflict_resolution ? `<div style="margin: 3px 0;"><strong>冲突:</strong> <span style="margin-left: 6px; font-style: italic;">${focusExec.conflict_resolution}</span></div>` : ''}
                         </div>
-                        ` : ''}
-
-                        ${focusExec.execution_logic ? `
-                        <div style="margin-bottom: 15px; padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 6px;">
-                            <strong style="color: #90CAF9;"><i class="fa-solid fa-gears fa-fw"></i> 执行逻辑:</strong>
-                            <p style="margin-top: 8px; padding-left: 10px; border-left: 3px solid #90CAF9; color: #E3F2FD; line-height: 1.6;">${focusExec.execution_logic}</p>
-                        </div>
-                        ` : ''}
-
-                        ${focusExec.conflict_resolution ? `
-                        <div style="margin-bottom: 0; padding: 12px; background: rgba(255, 255, 255, 0.05); border-radius: 6px;">
-                            <strong style="color: #EF5350;"><i class="fa-solid fa-scale-balanced fa-fw"></i> 冲突处理:</strong>
-                            <p style="margin-top: 8px; padding-left: 10px; border-left: 3px solid #EF5350; color: #FFCDD2; line-height: 1.6; font-style: italic;">${focusExec.conflict_resolution}</p>
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
+                    `;
+                }
             }
 
-            // 渲染满足感蓝图（网文模式KPI）
+            // 渲染满足感蓝图（网文模式KPI）- 极简版
             let satisfactionHtml = '';
             if (notes.satisfaction_blueprint && typeof notes.satisfaction_blueprint === 'object') {
                 const blueprint = notes.satisfaction_blueprint;
@@ -1023,255 +1004,98 @@ export function updateDashboard(chapterState) {
 
                 if (isWebNovelMode) {
                     satisfactionHtml = `
-                        <div style="background: linear-gradient(135deg, var(--sbt-background-dark) 0%, var(--sbt-background) 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid var(--sbt-warning-color);">
-                            <h6 style="font-size: 1.1em; margin-bottom: 15px; color: var(--sbt-warning-color);"><i class="fa-solid fa-fire fa-fw"></i> 网文模式 - 满足感蓝图</h6>
-
-                            ${blueprint.core_pleasure_source ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-heart-pulse fa-fw"></i> 核心快感来源:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid var(--sbt-warning-color);">${blueprint.core_pleasure_source}</p>
-                            </div>
-                            ` : ''}
-
-                            ${blueprint.witness_design ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-users fa-fw"></i> 见证者设计:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid var(--sbt-primary-accent);">${blueprint.witness_design}</p>
-                            </div>
-                            ` : ''}
-
-                            ${blueprint.witness_execution_report ? `
-                            <div style="margin-bottom: 15px; background: var(--sbt-background-dark); padding: 12px; border-radius: 6px;">
-                                <strong><i class="fa-solid fa-clipboard-check fa-fw"></i> 见证者执行报告:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #2ecc71; font-style: italic;">${blueprint.witness_execution_report}</p>
-                            </div>
-                            ` : ''}
-
-                            ${blueprint.expectation_setup ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-arrow-down-up-across-line fa-fw"></i> 预期差铺垫:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #3498db;">${blueprint.expectation_setup}</p>
-                            </div>
-                            ` : ''}
-
-                            ${blueprint.climax_payoff ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-burst fa-fw"></i> 高潮反馈:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #e74c3c;">${blueprint.climax_payoff}</p>
-                            </div>
-                            ` : ''}
-
-                            ${blueprint.tangible_rewards && Array.isArray(blueprint.tangible_rewards) && blueprint.tangible_rewards.length > 0 ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-gift fa-fw"></i> 物质/能力奖励:</strong>
-                                <ul style="margin-top: 5px; padding-left: 30px;">
-                                    ${blueprint.tangible_rewards.map(reward => `<li style="margin: 5px 0;">${reward}</li>`).join('')}
-                                </ul>
-                            </div>
-                            ` : ''}
-
-                            ${blueprint.emotional_rewards ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-face-smile-beam fa-fw"></i> 情绪价值奖励:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #9b59b6;">${blueprint.emotional_rewards}</p>
-                            </div>
-                            ` : ''}
-
-                            ${blueprint.hook_design ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-fish-fins fa-fw"></i> 钩子设计:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #f39c12;">${blueprint.hook_design}</p>
-                            </div>
-                            ` : ''}
-
-                            ${blueprint.silence_check_report ? `
-                            <div style="margin-bottom: 0; background: var(--sbt-background-dark); padding: 10px; border-radius: 6px;">
-                                <strong><i class="fa-solid fa-volume-up fa-fw"></i> 反默剧检查:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #1abc9c; font-size: 0.9em;">${blueprint.silence_check_report}</p>
-                            </div>
-                            ` : ''}
+                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-warning-color);">
+                            <h6 style="margin: 0 0 4px 0; color: var(--sbt-warning-color); font-size: 0.95em;"><i class="fa-solid fa-fire fa-fw"></i> 网文模式</h6>
+                            ${renderField('fa-solid fa-heart-pulse', '核心快感', blueprint.core_pleasure_source)}
+                            ${renderField('fa-solid fa-arrow-down-up-across-line', '预期差', blueprint.expectation_setup)}
+                            ${renderField('fa-solid fa-burst', '高潮', blueprint.climax_payoff)}
+                            ${renderField('fa-solid fa-gift', '奖励', blueprint.tangible_rewards)}
+                            ${renderField('fa-solid fa-fish-fins', '钩子', blueprint.hook_design)}
                         </div>
                     `;
                 }
             }
 
-            // 渲染双视野分析（如果存在）
-            let dualHorizonHtml = '';
-            if (notes.dual_horizon_analysis && typeof notes.dual_horizon_analysis === 'object') {
-                const analysis = notes.dual_horizon_analysis;
-                dualHorizonHtml = `
-                    <div style="background: var(--sbt-background-dark); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid var(--sbt-primary-accent);">
-                        <strong><i class="fa-solid fa-binoculars fa-fw"></i> 双视野分析:</strong>
-                        ${analysis.micro_decisions ? `
-                        <div style="margin-top: 10px;">
-                            <div style="font-weight: bold; margin-bottom: 5px;"><i class="fa-solid fa-magnifying-glass-plus"></i> 微观决策（当前章）:</div>
-                            <p style="padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${analysis.micro_decisions}</p>
-                        </div>
-                        ` : ''}
-                        ${analysis.macro_vision ? `
-                        <div style="margin-top: 10px;">
-                            <div style="font-weight: bold; margin-bottom: 5px;"><i class="fa-solid fa-magnifying-glass-minus"></i> 宏观视野（长期弧光）:</div>
-                            <p style="padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${analysis.macro_vision}</p>
-                        </div>
-                        ` : ''}
-                    </div>
-                `;
-            }
+            // 渲染正剧模式呼吸节奏 - 极简版
+            let classicRpgHtml = '';
+            if (notes.classic_rpg_breath && typeof notes.classic_rpg_breath === 'object') {
+                const breath = notes.classic_rpg_breath;
+                const isClassicMode = breath.current_phase && breath.current_phase !== 'N/A';
 
-            // 渲染美学创新报告（如果存在）
-            let aestheticHtml = '';
-            if (notes.aesthetic_innovation_report) {
-                aestheticHtml = `
-                    <div style="background: var(--sbt-background-dark); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #9b59b6;">
-                        <strong><i class="fa-solid fa-palette fa-fw"></i> 美学创新报告:</strong>
-                        <p style="margin-top: 10px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color); font-style: italic;">${notes.aesthetic_innovation_report}</p>
-                    </div>
-                `;
-            }
-
-            // 渲染 ABC 沉浸流升维策略报告（如果存在）
-            let elevationStrategyHtml = '';
-            if (notes.elevation_strategy_report && typeof notes.elevation_strategy_report === 'object') {
-                const strategy = notes.elevation_strategy_report;
-
-                // 检查是否应用了 ABC 沉浸流
-                const isApplicable = strategy.condition_check && !strategy.reason_not_applicable;
-
-                if (isApplicable) {
-                    elevationStrategyHtml = `
-                        <div style="background: linear-gradient(135deg, var(--sbt-background-dark) 0%, var(--sbt-background) 100%); padding: 20px; border-radius: 12px; margin-bottom: 20px; border: 2px solid #e91e63;">
-                            <h6 style="font-size: 1.1em; margin-bottom: 15px; color: #e91e63;"><i class="fa-solid fa-heart-pulse fa-fw"></i> ABC 沉浸流 - 情感升维策略</h6>
-
-                            ${strategy.condition_check ? `
-                            <div style="margin-bottom: 15px; padding: 10px; background: var(--sbt-background-dark); border-radius: 6px;">
-                                <strong><i class="fa-solid fa-clipboard-check fa-fw"></i> 条件检测:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #2ecc71;">${strategy.condition_check}</p>
-                            </div>
-                            ` : ''}
-
-                            ${strategy.selected_vector ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-compass fa-fw"></i> 选定变调矢量:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #e91e63; font-weight: 600;">${strategy.selected_vector}</p>
-                            </div>
-                            ` : ''}
-
-                            ${strategy.phase_A_plan ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-seedling fa-fw"></i> Phase A (日常沉浸层) 计划:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #4caf50;">${strategy.phase_A_plan}</p>
-                            </div>
-                            ` : ''}
-
-                            ${strategy.phase_B_plan ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-bridge fa-fw"></i> Phase B (缓冲变调) 计划:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #ff9800;">${strategy.phase_B_plan}</p>
-                            </div>
-                            ` : ''}
-
-                            ${strategy.phase_C_plan ? `
-                            <div style="margin-bottom: 15px;">
-                                <strong><i class="fa-solid fa-heart fa-fw"></i> Phase C (情感核爆与余韵) 计划:</strong>
-                                <p style="margin-top: 5px; padding-left: 10px; border-left: 3px solid #e91e63;">${strategy.phase_C_plan}</p>
-                            </div>
-                            ` : ''}
-
-                            ${strategy.pacing_allocation_check ? `
-                            <div style="margin-bottom: 0; background: var(--sbt-background-dark); padding: 12px; border-radius: 6px;">
-                                <strong><i class="fa-solid fa-gauge-high fa-fw"></i> 黄金配速法则 (50/25/25):</strong>
-                                ${strategy.pacing_allocation_check.phase_A_ratio ? `
-                                <div style="margin-top: 8px; padding-left: 10px;">
-                                    <div style="color: #4caf50; font-weight: 600;">• Phase A (50%)</div>
-                                    <p style="margin: 3px 0 8px 15px; font-size: 0.9em;">${strategy.pacing_allocation_check.phase_A_ratio}</p>
-                                </div>
-                                ` : ''}
-                                ${strategy.pacing_allocation_check.phase_B_ratio ? `
-                                <div style="padding-left: 10px;">
-                                    <div style="color: #ff9800; font-weight: 600;">• Phase B (25%)</div>
-                                    <p style="margin: 3px 0 8px 15px; font-size: 0.9em;">${strategy.pacing_allocation_check.phase_B_ratio}</p>
-                                </div>
-                                ` : ''}
-                                ${strategy.pacing_allocation_check.phase_C_ratio ? `
-                                <div style="padding-left: 10px;">
-                                    <div style="color: #e91e63; font-weight: 600;">• Phase C (25%)</div>
-                                    <p style="margin: 3px 0 8px 15px; font-size: 0.9em;">${strategy.pacing_allocation_check.phase_C_ratio}</p>
-                                </div>
-                                ` : ''}
-                            </div>
-                            ` : ''}
-                        </div>
-                    `;
-                } else if (strategy.reason_not_applicable) {
-                    // 如果不适用，显示简洁的说明
-                    elevationStrategyHtml = `
-                        <div style="background: var(--sbt-background-dark); padding: 12px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #9e9e9e;">
-                            <strong><i class="fa-solid fa-info-circle fa-fw"></i> ABC 沉浸流:</strong>
-                            <p style="margin-top: 5px; padding-left: 10px; color: var(--sbt-text-muted); font-style: italic;">${strategy.reason_not_applicable}</p>
+                if (isClassicMode) {
+                    classicRpgHtml = `
+                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-primary-accent);">
+                            <h6 style="margin: 0 0 4px 0; color: var(--sbt-primary-accent); font-size: 0.95em;"><i class="fa-solid fa-masks-theater fa-fw"></i> 正剧模式</h6>
+                            ${renderField('fa-solid fa-wind', '呼吸', breath.current_phase)}
+                            ${renderField('fa-solid fa-film', '类型', breath.scene_sequel_type)}
+                            ${renderField('fa-solid fa-gauge', '理由', breath.pacing_rationale)}
+                            ${renderField('fa-solid fa-cloud', '氛围', breath.atmospheric_focus)}
                         </div>
                     `;
                 }
             }
 
+            // 渲染沉浸模式设计逻辑 - 极简版
+            let elevationHtml = '';
+            if (notes.elevation_design_logic && typeof notes.elevation_design_logic === 'object') {
+                const elevation = notes.elevation_design_logic;
+                const hasContent = elevation.unique_spark && elevation.unique_spark !== 'N/A';
+
+                if (hasContent) {
+                    elevationHtml = `
+                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #e91e63;">
+                            <h6 style="margin: 0 0 4px 0; color: #e91e63; font-size: 0.95em;"><i class="fa-solid fa-heart-pulse fa-fw"></i> 沉浸模式</h6>
+                            ${renderField('fa-solid fa-lightbulb', '创意', elevation.unique_spark)}
+                            ${renderField('fa-solid fa-shield-halved', '自辩', elevation.irreplaceability_defense)}
+                            ${renderField('fa-solid fa-book-open', '策略', elevation.reference_strategy)}
+                        </div>
+                    `;
+                }
+            }
+
+            // 渲染情感基调策略 - 极简版
+            let emotionalToneHtml = '';
+            if (notes.emotional_tone_strategy && typeof notes.emotional_tone_strategy === 'object') {
+                const strategy = notes.emotional_tone_strategy;
+                const hasContent = strategy.core_emotional_tone || strategy.chosen_storylines_and_reasoning || strategy.compatibility_check;
+
+                if (hasContent) {
+                    emotionalToneHtml = `
+                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #9b59b6;">
+                            <h6 style="margin: 0 0 4px 0; color: #9b59b6; font-size: 0.95em;"><i class="fa-solid fa-heart fa-fw"></i> 情感基调</h6>
+                            ${renderField('fa-solid fa-palette', '基调', strategy.core_emotional_tone)}
+                            ${renderField('fa-solid fa-diagram-project', '故事线', strategy.chosen_storylines_and_reasoning)}
+                            ${renderField('fa-solid fa-circle-check', '相容性', strategy.compatibility_check)}
+                        </div>
+                    `;
+                }
+            }
+
+            // 渲染自我审查报告 - 极简版
             const report = notes.self_scrutiny_report || {};
-
-            // 渲染模式选择理由（结构化）
-            let modeSelectionHtml = '';
-            if (notes.mode_selection_rationale) {
-                const rationale = notes.mode_selection_rationale;
-                const chosenMode = rationale.chosen_mode || (typeof rationale === 'string' ? '未知' : '未知');
-                const analysis = rationale.dimension_analysis || {};
-                const reasoning = rationale.final_reasoning || (typeof rationale === 'string' ? rationale : '未阐述');
-
-                // 模式标签样式
-                const modeClass = chosenMode === 'linear' ? 'linear-mode' : 'freeroom-mode';
-                const modeName = chosenMode === 'linear' ? '电影化线性' : chosenMode === 'free_roam' ? '自由漫游' : chosenMode;
-
-                modeSelectionHtml = `
-                    <div style="background: var(--sbt-background-dark); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                        <strong><i class="fa-solid fa-route fa-fw"></i> 叙事模式选择:</strong>
-                        <div style="margin-top: 10px; display: flex; align-items: center; gap: 10px;">
-                            <span class="sbt-mode-badge ${modeClass}" style="padding: 4px 12px; border-radius: 4px; font-weight: bold;">${modeName}</span>
-                        </div>
-                        ${analysis.information_gap || analysis.urgency || analysis.emotional_focus || analysis.causality_hardness ? `
-                        <div style="margin-top: 15px; padding: 10px; background: var(--sbt-background); border-radius: 6px;">
-                            <div style="font-size: 0.9em; color: var(--sbt-text-muted); margin-bottom: 8px;">📊 四维度分析</div>
-                            ${analysis.information_gap ? `<div style="margin: 5px 0;"><strong>信息密度:</strong> ${analysis.information_gap}</div>` : ''}
-                            ${analysis.urgency ? `<div style="margin: 5px 0;"><strong>紧迫性:</strong> ${analysis.urgency}</div>` : ''}
-                            ${analysis.emotional_focus ? `<div style="margin: 5px 0;"><strong>情感聚焦:</strong> ${analysis.emotional_focus}</div>` : ''}
-                            ${analysis.causality_hardness ? `<div style="margin: 5px 0;"><strong>因果链:</strong> ${analysis.causality_hardness}</div>` : ''}
-                        </div>
-                        ` : ''}
-                        <div style="margin-top: 10px; padding-left: 10px; border-left: 3px solid var(--sbt-primary-accent); font-style: italic;">
-                            ${reasoning}
-                        </div>
+            let scrutinyHtml = '';
+            if (report.anti_performance || report.anti_thematic_greed || report.ending_safety_check) {
+                scrutinyHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-primary-accent);">
+                        <h6 style="margin: 0 0 4px 0; color: var(--sbt-primary-accent); font-size: 0.95em;"><i class="fa-solid fa-magnifying-glass-chart fa-fw"></i> 自我审查</h6>
+                        ${renderField('fa-solid fa-user-check', '去表演化', report.anti_performance)}
+                        ${renderField('fa-solid fa-filter', '主题聚焦', report.anti_thematic_greed)}
+                        ${renderField('fa-solid fa-flag-checkered', '终章检查', report.ending_safety_check)}
                     </div>
                 `;
             }
 
+            // 组装最终HTML - 紧凑版，只显示存在的部分
             const notesHtml = `
                 ${playerFocusHtml}
+                ${emotionalToneHtml}
                 ${satisfactionHtml}
-                ${dualHorizonHtml}
-                ${aestheticHtml}
-                ${elevationStrategyHtml}
-                ${modeSelectionHtml}
-
-                <strong><i class="fa-solid fa-diagram-project fa-fw"></i> 故事线编织:</strong>
-                <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.storyline_weaving || '未阐述'}</p>
-
-                <strong><i class="fa-solid fa-link fa-fw"></i> 承上启下与钩子:</strong>
-                <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.connection_and_hook || '未阐述'}</p>
-                <strong><i class="fa-solid fa-link fa-fw"></i> 导演高光设计思路:</strong>
-                <p style="margin-top: 5px; margin-bottom: 15px; padding-left: 10px; border-left: 2px solid var(--sbt-border-color);">${notes.highlight_design_rationale || '未阐述'}</p>
-
-                <hr style="margin: 20px 0; border-color: var(--sbt-border-color);">
-
-                <h6 style="font-size: 1.1em; margin-bottom: 15px; color: var(--sbt-primary-accent);"><i class="fa-solid fa-magnifying-glass-chart fa-fw"></i> AI自我审查报告</h6>
-                ${renderScrutinyItem(report, 'avoiding_thematic_greed', '1. 关于"主题贪婪"')}
-                ${renderScrutinyItem(report, 'avoiding_setting_driven_performance', '2. 关于"设定驱动"')}
-                ${renderScrutinyItem(report, 'avoiding_storyline_overload', '3. 关于"叙事线过载"')}
-                ${renderScrutinyItem(report, 'avoiding_premature_suspense', '4. 关于"悬念前置"')}
+                ${classicRpgHtml}
+                ${elevationHtml}
+                ${renderField('fa-solid fa-diagram-project', '故事线编织', notes.storyline_weaving)}
+                ${renderField('fa-solid fa-link', '承上启下', notes.connection_and_hook)}
+                ${renderField('fa-solid fa-palette', '美学创新', notes.aesthetic_innovation_report)}
+                ${scrutinyHtml}
             `;
             notesContainer.html(notesHtml);
         } else {

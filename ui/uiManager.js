@@ -5,7 +5,7 @@ import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
-import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets } from './settings/settingsUI.js';
+import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets, populatePromptManagerUI, bindPromptManagerHandlers } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
 
 const deps = {
@@ -133,14 +133,21 @@ $('#extensions-settings-button').after(html);
                     longTermStorySummary: '（缓存数据预览）',
                     lastChapterHandoff: null
                 },
-                chapter_blueprint: {}
+                chapter_blueprint: {},
+                activeChapterDesignNotes: null  // 添加设计笔记字段，避免覆盖真实数据
             };
 
-            // 更新当前状态引用
-            currentChapterState = tempChapterState;
+            // 只在没有真实章节状态时才显示缓存数据（避免覆盖建筑师生成的设计笔记）
+            if (!currentChapterState || currentChapterState.uid === 'temp_cached_view') {
+                // 更新当前状态引用
+                currentChapterState = tempChapterState;
 
-            // 调用 updateDashboard 显示数据
-            updateDashboard(tempChapterState);
+                // 调用 updateDashboard 显示数据
+                updateDashboard(tempChapterState);
+                deps.info('[UIManager] 已显示缓存数据预览');
+            } else {
+                deps.info('[UIManager] 检测到真实章节状态，跳过缓存数据加载（避免覆盖）');
+            }
 
         } catch (error) {
             deps.diagnose('[UIManager] 加载缓存静态数据时出错:', error);
@@ -154,6 +161,7 @@ $('#extensions-settings-button').after(html);
             if ($('#beat-tracker-content-panel').hasClass('openDrawer')) {
                 populateSettingsUI(deps); // 传递 deps 参数
                 populateNarrativeModeSelector(deps); // V7.0: 填充叙事模式选择器（全局配置版）
+                populatePromptManagerUI(deps); // 填充提示词管理UI
 
                 // 【新增】加载并显示静态数据缓存（如果存在）
                 loadAndDisplayCachedStaticData();
@@ -1607,6 +1615,8 @@ $('#extensions-settings-button').after(html);
     bindPresetSelectorHandlers($wrapper, deps);
     // V7.0: 叙事模式切换 - 传入获取当前章节的函数
     bindNarrativeModeSwitchHandler($wrapper, deps, () => currentChapterState);
+    // 提示词管理处理器
+    bindPromptManagerHandlers($wrapper, deps);
 
     // -- 数据库管理: 绑定数据库管理相关处理器 --
     bindDatabaseManagementHandlers($wrapper, deps);
