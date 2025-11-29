@@ -27,32 +27,27 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
 
     const participant1 = getCharName(edge.participants[0]);
     const participant2 = getCharName(edge.participants[1]);
+    const relationshipLabel = edge.relationship_label || '尚未命名的关系';
+    const meetingStatus = (edge.timeline?.meeting_status || '未知').trim();
+    const rawSeparationState = edge.timeline?.separation_state;
+    const isSeparated = typeof rawSeparationState === 'boolean'
+        ? rawSeparationState
+        : edge.timeline?.reunion_pending === true;
+    const separationText = isSeparated ? '物理分离' : '同处一地';
+    const lastInteraction = edge.timeline?.last_interaction || '故事开始前';
+    const unfamiliarStatuses = new Set(['陌生人', '点头之交', '单方面认识']);
+    const pendingMeeting = meetingStatus
+        ? unfamiliarStatuses.has(meetingStatus)
+        : edge.narrative_status?.first_scene_together === false;
 
     // 关系类型翻译
     const typeTranslations = {
-        'childhood_friends': '童年玩伴',
-        'family_siblings': '兄弟姐妹',
-        'family_parent': '父母子女',
-        'romantic_interest': '恋慕关系',
-        'rivals': '竞争对手',
-        'mentor_student': '师生关系',
-        'allies': '盟友关系',
-        'enemies': '敌对关系',
-        'colleagues': '同事关系',
-        'friends': '朋友关系'
+        'childhood_friends': '青梅旧盟',
+        'enemies': '宿敌对峙',
+        'lovers': '恋人羁绊',
+        'stranger_with_history': '陌路旧识'
     };
-    const typeText = typeTranslations[edge.type] || edge.type || '未知关系';
-
-    // 分离时长翻译
-    const separationTranslations = {
-        'none': '无分离',
-        'days': '数天',
-        'weeks': '数周',
-        'months': '数月',
-        'years': '数年',
-        'unknown': '未知'
-    };
-    const separationText = separationTranslations[edge.timeline?.separation_duration] || edge.timeline?.separation_duration || '未知';
+    const typeText = edge.type_label || typeTranslations[edge.type] || edge.type || '未知关系';
 
     // 计算情感权重等级
     const weight = edge.emotional_weight || 0;
@@ -71,14 +66,12 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
 
     // 状态标签
     let statusHtml = '';
-    if (edge.timeline?.reunion_pending) {
-        statusHtml = '<span class="sbt-rel-status-badge reunion-pending"><i class="fa-solid fa-clock-rotate-left"></i> 待重逢</span>';
-    } else if (!edge.narrative_status?.first_scene_together) {
-        statusHtml = '<span class="sbt-rel-status-badge first-meeting"><i class="fa-solid fa-handshake"></i> 待初识</span>';
-    } else if (edge.timeline?.separation_duration === 'none') {
-        statusHtml = '<span class="sbt-rel-status-badge active"><i class="fa-solid fa-check"></i> 活跃</span>';
+    if (pendingMeeting) {
+        statusHtml = '<span class="sbt-rel-status-badge first-meeting"><i class="fa-solid fa-handshake"></i> 待熟识</span>';
+    } else if (isSeparated) {
+        statusHtml = '<span class="sbt-rel-status-badge separated"><i class="fa-solid fa-route"></i> 物理分离</span>';
     } else {
-        statusHtml = '<span class="sbt-rel-status-badge separated"><i class="fa-solid fa-user-clock"></i> 分离中</span>';
+        statusHtml = '<span class="sbt-rel-status-badge active"><i class="fa-solid fa-check"></i> 互动进行中</span>';
     }
 
     // 未解决张力
@@ -147,6 +140,22 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
         </div>
     `;
 
+    // 张力引擎文本
+    const tensionEngine = edge.tension_engine || {};
+    const conflictSource = tensionEngine.conflict_source || '暂无冲突说明。';
+    const personalityChemistry = tensionEngine.personality_chemistry || '暂无相处模式描述。';
+    const cognitiveGap = tensionEngine.cognitive_gap || '无';
+    const tensionEngineHtml = `
+        <div class="sbt-rel-detail-field">
+            <div class="sbt-rel-detail-label"><i class="fa-solid fa-fire"></i> 张力引擎</div>
+            <div class="sbt-rel-detail-value sbt-rel-tension-engine">
+                <p><strong>冲突源：</strong>${conflictSource}</p>
+                <p><strong>性格化学：</strong>${personalityChemistry}</p>
+                <p><strong>认知差：</strong>${cognitiveGap}</p>
+            </div>
+        </div>
+    `;
+
     // 构建详情HTML
     const detailHtml = `
         <div class="sbt-relationship-detail-modal">
@@ -159,6 +168,7 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
                     </div>
                     ${editButtonsHtml}
                 </div>
+                <div class="sbt-rel-relationship-label">${relationshipLabel}</div>
                 <div class="sbt-rel-modal-meta">
                     <span class="sbt-rel-type-badge">${typeText}</span>
                     ${statusHtml}
@@ -203,14 +213,14 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
                         <div class="sbt-rel-timeline-item">
                             <i class="fa-solid fa-calendar-days"></i>
                             <div class="sbt-rel-timeline-content">
-                                <div class="sbt-rel-timeline-label">建立时间</div>
-                                <div class="sbt-rel-timeline-value">${edge.timeline?.established || '未知'}</div>
+                                <div class="sbt-rel-timeline-label">相识程度</div>
+                                <div class="sbt-rel-timeline-value">${meetingStatus || '未知'}</div>
                             </div>
                         </div>
                         <div class="sbt-rel-timeline-item">
                             <i class="fa-solid fa-hourglass-half"></i>
                             <div class="sbt-rel-timeline-content">
-                                <div class="sbt-rel-timeline-label">分离时长</div>
+                                <div class="sbt-rel-timeline-label">空间状态</div>
                                 <div class="sbt-rel-timeline-value">${separationText}</div>
                             </div>
                         </div>
@@ -218,11 +228,14 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
                             <i class="fa-solid fa-clock"></i>
                             <div class="sbt-rel-timeline-content">
                                 <div class="sbt-rel-timeline-label">最后互动</div>
-                                <div class="sbt-rel-timeline-value">${edge.timeline?.last_interaction || '故事开始前'}</div>
+                                <div class="sbt-rel-timeline-value">${lastInteraction}</div>
                             </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- 张力引擎三维文本 -->
+                ${tensionEngineHtml}
 
                 <!-- 未解张力 -->
                 ${tensionsHtml}

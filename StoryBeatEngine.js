@@ -1,4 +1,4 @@
-// FILE: StoryBeatEngine.js
+﻿// FILE: StoryBeatEngine.js
 
 import { Chapter } from './Chapter.js';
 import * as stateManager from './stateManager.js'; 
@@ -30,17 +30,18 @@ export class StoryBeatEngine {
 
         this.currentChapter = null; // 初始化为 null
         this.isGenesisStatePendingCommit = false;
-                this.isTransitionPending = false; // 用于章节转换的旗标
+        this.isTransitionPending = false; // 用于章节转换的旗标
         this.pendingTransitionPayload = null; // 用于存储转换的附带信息
 
         this.syncDebounceTimer = null;
-            this.uiSyncRetryTimer = null; // 用于重试的计时器ID
-    this.uiSyncRetryCount = 0; // 记录重试次数
+        this.uiSyncRetryTimer = null; // 用于重试的计时器ID
+        this.uiSyncRetryCount = 0; // 记录重试次数
 
-    this._earlyFocusPromise = null; // 追踪“提前规划”弹窗状态，避免并发弹出
+        this._earlyFocusPromise = null; // 追踪“提前规划”弹窗状态，避免并发弹出
         this._transitionStopRequested = false; // 标记当前章节转换是否被手动停止
         this._activeTransitionToast = null; // 当前章节转换通知引用，用于追加提示
-    this.status = ENGINE_STATUS.IDLE;
+        this.currentTaskAbortController = null; // V9.2 新增：中止控制器
+        this.status = ENGINE_STATUS.IDLE;
         this.isConductorActive = false;
         this.lastExecutionTimestamp = 0;
         this.intelligenceAgent = null;
@@ -80,7 +81,7 @@ export class StoryBeatEngine {
                 console.warn(...args);
             }
         };
-         }
+    }
 
     _setStatus(newStatus) {
         if (this.status !== newStatus) {
@@ -242,12 +243,24 @@ export class StoryBeatEngine {
         }
         $('.sbt-compact-focus-btn').prop('disabled', true);
 
-        this.warn(`[SBT-Stop] 在${stageLabel}阶段收到停止指令，正准备安全终止章节转换。`);
+        // V9.2: 升级为硬停止
+        this.warn(`[SBT-Stop] 在${stageLabel}阶段收到停止指令，立即中止所有AI请求。`);
+        this.abortCurrentTask();
+
         if (this._activeTransitionToast) {
             const $message = this._activeTransitionToast.find('.toast-message');
             if ($message.length > 0 && $message.find('.sbt-stop-hint').length === 0) {
-                $message.append('<div class="sbt-stop-hint">正在安全终止本次章节转换...</div>');
+                $message.append('<div class="sbt-stop-hint" style="color: #ffc107;">[!] 已发送强制中止指令...</div>');
             }
+        }
+    }
+    // V9.2 新增：硬停止方法
+    abortCurrentTask() {
+        this.warn('收到外部强制中止指令！');
+        this._transitionStopRequested = true;
+        if (this.currentTaskAbortController) {
+            this.currentTaskAbortController.abort();
+            this.info('AbortController 已触发中止。');
         }
     }
 
@@ -1367,26 +1380,15 @@ _applyBlueprintMask(blueprint, currentBeat) {
     _buildChapterPreviewFromStaticCache() {
         try {
             const context = this.USER.getContext ? this.USER.getContext() : {};
-            let charId = context?.characterId || null;
-            let cachedData = null;
-
-            if (charId) {
-                cachedData = staticDataManager.loadStaticData?.(charId) || null;
+            const charId = context?.characterId;
+            if (!charId) {
+                this.info('[Engine] 当前会话缺少角色ID，静态缓存预览跳过。');
+                return null;
             }
 
+            const cachedData = staticDataManager.loadStaticData?.(charId) || null;
             if (!cachedData) {
-                const db = staticDataManager.getFullDatabase?.() || {};
-                const ids = Object.keys(db);
-                if (ids.length === 0) {
-                    this.info('[Engine] 静态数据库为空，无法提供预览。');
-                    return null;
-                }
-                charId = ids[0];
-                cachedData = db[charId];
-            }
-
-            if (!cachedData) {
-                this.warn('[Engine] 未能找到可用的静态缓存数据。');
+                this.info(`[Engine] 角色 ${charId} 暂无静态缓存数据。`);
                 return null;
             }
 
@@ -2946,6 +2948,15 @@ _applyBlueprintMask(blueprint, currentBeat) {
                     this.debugLog('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
                     this.debugGroupEnd();
                     this.info(`GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
+                    this.isGenesisStatePendingCommit = true;
+                    const chatPieces = this.USER.getContext()?.chat || [];
+                    const firstAssistantIndex = chatPieces.findIndex(piece => piece && !piece.is_user);
+                    if (firstAssistantIndex !== -1) {
+                        this.info(`GENESIS: 已找到可锚定的AI消息 (索引: ${firstAssistantIndex})，立即写入leader。`);
+                        await this.onCommitState(firstAssistantIndex);
+                    } else {
+                        this.info('GENESIS: 暂未找到可锚定的AI消息，将等待下一次 onCommitState 触发。');
+                    }
                 } else {
                     throw new Error("建筑师未能生成有效的开篇创作蓝图。");
                 }
@@ -3029,337 +3040,318 @@ _applyBlueprintMask(blueprint, currentBeat) {
     }
 
 async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') {
-        // 【总开关保护】检查引擎是否已启用
-        const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
-        if (!isEngineEnabled) {
-            this.toastr.warning('叙事流引擎已关闭，章节转换已中止', '功能已禁用');
-            this.info('[Guard-MasterSwitch] 章节转换流程中止：引擎总开关已关闭。');
-            return;
+    // 【总开关保护】检查引擎是否已启用
+    const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
+    if (!isEngineEnabled) {
+        this.toastr.warning('叙事流引擎已关闭，章节转换已中止', '功能已禁用');
+        this.info('[Guard-MasterSwitch] 章节转换流程中止：引擎总开关已关闭。');
+        return;
+    }
+
+    this._transitionStopRequested = false;
+    this._activeTransitionToast = null;
+    this.currentTaskAbortController = new AbortController(); // V9.2: 创建中止控制器
+
+    this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
+    const loadingToast = this.toastr.info(
+        "正在启动章节转换流程...", "章节转换中...",
+        { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
+    );
+    this._activeTransitionToast = loadingToast;
+    this.info(`--- 章节转换流程启动 (ECI事务模型 V3.1 - 断点恢复增强版) ---`);
+    this.debugGroup(`BRIDGE-PROBE [CHAPTER-TRANSITION-RESILIENT]: ${eventUid}`);
+
+    try {
+        const activeCharId = this.USER.getContext()?.characterId;
+        if (!activeCharId) throw new Error("无法获取 activeCharId。");
+
+        // 1. 加载当前状态
+        const { piece: lastStatePiece, deep: lastAnchorIndex } = this.USER.findLastMessageWithLeader({ 
+            deep: (this.USER.getContext().chat.length - 1 - endIndex) 
+        });
+
+        let workingChapter;
+        if (lastStatePiece && Chapter.isValidStructure(lastStatePiece.leader)) {
+            workingChapter = Chapter.fromJSON(lastStatePiece.leader);
+        } else {
+            workingChapter = new Chapter({ characterId: activeCharId });
+        }
+        this._syncStorylineProgressWithStorylines(workingChapter);
+
+        // 确保静态数据是最新的
+        const staticData = staticDataManager.loadStaticData(activeCharId);
+        if (staticData) {
+            workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, staticData);
         }
 
-        this._transitionStopRequested = false;
-        this._activeTransitionToast = null;
+        // V7.2: 提前获取目标消息引用（用于分两次写入）
+        const targetPiece = this.USER.getContext().chat[endIndex];
+        if (!targetPiece) {
+            throw new Error(`无法找到索引 ${endIndex} 处的目标消息！`);
+        }
 
-        this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
-        const loadingToast = this.toastr.info(
-            "正在启动章节转换流程...", "章节转换中...",
-            { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
-        );
-        this._activeTransitionToast = loadingToast;
-        this.info(`--- 章节转换流程启动 (ECI事务模型 V3.1 - 断点恢复增强版) ---`);
-        this.debugGroup(`BRIDGE-PROBE [CHAPTER-TRANSITION-RESILIENT]: ${eventUid}`);
+        // 2. V7.2 增强：检查是否有未完成的过渡（支持分阶段断点恢复）
+        let reviewDelta = null;
+        let finalNarrativeFocus = "由AI自主创新。";
+        let skipHistorian = false;
 
-        try {
-            const activeCharId = this.USER.getContext()?.characterId;
-            if (!activeCharId) throw new Error("无法获取 activeCharId。");
+        if (this.LEADER.pendingTransition) {
+            this.info("检测到未完成的章节转换进度，正在恢复...");
+            loadingToast.find('.toast-message').text("恢复之前的进度...");
 
-            // 1. 加载当前状态
-            const { piece: lastStatePiece, deep: lastAnchorIndex } = this.USER.findLastMessageWithLeader({ deep: (this.USER.getContext().chat.length - 1 - endIndex) });
+            const status = this.LEADER.pendingTransition.status;
+            reviewDelta = this.LEADER.pendingTransition.historianReviewDelta;
+            finalNarrativeFocus = this.LEADER.pendingTransition.playerNarrativeFocus || "由AI自主创新。";
 
-            let workingChapter;
-            if (lastStatePiece && Chapter.isValidStructure(lastStatePiece.leader)) {
-                workingChapter = Chapter.fromJSON(lastStatePiece.leader);
-            } else {
-                workingChapter = new Chapter({ characterId: activeCharId });
-            }
-            this._syncStorylineProgressWithStorylines(workingChapter);
+            // V7.2: 如果史官已完成且已写入 leader，直接跳过史官
+            if (status === 'awaiting_architect' || status === 'historian_saved') {
+                skipHistorian = true;
+                // 从 leader 读取史官已保存的结果
+                if (targetPiece.leader && Chapter.isValidStructure(targetPiece.leader)) {
+                    workingChapter = Chapter.fromJSON(targetPiece.leader);
+                    this._syncStorylineProgressWithStorylines(workingChapter);
+                    this.info("✓ 史官结果已从 leader 恢复，正在合并最新的前端数据...");
 
-            // 确保静态数据是最新的
-            const staticData = staticDataManager.loadStaticData(activeCharId);
-            if (staticData) {
-                workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, staticData);
-            }
-
-            // V7.2: 提前获取目标消息引用（用于分两次写入）
-            const targetPiece = this.USER.getContext().chat[endIndex];
-            if (!targetPiece) {
-                throw new Error(`无法找到索引 ${endIndex} 处的目标消息！`);
-            }
-
-            // 2. V7.2 增强：检查是否有未完成的过渡（支持分阶段断点恢复）
-            let reviewDelta = null;
-            let finalNarrativeFocus = "由AI自主创新。";
-            let skipHistorian = false;
-
-            if (this.LEADER.pendingTransition) {
-                this.info("检测到未完成的章节转换进度，正在恢复...");
-                loadingToast.find('.toast-message').text("恢复之前的进度...");
-
-                const status = this.LEADER.pendingTransition.status;
-                reviewDelta = this.LEADER.pendingTransition.historianReviewDelta;
-                finalNarrativeFocus = this.LEADER.pendingTransition.playerNarrativeFocus || "由AI自主创新。";
-
-                // V7.2: 如果史官已完成且已写入 leader，直接跳过史官
-                if (status === 'awaiting_architect' || status === 'historian_saved') {
-                    skipHistorian = true;
-                    // 从 leader 读取史官已保存的结果
-                    if (targetPiece.leader && Chapter.isValidStructure(targetPiece.leader)) {
-                        workingChapter = Chapter.fromJSON(targetPiece.leader);
-                        this._syncStorylineProgressWithStorylines(workingChapter);
-                        this.info("✓ 史官结果已从 leader 恢复，直接进入建筑师阶段");
+                    //【关键修复】在恢复中间状态后，必须重新合并最新的静态数据，以包含用户在重试期间可能做出的修改
+                    const freshStaticData = staticDataManager.loadStaticData(activeCharId);
+                    if (freshStaticData) {
+                        workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, freshStaticData);
+                        this.info("✓ 最新的前端数据已合并，进入建筑师阶段。");
                     }
-                } else {
-                    workingChapter.playerNarrativeFocus = finalNarrativeFocus;
+                }
+            } else {
+                workingChapter.playerNarrativeFocus = finalNarrativeFocus;
+            }
+
+            this.info(`断点恢复状态: ${status}, 跳过史官: ${skipHistorian}`);
+        } else {
+            skipHistorian = false;
+        }
+
+        if (!skipHistorian) {
+            // 3. 获取史官的事务增量 (Delta)
+            loadingToast.find('.toast-message').html(`
+                史官正在复盘本章历史...<br>
+                <div class="sbt-compact-toast-actions">
+                    <button id="sbt-early-focus-btn" class="sbt-compact-focus-btn" title="提前规划下一章">
+                        <i class="fa-solid fa-pen-ruler"></i> 规划
+                    </button>
+                    <button id="sbt-stop-transition-btn" class="sbt-compact-focus-btn sbt-stop-transition-btn" title="立即停止章节转换">    
+                        <i class="fa-solid fa-octagon-exclamation"></i> 停止
+                    </button>
+                </div>
+            `);
+            this._bindStopButton('史官阶段');
+
+            // 添加提前规划按钮的事件监听
+            $('#sbt-early-focus-btn').off('click').on('click', async () => {
+                if (this._earlyFocusPromise) {
+                    this.info("已有一个提前规划弹窗在等待输入，忽略重复点击");
+                    return;
                 }
 
-                this.info(`断点恢复状态: ${status}, 跳过史官: ${skipHistorian}`);
-            } else {
-                skipHistorian = false;
-            }
+                const $btn = $('#sbt-early-focus-btn');
+                const promise = this._captureEarlyFocusInput(workingChapter, $btn);
+                this._earlyFocusPromise = promise;
 
-            if (!skipHistorian) {
-                // 3. 获取史官的事务增量 (Delta)
-                loadingToast.find('.toast-message').html(`
-                    史官正在复盘本章历史...<br>
-                    <div class="sbt-compact-toast-actions">
-                        <button id="sbt-early-focus-btn" class="sbt-compact-focus-btn" title="提前规划下一章">
-                            <i class="fa-solid fa-pen-ruler"></i> 规划
-                        </button>
-                        <button id="sbt-stop-transition-btn" class="sbt-compact-focus-btn sbt-stop-transition-btn" title="立即停止章节转换">
-                            <i class="fa-solid fa-octagon-exclamation"></i> 停止
-                        </button>
-                    </div>
-                `);
-                this._bindStopButton('史官阶段');
+                try {
+                    await promise;
+                } catch (error) {
+                    this.warn("提前规划输入未能完成，将继续常规焦点弹窗流程", error);
+                } finally {
+                    this._earlyFocusPromise = null;
+                }
+            });
 
-                // 添加提前规划按钮的事件监听
-                $('#sbt-early-focus-btn').off('click').on('click', async () => {
-                    if (this._earlyFocusPromise) {
-                        this.info("已有一个提前规划弹窗在等待输入，忽略重复点击");
-                        return;
-                    }
+            reviewDelta = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex, this.currentTaskAbortController.signal);
 
-                    const $btn = $('#sbt-early-focus-btn');
-                    const promise = this._captureEarlyFocusInput(workingChapter, $btn);
-                    this._earlyFocusPromise = promise;
-
-                    try {
-                        await promise;
-                    } catch (error) {
-                        this.warn("提前规划输入未能完成，将继续常规焦点弹窗流程", error);
-                    } finally {
-                        this._earlyFocusPromise = null;
-                    }
-                });
-
-                this._throwIfStopRequested('史官复盘准备阶段');
-                reviewDelta = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex);
-                this._throwIfStopRequested('史官复盘阶段');
-
-                if (!reviewDelta || (!reviewDelta.creations && !reviewDelta.updates)) {
+            if (!reviewDelta || (!reviewDelta.creations && !reviewDelta.updates)) {
+                // 如果不是因为中止而失败，才显示错误
+                if (!this.currentTaskAbortController.signal.aborted) {
                     this.toastr.error(
                         "史官在复盘本章历史时遇到严重错误（很可能是网络连接问题），章节转换已中止。<br><small>请检查您的网络和API设置后，前往叙事罗盘面板手动点击按钮重试。</small>",
                         "章节转换失败",
                         { timeOut: 15000, escapeHtml: false }
                     );
-
-                    // 清除可能存在的错误临时状态
-                    this.LEADER.pendingTransition = null;
-                    this.LEADER.earlyPlayerInput = null;
-                    this.USER.saveChat();
-
-                    this._setStatus(ENGINE_STATUS.IDLE);
-                    if (loadingToast) this.toastr.clear(loadingToast);
-                    this.debugGroupEnd();
-                    return;
                 }
-
-                // 【阶段1完成】保存史官分析结果到临时存储
-                this.LEADER.pendingTransition = {
-                    historianReviewDelta: reviewDelta,
-                    playerNarrativeFocus: null,
-                    status: 'awaiting_focus'
-                };
+                // 清除可能存在的错误临时状态
+                this.LEADER.pendingTransition = null;
+                this.LEADER.earlyPlayerInput = null;
                 this.USER.saveChat();
-                this.info("史官复盘完成，中间结果已暂存（阶段1/3）。");
-
-                // 4. 获取玩家的导演焦点
-                let isFreeRoamMode = false;
-
-                if (this._earlyFocusPromise) {
-                    this.info("提前规划弹窗仍在等待玩家输入，暂停弹出常规焦点对话框...");
-                    try {
-                        await this._earlyFocusPromise;
-                    } catch (error) {
-                        this.warn("提前规划输入过程中出现异常，回退到常规焦点弹窗。", error);
-                    }
-                }
-
-                this._throwIfStopRequested('捕获玩家焦点阶段');
-
-                // 检查是否有提前输入的内容
-                if (this.LEADER.earlyPlayerInput) {
-                    this.info("使用玩家提前输入的焦点");
-                    finalNarrativeFocus = this.LEADER.earlyPlayerInput.focus;
-                    isFreeRoamMode = this.LEADER.earlyPlayerInput.freeRoam;
-                    this.LEADER.earlyPlayerInput = null; // 清除临时数据
-                    loadingToast.find('.toast-message').text("正在应用您的规划...");
-                } else {
-                    loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
-                    if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
-                        this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
-                        const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
-                        if (popupResult.freeRoam) {
-                            // 自由章模式
-                            isFreeRoamMode = true;
-                            finalNarrativeFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
-                            this.info("🎲 [自由章模式] 已激活：本章将跳过建筑师规划和回合执导，世界观档案将全部发送到前台");
-                        } else if (popupResult.abc) {
-                            // ABC沉浸流模式：添加[IMMERSION_MODE]标记
-                            const userInput = popupResult.value || "";
-                            finalNarrativeFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
-                        } else if (popupResult.confirmed && popupResult.value) {
-                            finalNarrativeFocus = popupResult.value;
-                        }
-                    }
-                }
-
-                // 【阶段2完成】更新玩家焦点到临时存储
-                this.LEADER.pendingTransition.playerNarrativeFocus = finalNarrativeFocus;
-                this.LEADER.pendingTransition.freeRoamMode = isFreeRoamMode;
-                this.LEADER.pendingTransition.status = 'awaiting_architect';
-                this.USER.saveChat();
-                this.info("玩家焦点已捕获，中间结果已更新（阶段2/3）。");
+                // 无论如何，中止流程
+                throw new Error("史官复盘失败或被中止。");
             }
 
-            // 5. 【核心】创建新章节实例并应用史官的事务增量
-            // 重要：必须创建新的Chapter实例以生成新的UID，而不是在旧章节上修改
-            const oldChapterUid = workingChapter.uid;
-
-            // 创建新章节：继承旧章节的数据，但生成新UID
-            // V5.3 修复：使用深拷贝避免对象引用污染旧章节
-            const newChapterData = JSON.parse(JSON.stringify(workingChapter.toJSON()));
-            delete newChapterData.uid; // 删除旧UID，让构造函数生成新UID
-            delete newChapterData.checksum; // 删除旧checksum
-            const newChapter = new Chapter(newChapterData);
-
-            // 应用史官的增量更新到新章节
-            let updatedNewChapter = this._applyStateUpdates(newChapter, reviewDelta);
-            updatedNewChapter.playerNarrativeFocus = finalNarrativeFocus;
-            updatedNewChapter.meta.freeRoamMode = this.LEADER.pendingTransition.freeRoamMode || false;
-
-            this.info(`✓ 已创建新章节实例（旧UID: ${oldChapterUid} → 新UID: ${updatedNewChapter.uid}）`);
-
-            // V7.2 第一次写入：将史官分析结果写入 endIndex 消息的 leader
-            // targetPiece 已在前面声明
-            targetPiece.leader = updatedNewChapter.toJSON();
+            // 【阶段1完成】保存史官分析结果到临时存储
+            this.LEADER.pendingTransition = {
+                historianReviewDelta: reviewDelta,
+                playerNarrativeFocus: null,
+                status: 'awaiting_focus'
+            };
             this.USER.saveChat();
-            this.info(`✓ [V7.2-阶段1/2] 史官分析结果已写入消息 #${endIndex} 的 leader（新章节UID: ${updatedNewChapter.uid}）`);
+            this.info("史官复盘完成，中间结果已暂存（阶段1/3）。");
 
-            // 6. 规划下一章节（使用新章节实例）
-            if (updatedNewChapter.meta.freeRoamMode) {
-                // 自由章模式：跳过建筑师规划
-                this.info("🎲 跳过建筑师规划，进入自由章模式");
-                updatedNewChapter.chapter_blueprint = {
-                    title: "自由探索",
-                    emotional_arc: "自由发挥",
-                    plot_beats: []
-                };
-                updatedNewChapter.activeChapterDesignNotes = null;
+            // 4. 获取玩家的导演焦点
+            let isFreeRoamMode = false;
+
+            if (this._earlyFocusPromise) {
+                this.info("使用玩家提前输入的焦点");
+                finalNarrativeFocus = this.LEADER.earlyPlayerInput.focus;
+                isFreeRoamMode = this.LEADER.earlyPlayerInput.freeRoam;
+                this.LEADER.earlyPlayerInput = null; // 清除临时数据
+                loadingToast.find('.toast-message').text("正在应用您的规划...");
             } else {
-                this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-                loadingToast.find('.toast-message').text("建筑师正在规划新章节...");
-                const architectResult = await this._planNextChapter(false, updatedNewChapter);
-                if (!architectResult || !architectResult.new_chapter_script) {
-                    throw new Error("建筑师未能生成新剧本。中间进度已保存，请点击按钮重试。");
+                loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
+                if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
+                    this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
+                    const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
+                    if (popupResult.freeRoam) {
+                        // 自由章模式
+                        isFreeRoamMode = true;
+                        finalNarrativeFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
+                        this.info("🎲 [自由章模式] 已激活：本章将跳过建筑师规划和回合执导，世界观档案将全部发送到前台");
+                    } else if (popupResult.abc) {
+                        // ABC沉浸流模式：添加[IMMERSION_MODE]标记
+                        const userInput = popupResult.value || "";
+                        finalNarrativeFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
+                    } else if (popupResult.confirmed && popupResult.value) {
+                        finalNarrativeFocus = popupResult.value;
+                    }
                 }
-
-                // 7. 最终化新章节状态
-                loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
-
-                // 处理 ★ 星标节拍
-                this._processStarMarkedBeats(architectResult.new_chapter_script);
-
-                updatedNewChapter.chapter_blueprint = architectResult.new_chapter_script;
-                updatedNewChapter.activeChapterDesignNotes = architectResult.design_notes;
-
-                // V3.0: 生成并缓存章节级静态上下文
-                const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
-                this.debugGroup('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
-                this.debugLog('建筑师返回的 chapter_context_ids:', chapterContextIds);
-                updatedNewChapter.cachedChapterStaticContext = this._generateChapterStaticContext(
-                    chapterContextIds,
-                    updatedNewChapter
-                );
-                this.debugLog('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
-                this.debugGroupEnd();
-                this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
             }
 
-            updatedNewChapter.lastProcessedEventUid = eventUid;
-            updatedNewChapter.checksum = simpleHash(JSON.stringify(updatedNewChapter) + Date.now());
-
-            // V7.2 第二次写入：将建筑师规划追加到 endIndex 消息的 leader
-            // targetPiece 已在第一次写入时声明，这里直接更新
-            targetPiece.leader = updatedNewChapter.toJSON();
+            // 【阶段2完成】更新玩家焦点到临时存储
+            this.LEADER.pendingTransition.playerNarrativeFocus = finalNarrativeFocus;
+            this.LEADER.pendingTransition.freeRoamMode = isFreeRoamMode;
+            this.LEADER.pendingTransition.status = 'awaiting_architect';
             this.USER.saveChat();
-            this.info(`✓ [V7.2-阶段2/2] 建筑师规划已追加到消息 #${endIndex} 的 leader（完整状态：史官+建筑师）`);
+            this.info("玩家焦点已捕获，中间结果已更新（阶段2/3）。");
+        }
 
-            // 更新内存中的当前章节
-            this.currentChapter = updatedNewChapter;
-            this.isNewChapterPendingCommit = false; // V7.2: 已经保存，不需要等待下一条消息
+        // 5. 【核心】创建新章节实例并应用史官的事务增量
+        const oldChapterUid = workingChapter.uid;
+        const newChapterData = JSON.parse(JSON.stringify(workingChapter.toJSON()));
+        delete newChapterData.uid;
+        delete newChapterData.checksum;
+        const newChapter = new Chapter(newChapterData);
 
-            // 【阶段3完成】清除临时状态（已在第二次写入时保存）
-            this.LEADER.pendingTransition = null;
-            this.LEADER.earlyPlayerInput = null;
-            // 注意：不需要再次 saveChat()，因为已在第二次写入时保存
+        let updatedNewChapter = this._applyStateUpdates(newChapter, reviewDelta);
+        updatedNewChapter.playerNarrativeFocus = finalNarrativeFocus;
+        updatedNewChapter.meta.freeRoamMode = this.LEADER.pendingTransition.freeRoamMode || false;
 
-            this.info(`[V7.2] 新章节状态已完整保存（UID: ${updatedNewChapter.uid}），史官+建筑师结果已锚定到消息 #${endIndex}（阶段3/3完成）。`);
+        this.info(`✓ 已创建新章节实例（旧UID: ${oldChapterUid} → 新UID: ${updatedNewChapter.uid}）`);
 
-            // 8. 触发UI更新
-            try {
-                this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
-                this.toastr.success("章节已更新，仪表盘已刷新！", "无缝衔接");
-            } catch (uiError) {
-                this.diagnose("UI更新操作失败，但这不会影响核心状态的保存。", uiError);
-                this.toastr.warning("后台状态已更新，但UI刷新失败，请手动刷新页面。", "UI警告");
+        targetPiece.leader = updatedNewChapter.toJSON();
+        this.USER.saveChat();
+        this.info(`✓ [V7.2-阶段1/2] 史官分析结果已写入消息 #${endIndex} 的 leader（新章节UID: ${updatedNewChapter.uid}）`);
+
+        // 6. 规划下一章节（使用新章节实例）
+        if (updatedNewChapter.meta.freeRoamMode) {
+            this.info("🎲 跳过建筑师规划，进入自由章模式");
+            updatedNewChapter.chapter_blueprint = { title: "自由探索", emotional_arc: "自由发挥", plot_beats: [] };
+            updatedNewChapter.activeChapterDesignNotes = null;
+        } else {
+            this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
+            loadingToast.find('.toast-message').text("建筑师正在规划新章节...");
+            this._bindStopButton('建筑师阶段');
+            const architectResult = await this._planNextChapter(false, updatedNewChapter, null, this.currentTaskAbortController.signal);    
+            if (!architectResult || !architectResult.new_chapter_script) {
+                throw new Error("建筑师未能生成新剧本。中间进度已保存，请点击按钮重试。");
             }
 
-        } catch (error) {
+            loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
+            this._processStarMarkedBeats(architectResult.new_chapter_script);
+            updatedNewChapter.chapter_blueprint = architectResult.new_chapter_script;
+            updatedNewChapter.activeChapterDesignNotes = architectResult.design_notes;
+
+            const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
+            this.debugGroup('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
+            this.debugLog('建筑师返回的 chapter_context_ids:', chapterContextIds);
+            updatedNewChapter.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds, updatedNewChapter);        
+            this.debugLog('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
+            this.debugGroupEnd();
+            this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
+        }
+
+        updatedNewChapter.lastProcessedEventUid = eventUid;
+        updatedNewChapter.checksum = simpleHash(JSON.stringify(updatedNewChapter) + Date.now());
+
+        targetPiece.leader = updatedNewChapter.toJSON();
+        this.USER.saveChat();
+        this.info(`✓ [V7.2-阶段2/2] 建筑师规划已追加到消息 #${endIndex} 的 leader（完整状态：史官+建筑师）`);
+
+        this.currentChapter = updatedNewChapter;
+        this.isNewChapterPendingCommit = false;
+
+        this.LEADER.pendingTransition = null;
+        this.LEADER.earlyPlayerInput = null;
+
+        this.info(`[V7.2] 新章节状态已完整保存（UID: ${updatedNewChapter.uid}），史官+建筑师结果已锚定到消息 #${endIndex}（阶段3/3完成）。`)
+
+        try {
+            this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+            this.toastr.success("章节已更新，仪表盘已刷新！", "无缝衔接");
+        } catch (uiError) {
+            this.diagnose("UI更新操作失败，但这不会影响核心状态的保存。", uiError);
+            this.toastr.warning("后台状态已更新，但UI刷新失败，请手动刷新页面。", "UI警告");
+        }
+
+    } catch (error) {
+        if (error.name === 'AbortError' || error.code === 'SBT_TRANSITION_STOP') {
+            this.warn('章节转换流程被强制中止。');
+            this._cleanupAfterTransitionStop();
+            this.toastr.info("章节转换已由用户成功中止。", "操作已取消");
+        } else {
             this.diagnose("章节转换流程中发生严重错误:", error);
             this.toastr.error(`${error.message}`, "章节规划失败", { timeOut: 10000 });
-            // 清除临时数据
-            this.LEADER.earlyPlayerInput = null;
-        } finally {
-            this._setStatus(ENGINE_STATUS.IDLE);
-            if (loadingToast) {
-                this.toastr.clear(loadingToast);
-            }
-            this.debugGroupEnd();
         }
-    }
-    async _runStrategicReview(chapterContext, startIndex, endIndex) {
-        this.debugGroup("BRIDGE-PROBE [STRATEGIC-REVIEW]");
-        this.info("史官正在复盘本章历史...");
-
-        let reviewDelta = null;
-        try {
-            const chat = this.USER.getContext().chat;
-            const chapterMessages = [];
-            // 安全地提取消息，即使startIndex为-1（表示新游戏）
-            const safeStartIndex = Math.max(0, startIndex + 1);
-            for (let i = safeStartIndex; i <= endIndex; i++) {
-                if(chat[i]) chapterMessages.push(chat[i]);
-            }
-
-            const chapterTranscript = chapterMessages.length > 0
-                ? chapterMessages.map(msg => `[${msg.is_user ? "{{user}}" : "{{char}}"}]:\n${msg.mes}`).join('\n\n---\n\n')
-                : "【本章无实质性对话】";
-
-            const contextForHistorian = {
-                chapterTranscript,
-                chapter: chapterContext,
-            };
-
-            reviewDelta = await this.historianAgent.execute(contextForHistorian);
-
-        } catch (error) {
-            this.diagnose("在 _runStrategicReview 过程中发生错误:", error);
-        } finally {
-            this.debugGroupEnd();
-            return reviewDelta;
+        this.LEADER.earlyPlayerInput = null;
+    } finally {
+        this._setStatus(ENGINE_STATUS.IDLE);
+        this.currentTaskAbortController = null;
+        if (loadingToast) {
+            this.toastr.clear(loadingToast);
         }
+        this.debugGroupEnd();
     }
+}
+async _runStrategicReview(chapterContext, startIndex, endIndex, abortSignal = null) {
+    this.debugGroup("BRIDGE-PROBE [STRATEGIC-REVIEW]");
+    this.info("史官正在复盘本章历史...");
+
+    let reviewDelta = null;
+    try {
+        this._throwIfStopRequested('史官复盘准备阶段');
+        const chat = this.USER.getContext().chat;
+        const chapterMessages = [];
+        const safeStartIndex = Math.max(0, startIndex + 1);
+        for (let i = safeStartIndex; i <= endIndex; i++) {
+            if(chat[i]) chapterMessages.push(chat[i]);
+        }
+
+        const chapterTranscript = chapterMessages.length > 0
+            ? chapterMessages.map(msg => `[${msg.is_user ? "{{user}}" : "{{char}}"}]:\n${msg.mes}`).join('\n\n---\n\n')
+            : "【本章无实质性对话】";
+
+        const contextForHistorian = {
+            chapterTranscript,
+            chapter: chapterContext,
+        };
+
+        reviewDelta = await this.historianAgent.execute(contextForHistorian, abortSignal);
+        this._throwIfStopRequested('史官复盘阶段');
+
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            throw error; // 向上抛出中止错误
+        }
+        this.diagnose("在 _runStrategicReview 过程中发生错误:", error);
+        // 其他错误不抛出，让上层根据 reviewDelta === null 来处理
+    } finally {
+        this.debugGroupEnd();
+        return reviewDelta;
+    }
+}
 
 
 /**创世纪流程启动器。*/
@@ -3643,19 +3635,19 @@ async forceChapterTransition() {
         }
     }
 }
-async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessageContent = null) {
+async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessageContent = null, abortSignal = null) {
     this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
     const action = isGenesis ? "开篇章节" : "下一章节";
     this.info(`--- 启动“章节建筑师”规划${action}...`);
-    
+
     const chapterContext = chapterForPlanning || this.currentChapter;
-     const contextForArchitect = {
+    const contextForArchitect = {
         system_confidence: isGenesis ? 0.1 : 0.5,
         player_profile: { description: "暂无画像。" },
         chapter: chapterContext,
         firstMessageContent: firstMessageContent
     };
-    
+
     this.debugGroup(`BRIDGE-PROBE [PLAN-CHAPTER]`);
     this.diagnose(`PLAN-1: 正在调用 ArchitectAgent (${isGenesis ? '创世纪模式' : '常规模式'})...`);
     this.debugGroupCollapsed("传递给 ArchitectAgent 的完整 'context' 对象:");
@@ -3663,24 +3655,25 @@ async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessag
     this.debugGroupEnd();
 
     try {
-        const architectResult = await this.architectAgent.execute(contextForArchitect);
+        const architectResult = await this.architectAgent.execute(contextForArchitect, abortSignal);
         if (architectResult && architectResult.new_chapter_script && architectResult.design_notes) {
             this.info("PLAN-2-SUCCESS: ArchitectAgent 成功生成新剧本及其设计笔记。");
-            return architectResult; // 直接返回这个结构清晰的对象
+            return architectResult;
         } else {
             this.warn("PLAN-2-FAIL: ArchitectAgent 未能返回有效的剧本和设计笔记。");
-            // 记录下失败时的返回内容，以便调试
             this.diagnose("ArchitectAgent 返回了无效或不完整的结构:", architectResult);
             return null;
         }
     } catch (error) {
+        if (error.name === 'AbortError') {
+            throw error; // 向上抛出中止错误
+        }
         this.diagnose(`章节建筑师在规划时失败:`, error);
         return null;
     } finally {
         this.debugGroupEnd();
     }
 }
-    
     setNarrativeFocus(focusText) {
         // 【轻度保护】如果引擎关闭，记录警告但允许设置焦点
         const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';

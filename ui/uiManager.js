@@ -1,6 +1,6 @@
 // ui/uiManager.js
 import { SbtPopupConfirm } from './SbtPopupConfirm.js';
-import { updateDashboard, showCharacterDetailModal, showWorldviewDetailModal, showStorylineDetailModal, showRelationshipDetailModal } from './renderers.js';
+import { updateDashboard, resolveRenderableChapterState, showCharacterDetailModal, showWorldviewDetailModal, showStorylineDetailModal, showRelationshipDetailModal } from './renderers.js';
 import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
@@ -109,10 +109,23 @@ $('#extensions-settings-button').after(html);
         }
     // -- 维护当前章节状态的全局引用 --
     let currentChapterState = null;
+
+    // 辅助函数：在交互时获取“最真实”的章节状态
+    // 优先尝试从聊天记录中捞取 Leader，以防 UI 停留在静态预览模式
+    const getEffectiveChapterState = () => {
+        const resolvedState = resolveRenderableChapterState(currentChapterState);
+        if (resolvedState && resolvedState !== currentChapterState) {
+            currentChapterState = resolvedState;
+        }
+        return currentChapterState;
+    };
+
+    let hasRenderedLiveChapter = false;
     const refreshStaticModeBanner = () => {
         const $banner = $('#sbt-static-mode-banner');
         if ($banner.length === 0) return;
-        if (isStaticArchiveState(currentChapterState)) {
+        const liveFlag = hasRenderedLiveChapter || (typeof window !== 'undefined' && window.__sbtLiveLeaderAvailable === true);
+        if (!liveFlag && isStaticArchiveState(currentChapterState)) {
             $banner.show();
         } else {
             $banner.hide();
@@ -122,86 +135,101 @@ $('#extensions-settings-button').after(html);
     // 监听CHAPTER_UPDATED事件，保存最新的章节状态
     if (deps.eventBus) {
         deps.eventBus.on('CHAPTER_UPDATED', (chapterState) => {
-            currentChapterState = chapterState;
-            refreshStaticModeBanner();
+            const resolvedState = resolveRenderableChapterState(chapterState);
+            if (resolvedState) {
+                currentChapterState = resolvedState;
+                if (!isStaticArchiveState(resolvedState)) {
+                    hasRenderedLiveChapter = true;
+                    if (typeof window !== 'undefined') {
+                        window.__sbtLiveLeaderAvailable = true;
+                    }
+                }
+                refreshStaticModeBanner();
+            }
         });
     }
 
-    // -- 加载缓存的静态数据并显示 --
-    function loadAndDisplayCachedStaticData() {
-        try {
-            const db = staticDataManager.getFullDatabase();
-            const characterIds = Object.keys(db);
+    // 【V9.1 修复】实现带重试的轮询机制
+    const getDynamicStateWithRetry = async (maxRetries = 5, interval = 300) => {
+        for (let i = 0; i < maxRetries; i++) {
+            const resolvedState = resolveRenderableChapterState(null); // 强制重新解析
+            if (resolvedState && !isStaticArchiveState(resolvedState)) {
+                deps.info(`[UIManager] 动态Leader状态获取成功 (尝试 ${i + 1}/${maxRetries})`);
+                return resolvedState;
+            }
+            deps.info(`[UIManager] 未找到动态Leader状态，将在 ${interval}ms 后重试... (尝试 ${i + 1}/${maxRetries})`);
+            await new Promise(resolve => setTimeout(resolve, interval));
+        }
+        deps.warn(`[UIManager] 多次尝试后仍未找到动态Leader状态。`);
+        return null;
+    };
 
-            if (characterIds.length === 0) {
+    // -- 加载缓存的静态数据并显示 (V9.1 重构为异步轮询) --
+    async function loadAndDisplayCachedStaticData() {
+        try {
+            const liveState = await getDynamicStateWithRetry();
+
+            if (liveState) {
+                currentChapterState = liveState;
+                hasRenderedLiveChapter = true;
+                if (typeof window !== 'undefined') {
+                    window.__sbtLiveLeaderAvailable = true;
+                }
+                updateDashboard(liveState);
+                deps.info('[UIManager] 检测到动态章节状态，已成功加载。');
+                refreshStaticModeBanner();
+                return;
+            }
+            
+            // 如果轮询失败，则降级到静态缓存
+            deps.info('[UIManager] 降级到静态缓存预览模式。');
+            const db = staticDataManager.getFullDatabase();
+            const context = applicationFunctionManager.getContext ? applicationFunctionManager.getContext() : null;
+            const activeCharId = context?.characterId;
+
+            if (!activeCharId) {
+                deps.info('[UIManager] 未检测到当前角色ID，静态档案预览跳过。');
+                return;
+            }
+
+            if (!db || Object.keys(db).length === 0) {
                 deps.info('[UIManager] 静态数据库为空，无缓存数据可加载');
                 return;
             }
 
-            // 取第一个角色的数据（或者可以根据某种优先级选择）
-            const firstCharId = characterIds[0];
-            const cachedData = db[firstCharId];
+            const cachedData = db[activeCharId];
 
             if (!cachedData || !cachedData.characters || !cachedData.worldview) {
-                deps.info('[UIManager] 缓存数据结构不完整，跳过加载');
+                deps.info(`[UIManager] 角色 ${activeCharId} 暂无静态缓存数据，跳过加载`);
                 return;
             }
 
-            deps.info(`[UIManager] 找到缓存数据，正在加载角色: ${firstCharId}`);
+            deps.info(`[UIManager] 找到缓存数据，正在加载角色: ${activeCharId}`);
 
-            // 构造一个临时的 chapterState 对象
             const tempChapterState = {
                 uid: TEMP_CACHE_UID,
                 __source: STATIC_CACHE_SOURCE,
-                characterId: firstCharId,
+                characterId: activeCharId,
                 staticMatrices: {
                     characters: cachedData.characters || {},
-                    worldview: cachedData.worldview || {
-                        locations: {},
-                        items: {},
-                        factions: {},
-                        concepts: {},
-                        events: {},
-                        races: {}
-                    },
-                    storylines: cachedData.storylines || {
-                        main_quests: {},
-                        side_quests: {},
-                        relationship_arcs: {},
-                        personal_arcs: {}
-                    },
+                    worldview: cachedData.worldview || { locations: {}, items: {}, factions: {}, concepts: {}, events: {}, races: {} },
+                    storylines: cachedData.storylines || { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} },
                     relationship_graph: cachedData.relationship_graph || { edges: [] }
                 },
-                dynamicState: {
-                    characters: {},
-                    worldview: {},
-                    storylines: {
-                        main_quests: {},
-                        side_quests: {},
-                        relationship_arcs: {},
-                        personal_arcs: {}
-                    }
-                },
-                meta: {
-                    longTermStorySummary: '（缓存数据预览）',
-                    lastChapterHandoff: null
-                },
+                dynamicState: { characters: {}, worldview: {}, storylines: { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} } },
+                meta: { longTermStorySummary: '（缓存数据预览）', lastChapterHandoff: null },
                 chapter_blueprint: {},
-                activeChapterDesignNotes: null  // 添加设计笔记字段，避免覆盖真实数据
+                activeChapterDesignNotes: null
             };
 
-            // 只在没有真实章节状态时才显示缓存数据（避免覆盖建筑师生成的设计笔记）
             if (!currentChapterState || isStaticArchiveState(currentChapterState)) {
-                // 更新当前状态引用
                 currentChapterState = tempChapterState;
-                refreshStaticModeBanner();
-
-                // 调用 updateDashboard 显示数据
                 updateDashboard(tempChapterState);
                 deps.info('[UIManager] 已显示缓存数据预览');
             } else {
                 deps.info('[UIManager] 检测到真实章节状态，跳过缓存数据加载（避免覆盖）');
             }
+            refreshStaticModeBanner();
 
         } catch (error) {
             deps.diagnose('[UIManager] 加载缓存静态数据时出错:', error);
@@ -265,12 +293,13 @@ $('#extensions-settings-button').after(html);
         const $field = $(this);
         const fieldPath = $field.data('field');
         const newValue = $field.text().trim();
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState || !fieldPath) return;
+        if (!effectiveState || !fieldPath) return;
 
         // 更新chapter_blueprint中的对应字段
         const pathParts = fieldPath.split('.');
-        let target = currentChapterState.chapter_blueprint;
+        let target = effectiveState.chapter_blueprint;
 
         // 导航到目标对象
         for (let i = 0; i < pathParts.length - 1; i++) {
@@ -289,11 +318,11 @@ $('#extensions-settings-button').after(html);
 
             // 保存并触发更新
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('blueprint_updated', currentChapterState);
+                deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
             }
 
             if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
             deps.toastr.success(`已更新"${fieldPath}"`, '保存成功');
@@ -305,20 +334,21 @@ $('#extensions-settings-button').after(html);
         const $field = $(this);
         const beatIndex = parseInt($field.data('beat-index'), 10);
         const newValue = $field.text().trim();
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState || isNaN(beatIndex)) return;
+        if (!effectiveState || isNaN(beatIndex)) return;
 
-        const beat = currentChapterState.chapter_blueprint?.plot_beats?.[beatIndex];
+        const beat = effectiveState.chapter_blueprint?.plot_beats?.[beatIndex];
         if (beat && beat.description !== newValue) {
             beat.description = newValue;
 
             // 保存并触发更新
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('blueprint_updated', currentChapterState);
+                deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
             }
 
             if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
             deps.toastr.success(`已更新节拍 ${beatIndex + 1}`, '保存成功');
@@ -330,20 +360,21 @@ $('#extensions-settings-button').after(html);
         const $field = $(this);
         const beatIndex = parseInt($field.data('beat-index'), 10);
         const newValue = $field.text().trim();
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState || isNaN(beatIndex)) return;
+        if (!effectiveState || isNaN(beatIndex)) return;
 
-        const beat = currentChapterState.chapter_blueprint?.plot_beats?.[beatIndex];
+        const beat = effectiveState.chapter_blueprint?.plot_beats?.[beatIndex];
         if (beat && beat.exit_condition !== newValue) {
             beat.exit_condition = newValue;
 
             // 保存并触发更新
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('blueprint_updated', currentChapterState);
+                deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
             }
 
             if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
             deps.toastr.success(`已更新节拍 ${beatIndex + 1} 的退出条件`, '保存成功');
@@ -355,10 +386,11 @@ $('#extensions-settings-button').after(html);
         const $field = $(this);
         const beaconIndex = parseInt($field.data('beacon-index'), 10);
         const newValue = $field.text().trim();
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState || isNaN(beaconIndex)) return;
+        if (!effectiveState || isNaN(beaconIndex)) return;
 
-        const blueprint = currentChapterState.chapter_blueprint;
+        const blueprint = effectiveState.chapter_blueprint;
         if (!blueprint) return;
 
         // 兼容单数和复数格式
@@ -377,11 +409,11 @@ $('#extensions-settings-button').after(html);
 
             // 保存并触发更新
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('blueprint_updated', currentChapterState);
+                deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
             }
 
             if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
             deps.toastr.success(`已更新终章信标 ${beaconIndex + 1}`, '保存成功');
@@ -393,11 +425,12 @@ $('#extensions-settings-button').after(html);
         e.stopPropagation();
         const $btn = $(this);
         const charId = $btn.data('char-id');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
         // 获取角色数据
-        const char = currentChapterState.staticMatrices.characters[charId];
+        const char = effectiveState.staticMatrices.characters[charId];
         if (!char) return;
 
         // 切换隐藏状态
@@ -405,7 +438,7 @@ $('#extensions-settings-button').after(html);
 
         // 保存状态（即使失败也继续更新UI）
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('character_visibility_toggled', currentChapterState)
+            deps.onSaveCharacterEdit('character_visibility_toggled', effectiveState)
                 .catch(err => {
                     deps.warn('[角色隐藏] 状态保存失败，但UI已更新:', err);
                 });
@@ -413,7 +446,7 @@ $('#extensions-settings-button').after(html);
 
         // 触发更新事件
         if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
         }
 
         // 显示提示
@@ -424,20 +457,22 @@ $('#extensions-settings-button').after(html);
 
     $wrapper.on('click', '#sbt-archive-characters .sbt-archive-card', function() {
         const charId = $(this).data('char-id');
-        if (charId && currentChapterState) {
-            showCharacterDetailModal(charId, currentChapterState, false, false);
+        const effectiveState = getEffectiveChapterState();
+        if (charId && effectiveState) {
+            showCharacterDetailModal(charId, effectiveState, false, false);
         }
     });
 
     // -- 世界档案面板: 新建角色 --
     $wrapper.on('click', '.sbt-add-character-btn', function() {
-        if (!currentChapterState) return;
+        const effectiveState = getEffectiveChapterState();
+        if (!effectiveState) return;
 
         // 生成临时ID
         const tempId = `char_new_${Date.now()}`;
 
         // 打开详情面板（新建模式）
-        showCharacterDetailModal(tempId, currentChapterState, true, true);
+        showCharacterDetailModal(tempId, effectiveState, true, true);
     });
 
     // -- 世界档案面板: 关闭角色详情 --
@@ -449,10 +484,11 @@ $('#extensions-settings-button').after(html);
     $wrapper.on('click', '.sbt-edit-mode-toggle', function() {
         const $btn = $(this);
         const charId = $btn.data('char-id');
+        const effectiveState = getEffectiveChapterState();
 
-        if (charId && currentChapterState) {
+        if (charId && effectiveState) {
             // 重新渲染为编辑模式
-            showCharacterDetailModal(charId, currentChapterState, true);
+            showCharacterDetailModal(charId, effectiveState, true);
         }
     });
 
@@ -460,15 +496,16 @@ $('#extensions-settings-button').after(html);
     $wrapper.on('click', '.sbt-cancel-edit-btn', function() {
         const $btn = $(this);
         const charId = $btn.data('char-id');
+        const effectiveState = getEffectiveChapterState();
 
         // 检查是否是新建模式（charId以char_new_开头）
         if (charId.startsWith('char_new_')) {
             // 新建模式取消直接关闭面板
             $('#sbt-character-detail-panel').hide();
         } else {
-            if (charId && currentChapterState) {
+            if (charId && effectiveState) {
                 // 重新渲染为查看模式
-                showCharacterDetailModal(charId, currentChapterState, false, false);
+                showCharacterDetailModal(charId, effectiveState, false, false);
             }
         }
     });
@@ -477,10 +514,11 @@ $('#extensions-settings-button').after(html);
     $wrapper.on('click', '.sbt-delete-character-btn', function() {
         const $btn = $(this);
         const charId = $btn.data('char-id');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
-        const char = currentChapterState.staticMatrices.characters[charId];
+        const char = effectiveState.staticMatrices.characters[charId];
         if (!char) {
             deps.toastr.error('找不到该角色', '错误');
             return;
@@ -501,11 +539,11 @@ $('#extensions-settings-button').after(html);
         }
 
         // 删除角色
-        delete currentChapterState.staticMatrices.characters[charId];
+        delete effectiveState.staticMatrices.characters[charId];
 
         // 同时删除动态状态
-        if (currentChapterState.dynamicState.characters?.[charId]) {
-            delete currentChapterState.dynamicState.characters[charId];
+        if (effectiveState.dynamicState.characters?.[charId]) {
+            delete effectiveState.dynamicState.characters[charId];
         }
 
         // 关闭详情面板
@@ -513,12 +551,12 @@ $('#extensions-settings-button').after(html);
 
         // 保存并刷新
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('character_deleted', currentChapterState);
+            deps.onSaveCharacterEdit('character_deleted', effectiveState);
         }
 
         // 触发更新事件
         if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
         }
 
         deps.toastr.success(`角色"${charName}"已删除`, '删除成功');
@@ -529,8 +567,9 @@ $('#extensions-settings-button').after(html);
         const $btn = $(this);
         const oldCharId = $btn.data('char-id');
         const isNew = $btn.data('is-new') === 'true' || $btn.data('is-new') === true;
+        const effectiveState = getEffectiveChapterState();
 
-        if (!oldCharId || !currentChapterState) return;
+        if (!oldCharId || !effectiveState) return;
 
         try {
             $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin fa-fw"></i> 保存中...');
@@ -647,7 +686,7 @@ $('#extensions-settings-button').after(html);
                 console.log(`新建角色，生成ID: ${newCharId}`);
 
                 // 创建新角色对象
-                currentChapterState.staticMatrices.characters[newCharId] = {
+                effectiveState.staticMatrices.characters[newCharId] = {
                     core: {
                         name: '',
                         identity: '',
@@ -668,7 +707,7 @@ $('#extensions-settings-button').after(html);
             }
 
             // 更新角色数据
-            const char = currentChapterState.staticMatrices.characters[newCharId];
+            const char = effectiveState.staticMatrices.characters[newCharId];
             if (!char) {
                 throw new Error('角色数据未找到');
             }
@@ -710,24 +749,24 @@ $('#extensions-settings-button').after(html);
                 }
 
                 // 确保 dynamicState.characters 存在
-                if (!currentChapterState.dynamicState) {
-                    currentChapterState.dynamicState = { characters: {}, worldview: {}, storylines: {} };
+                if (!effectiveState.dynamicState) {
+                    effectiveState.dynamicState = { characters: {}, worldview: {}, storylines: {} };
                 }
-                if (!currentChapterState.dynamicState.characters) {
-                    currentChapterState.dynamicState.characters = {};
+                if (!effectiveState.dynamicState.characters) {
+                    effectiveState.dynamicState.characters = {};
                 }
-                if (!currentChapterState.dynamicState.characters[fromCharId]) {
-                    currentChapterState.dynamicState.characters[fromCharId] = { relationships: {} };
+                if (!effectiveState.dynamicState.characters[fromCharId]) {
+                    effectiveState.dynamicState.characters[fromCharId] = { relationships: {} };
                 }
-                if (!currentChapterState.dynamicState.characters[fromCharId].relationships) {
-                    currentChapterState.dynamicState.characters[fromCharId].relationships = {};
+                if (!effectiveState.dynamicState.characters[fromCharId].relationships) {
+                    effectiveState.dynamicState.characters[fromCharId].relationships = {};
                 }
-                if (!currentChapterState.dynamicState.characters[fromCharId].relationships[toCharId]) {
-                    currentChapterState.dynamicState.characters[fromCharId].relationships[toCharId] = { history: [] };
+                if (!effectiveState.dynamicState.characters[fromCharId].relationships[toCharId]) {
+                    effectiveState.dynamicState.characters[fromCharId].relationships[toCharId] = { history: [] };
                 }
 
                 // 更新好感度值
-                currentChapterState.dynamicState.characters[fromCharId].relationships[toCharId].current_affinity = normalizedAffinity;
+                effectiveState.dynamicState.characters[fromCharId].relationships[toCharId].current_affinity = normalizedAffinity;
 
                 console.log(`好感度已更新: ${fromCharId} 对 ${toCharId} = ${normalizedAffinity}`);
             }
@@ -736,21 +775,21 @@ $('#extensions-settings-button').after(html);
 
             // 如果有保存回调函数，调用它
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                await deps.onSaveCharacterEdit(newCharId, currentChapterState);
+                await deps.onSaveCharacterEdit(newCharId, effectiveState);
             }
 
             deps.toastr.success(isNew ? '角色已成功创建！' : '角色档案已成功更新！', '保存成功');
 
             // 触发更新事件
             if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
             // 如果是新建，关闭面板；如果是编辑，返回查看模式
             if (isNew) {
                 $('#sbt-character-detail-panel').hide();
             } else {
-                showCharacterDetailModal(newCharId, currentChapterState, false, false);
+                showCharacterDetailModal(newCharId, effectiveState, false, false);
             }
 
         } catch (error) {
@@ -790,8 +829,9 @@ $('#extensions-settings-button').after(html);
         const $card = $(this).closest('.sbt-worldview-card');
         const itemId = $card.data('item-id');
         const category = $card.data('category');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
         // 获取类别中文名
         const categoryNames = {
@@ -804,7 +844,7 @@ $('#extensions-settings-button').after(html);
         };
         const categoryName = categoryNames[category] || '词条';
 
-        showWorldviewDetailModal(itemId, category, categoryName, currentChapterState, false, false);
+        showWorldviewDetailModal(itemId, category, categoryName, effectiveState, false, false);
     });
 
     // -- 世界观: 隐藏/显示切换按钮 --
@@ -813,11 +853,12 @@ $('#extensions-settings-button').after(html);
         const $btn = $(this);
         const itemId = $btn.data('item-id');
         const category = $btn.data('category');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
         // 获取当前档案数据
-        const item = currentChapterState.staticMatrices.worldview[category][itemId];
+        const item = effectiveState.staticMatrices.worldview[category][itemId];
         if (!item) return;
 
         // 切换隐藏状态
@@ -825,7 +866,7 @@ $('#extensions-settings-button').after(html);
 
         // 保存状态（即使失败也继续更新UI）
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('worldview_visibility_toggled', currentChapterState)
+            deps.onSaveCharacterEdit('worldview_visibility_toggled', effectiveState)
                 .catch(err => {
                     deps.warn('[世界观隐藏] 状态保存失败，但UI已更新:', err);
                 });
@@ -833,7 +874,7 @@ $('#extensions-settings-button').after(html);
 
         // 触发更新事件
         if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
         }
 
         // 显示提示
@@ -848,11 +889,12 @@ $('#extensions-settings-button').after(html);
         const itemId = $btn.data('item-id');
         const category = $btn.data('category');
         const categoryName = $btn.data('category-name');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
         // 直接打开编辑模式
-        showWorldviewDetailModal(itemId, category, categoryName, currentChapterState, true, false);
+        showWorldviewDetailModal(itemId, category, categoryName, effectiveState, true, false);
     });
 
     // -- 世界观: 新建词条 --
@@ -860,14 +902,15 @@ $('#extensions-settings-button').after(html);
         const $btn = $(this);
         const category = $btn.data('category');
         const categoryName = $btn.data('category-name');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
         // 生成临时ID
         const tempId = `new_${Date.now()}`;
 
         // 打开详情面板（新建模式）
-        showWorldviewDetailModal(tempId, category, categoryName, currentChapterState, true, true);
+        showWorldviewDetailModal(tempId, category, categoryName, effectiveState, true, true);
     });
 
     // -- 世界观: 关闭详情面板 --
@@ -888,29 +931,32 @@ $('#extensions-settings-button').after(html);
     // -- 关系图谱: 编辑模式切换 --
     $wrapper.on('click', '.sbt-edit-relationship-mode-toggle', function() {
         const edgeId = $(this).data('edge-id');
-        if (!currentChapterState) return;
+        const effectiveState = getEffectiveChapterState();
+        if (!effectiveState) return;
 
-        showRelationshipDetailModal(edgeId, currentChapterState, true);
+        showRelationshipDetailModal(edgeId, effectiveState, true);
     });
 
     // -- 关系图谱: 取消编辑 --
     $wrapper.on('click', '.sbt-cancel-relationship-edit-btn', function() {
         const edgeId = $(this).data('edge-id');
-        if (!currentChapterState) return;
+        const effectiveState = getEffectiveChapterState();
+        if (!effectiveState) return;
 
-        showRelationshipDetailModal(edgeId, currentChapterState, false);
+        showRelationshipDetailModal(edgeId, effectiveState, false);
     });
 
     // -- 关系图谱: 保存修改 --
     $wrapper.on('click', '.sbt-save-relationship-btn', function() {
         const edgeId = $(this).data('edge-id');
-        if (!currentChapterState) return;
+        const effectiveState = getEffectiveChapterState();
+        if (!effectiveState) return;
 
         try {
             const $panel = $('#sbt-relationship-detail-content');
 
             // 获取relationship_graph中的edge
-            const relationshipGraph = currentChapterState.staticMatrices.relationship_graph;
+            const relationshipGraph = effectiveState.staticMatrices.relationship_graph;
             const edge = relationshipGraph?.edges?.find(e => e.id === edgeId);
 
             if (!edge) {
@@ -936,18 +982,18 @@ $('#extensions-settings-button').after(html);
 
             // 保存
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('relationship_updated', currentChapterState);
+                deps.onSaveCharacterEdit('relationship_updated', effectiveState);
             }
 
             // 触发更新事件
             if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
             deps.toastr.success('关系已更新', '保存成功');
 
             // 返回查看模式
-            showRelationshipDetailModal(edgeId, currentChapterState, false);
+            showRelationshipDetailModal(edgeId, effectiveState, false);
 
         } catch (error) {
             deps.diagnose('[UIManager] 保存关系修改时发生错误:', error);
@@ -982,9 +1028,10 @@ $('#extensions-settings-button').after(html);
         const itemId = $btn.data('item-id');
         const category = $btn.data('category');
         const categoryName = $btn.data('category-name');
+        const effectiveState = getEffectiveChapterState();
 
-        if (currentChapterState) {
-            showWorldviewDetailModal(itemId, category, categoryName, currentChapterState, true, false);
+        if (effectiveState) {
+            showWorldviewDetailModal(itemId, category, categoryName, effectiveState, true, false);
         }
     });
 
@@ -1003,8 +1050,9 @@ $('#extensions-settings-button').after(html);
             $('#sbt-worldview-detail-panel').hide();
         } else {
             // 编辑模式返回查看模式
-            if (currentChapterState) {
-                showWorldviewDetailModal(itemId, category, categoryName, currentChapterState, false, false);
+            const effectiveState = getEffectiveChapterState();
+            if (effectiveState) {
+                showWorldviewDetailModal(itemId, category, categoryName, effectiveState, false, false);
             }
         }
     });
@@ -1014,10 +1062,11 @@ $('#extensions-settings-button').after(html);
         const $btn = $(this);
         const itemId = $btn.data('item-id');
         const category = $btn.data('category');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
-        const item = currentChapterState.staticMatrices.worldview[category]?.[itemId];
+        const item = effectiveState.staticMatrices.worldview[category]?.[itemId];
         if (!item) {
             deps.toastr.error('找不到该词条', '错误');
             return;
@@ -1029,7 +1078,7 @@ $('#extensions-settings-button').after(html);
         }
 
         // 删除词条
-        delete currentChapterState.staticMatrices.worldview[category][itemId];
+        delete effectiveState.staticMatrices.worldview[category][itemId];
 
         // 关闭详情面板
         $('#sbt-worldview-detail-panel').hide();
@@ -1045,8 +1094,9 @@ $('#extensions-settings-button').after(html);
         const oldItemId = $btn.data('item-id');
         const category = $btn.data('category');
         const isNew = $btn.data('is-new') === 'true' || $btn.data('is-new') === true;
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
         try {
             $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin fa-fw"></i> 保存中...');
@@ -1066,17 +1116,17 @@ $('#extensions-settings-button').after(html);
             const newItemId = name.replace(/\s+/g, '_');
 
             // 确保category存在
-            if (!currentChapterState.staticMatrices.worldview[category]) {
-                currentChapterState.staticMatrices.worldview[category] = {};
+            if (!effectiveState.staticMatrices.worldview[category]) {
+                effectiveState.staticMatrices.worldview[category] = {};
             }
 
             // 如果是编辑且ID改变了，删除旧词条
             if (!isNew && oldItemId !== newItemId) {
-                delete currentChapterState.staticMatrices.worldview[category][oldItemId];
+                delete effectiveState.staticMatrices.worldview[category][oldItemId];
             }
 
             // 创建或更新词条
-            currentChapterState.staticMatrices.worldview[category][newItemId] = {
+            effectiveState.staticMatrices.worldview[category][newItemId] = {
                 name: name,
                 description: description || '暂无描述'
             };
@@ -1099,17 +1149,18 @@ $('#extensions-settings-button').after(html);
     // 保存世界观修改的辅助函数
     async function saveWorldviewChanges() {
         try {
+            const effectiveState = getEffectiveChapterState();
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                await deps.onSaveCharacterEdit('worldview', currentChapterState);
+                await deps.onSaveCharacterEdit('worldview', effectiveState);
             }
 
             // 触发更新事件
             if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
             // 重新渲染世界档案面板
-            updateDashboard(currentChapterState);
+            updateDashboard(effectiveState);
         } catch (error) {
             deps.diagnose('[UIManager] 保存世界观修改时发生错误:', error);
             deps.toastr.error(`保存失败: ${error.message}`, '错误');
@@ -1276,15 +1327,17 @@ $('#extensions-settings-button').after(html);
         const lineId = $(this).data('storyline-id');
         const category = $(this).data('category');
         const categoryName = $(this).data('category-name');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState || !lineId || !category) return;
+        if (!effectiveState || !lineId || !category) return;
 
-        showStorylineDetailModal(lineId, category, categoryName, currentChapterState, false, false);
+        showStorylineDetailModal(lineId, category, categoryName, effectiveState, false, false);
     });
 
     // -- V8.0: 故事线追踪 - 新建故事线 --
     $wrapper.on('click', '.sbt-add-storyline-btn', function() {
-        if (!currentChapterState) {
+        const effectiveState = getEffectiveChapterState();
+        if (!effectiveState) {
             deps.toastr.warning('请先开始一个故事', '操作失败');
             return;
         }
@@ -1296,19 +1349,19 @@ $('#extensions-settings-button').after(html);
         const tempId = `temp_${Date.now()}`;
 
         // 确保 storylines 结构存在
-        if (!currentChapterState.staticMatrices.storylines) {
-            currentChapterState.staticMatrices.storylines = {
+        if (!effectiveState.staticMatrices.storylines) {
+            effectiveState.staticMatrices.storylines = {
                 main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
             };
         }
-        if (!currentChapterState.dynamicState.storylines) {
-            currentChapterState.dynamicState.storylines = {
+        if (!effectiveState.dynamicState.storylines) {
+            effectiveState.dynamicState.storylines = {
                 main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
             };
         }
 
         // 显示新建模态框
-        showStorylineDetailModal(tempId, category, categoryName, currentChapterState, true, true);
+        showStorylineDetailModal(tempId, category, categoryName, effectiveState, true, true);
     });
 
     // -- 故事线: 隐藏/显示切换按钮 --
@@ -1317,12 +1370,13 @@ $('#extensions-settings-button').after(html);
         const $btn = $(this);
         const lineId = $btn.data('storyline-id');
         const category = $btn.data('category');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
         // 获取动态状态中的故事线数据
-        const dynamicLine = currentChapterState.dynamicState.storylines?.[category]?.[lineId];
-        const staticLine = currentChapterState.staticMatrices.storylines?.[category]?.[lineId];
+        const dynamicLine = effectiveState.dynamicState.storylines?.[category]?.[lineId];
+        const staticLine = effectiveState.staticMatrices.storylines?.[category]?.[lineId];
 
         if (!dynamicLine && !staticLine) return;
 
@@ -1338,7 +1392,7 @@ $('#extensions-settings-button').after(html);
 
         // 保存状态（即使失败也继续更新UI）
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('storyline_visibility_toggled', currentChapterState)
+            deps.onSaveCharacterEdit('storyline_visibility_toggled', effectiveState)
                 .catch(err => {
                     deps.warn('[故事线隐藏] 状态保存失败，但UI已更新:', err);
                 });
@@ -1346,7 +1400,7 @@ $('#extensions-settings-button').after(html);
 
         // 触发更新事件
         if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
         }
 
         // 显示提示
@@ -1361,10 +1415,11 @@ $('#extensions-settings-button').after(html);
         const lineId = $(this).data('storyline-id');
         const category = $(this).data('category');
         const categoryName = $(this).data('category-name');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState || !lineId || !category) return;
+        if (!effectiveState || !lineId || !category) return;
 
-        showStorylineDetailModal(lineId, category, categoryName, currentChapterState, true, false);
+        showStorylineDetailModal(lineId, category, categoryName, effectiveState, true, false);
     });
 
     // -- V8.0: 故事线追踪 - 模态框内的编辑模式切换 --
@@ -1372,10 +1427,11 @@ $('#extensions-settings-button').after(html);
         const lineId = $(this).data('line-id');
         const category = $(this).data('category');
         const categoryName = $(this).data('category-name');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState || !lineId || !category) return;
+        if (!effectiveState || !lineId || !category) return;
 
-        showStorylineDetailModal(lineId, category, categoryName, currentChapterState, true, false);
+        showStorylineDetailModal(lineId, category, categoryName, effectiveState, true, false);
     });
 
     // -- V8.0: 故事线追踪 - 保存故事线 --
@@ -1384,25 +1440,26 @@ $('#extensions-settings-button').after(html);
         const category = $(this).data('category');
         const isNew = $(this).data('is-new');
         const $panel = $('#sbt-storyline-detail-panel');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) return;
+        if (!effectiveState) return;
 
         // 确保结构存在
-        if (!currentChapterState.staticMatrices.storylines) {
-            currentChapterState.staticMatrices.storylines = {
+        if (!effectiveState.staticMatrices.storylines) {
+            effectiveState.staticMatrices.storylines = {
                 main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
             };
         }
-        if (!currentChapterState.dynamicState.storylines) {
-            currentChapterState.dynamicState.storylines = {
+        if (!effectiveState.dynamicState.storylines) {
+            effectiveState.dynamicState.storylines = {
                 main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
             };
         }
-        if (!currentChapterState.staticMatrices.storylines[category]) {
-            currentChapterState.staticMatrices.storylines[category] = {};
+        if (!effectiveState.staticMatrices.storylines[category]) {
+            effectiveState.staticMatrices.storylines[category] = {};
         }
-        if (!currentChapterState.dynamicState.storylines[category]) {
-            currentChapterState.dynamicState.storylines[category] = {};
+        if (!effectiveState.dynamicState.storylines[category]) {
+            effectiveState.dynamicState.storylines[category] = {};
         }
 
         // 收集表单数据
@@ -1436,7 +1493,7 @@ $('#extensions-settings-button').after(html);
 
         // 保存静态数据
         const safeSummary = summary || '';
-        currentChapterState.staticMatrices.storylines[category][finalLineId] = {
+        effectiveState.staticMatrices.storylines[category][finalLineId] = {
             title: title,
             summary: safeSummary,
             initial_summary: safeSummary,
@@ -1446,27 +1503,27 @@ $('#extensions-settings-button').after(html);
         };
 
         // 保存动态数据
-        if (!currentChapterState.dynamicState.storylines[category][finalLineId]) {
-            currentChapterState.dynamicState.storylines[category][finalLineId] = {
+        if (!effectiveState.dynamicState.storylines[category][finalLineId]) {
+            effectiveState.dynamicState.storylines[category][finalLineId] = {
                 current_status: currentStatus || 'active',
                 current_summary: currentSummary || safeSummary || '故事线刚刚创建',
                 history: [],
                 player_supplement: playerSupplement || ''
             };
         } else {
-            currentChapterState.dynamicState.storylines[category][finalLineId].current_status = currentStatus || 'active';
-            currentChapterState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || safeSummary || '';
-            currentChapterState.dynamicState.storylines[category][finalLineId].player_supplement = playerSupplement || '';
+            effectiveState.dynamicState.storylines[category][finalLineId].current_status = currentStatus || 'active';
+            effectiveState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || safeSummary || '';
+            effectiveState.dynamicState.storylines[category][finalLineId].player_supplement = playerSupplement || '';
         }
 
         // 保存
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit(isNew ? 'storyline_added' : 'storyline_updated', currentChapterState);
+            deps.onSaveCharacterEdit(isNew ? 'storyline_added' : 'storyline_updated', effectiveState);
         }
 
         // 触发更新
         if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
         }
 
         // 隐藏面板
@@ -1487,10 +1544,11 @@ $('#extensions-settings-button').after(html);
 
         const lineId = $(this).data('storyline-id') || $(this).data('line-id');
         const category = $(this).data('category');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState || !lineId || !category) return;
+        if (!effectiveState || !lineId || !category) return;
 
-        const staticLine = currentChapterState.staticMatrices.storylines?.[category]?.[lineId];
+        const staticLine = effectiveState.staticMatrices.storylines?.[category]?.[lineId];
         if (!staticLine) {
             deps.toastr.error('找不到该故事线', '错误');
             return;
@@ -1501,21 +1559,21 @@ $('#extensions-settings-button').after(html);
         }
 
         // 删除静态部分
-        delete currentChapterState.staticMatrices.storylines[category][lineId];
+        delete effectiveState.staticMatrices.storylines[category][lineId];
 
         // 删除动态部分
-        if (currentChapterState.dynamicState.storylines?.[category]?.[lineId]) {
-            delete currentChapterState.dynamicState.storylines[category][lineId];
+        if (effectiveState.dynamicState.storylines?.[category]?.[lineId]) {
+            delete effectiveState.dynamicState.storylines[category][lineId];
         }
 
         // 保存
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('storyline_deleted', currentChapterState);
+            deps.onSaveCharacterEdit('storyline_deleted', effectiveState);
         }
 
         // 触发更新
         if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
         }
 
         // 隐藏详情面板（如果正在显示）
@@ -1526,9 +1584,10 @@ $('#extensions-settings-button').after(html);
 
     // -- V8.0: 故事线追踪 - 添加涉及角色 --
     $wrapper.on('click', '.sbt-char-tag-add-btn', function() {
-        if (!currentChapterState) return;
+        const effectiveState = getEffectiveChapterState();
+        if (!effectiveState) return;
 
-        const allChars = currentChapterState.staticMatrices.characters || {};
+        const allChars = effectiveState.staticMatrices.characters || {};
         const charOptions = Object.keys(allChars).map(charId => {
             const charData = allChars[charId];
             const charName = charData?.core?.name || charData?.name || charId;
@@ -1575,8 +1634,9 @@ $('#extensions-settings-button').after(html);
         const $this = $(this);
         const newContent = $this.text().trim();
         const historyIndex = parseInt($this.data('history-index'), 10);
+        const effectiveState = getEffectiveChapterState();
 
-        if (isNaN(historyIndex) || !currentChapterState) return;
+        if (isNaN(historyIndex) || !effectiveState) return;
 
         // 找到对应的故事线
         const $card = $this.closest('.sbt-storyline-card');
@@ -1586,7 +1646,7 @@ $('#extensions-settings-button').after(html);
         if (!lineId || !category) return;
 
         // 获取动态状态中的历史记录
-        const dynamicLine = currentChapterState.dynamicState.storylines?.[category]?.[lineId];
+        const dynamicLine = effectiveState.dynamicState.storylines?.[category]?.[lineId];
         if (!dynamicLine || !dynamicLine.history || !dynamicLine.history[historyIndex]) {
             deps.toastr.warning('无法找到对应的历史记录', '保存失败');
             return;
@@ -1598,12 +1658,12 @@ $('#extensions-settings-button').after(html);
 
         // 保存到后端
         if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('storyline_history_updated', currentChapterState);
+            deps.onSaveCharacterEdit('storyline_history_updated', effectiveState);
         }
 
         // 触发更新事件
         if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
         }
 
         deps.toastr.success('历史记录已更新', '保存成功');
@@ -1612,36 +1672,37 @@ $('#extensions-settings-button').after(html);
     // -- V5.2: 故事梗概和章节衔接点编辑功能 --
     $wrapper.on('click', '.sbt-edit-summary-btn', function() {
         const field = $(this).data('field');
+        const effectiveState = getEffectiveChapterState();
 
-        if (!currentChapterState) {
+        if (!effectiveState) {
             deps.toastr.warning('当前没有活跃章节', '操作失败');
             return;
         }
 
         if (field === 'longTermStorySummary') {
             // 编辑故事梗概
-            const currentValue = currentChapterState.meta?.longTermStorySummary || '';
+            const currentValue = effectiveState.meta?.longTermStorySummary || '';
 
             const newValue = prompt('编辑故事梗概:\n(这是史官维护的故事概要,会随着章节推进自动更新)', currentValue);
 
             if (newValue !== null && newValue.trim() !== currentValue) {
-                currentChapterState.meta.longTermStorySummary = newValue.trim();
+                effectiveState.meta.longTermStorySummary = newValue.trim();
 
                 // 保存
                 if (typeof deps.onSaveCharacterEdit === 'function') {
-                    deps.onSaveCharacterEdit('summary_updated', currentChapterState);
+                    deps.onSaveCharacterEdit('summary_updated', effectiveState);
                 }
 
                 // 触发更新
                 if (deps.eventBus) {
-                    deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                    deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
                 }
 
                 deps.toastr.success('故事梗概已更新', '保存成功');
             }
         } else if (field === 'lastChapterHandoff') {
             // 编辑章节衔接点
-            const handoffMemo = currentChapterState.meta?.lastChapterHandoff || {};
+            const handoffMemo = effectiveState.meta?.lastChapterHandoff || {};
 
             // 创建一个简单的表单来编辑两个字段
             const endingSnapshot = handoffMemo.ending_snapshot || '';
@@ -1656,21 +1717,21 @@ $('#extensions-settings-button').after(html);
             if (newActionHandoff === null) return; // 用户取消
 
             // 更新数据
-            if (!currentChapterState.meta.lastChapterHandoff) {
-                currentChapterState.meta.lastChapterHandoff = {};
+            if (!effectiveState.meta.lastChapterHandoff) {
+                effectiveState.meta.lastChapterHandoff = {};
             }
 
-            currentChapterState.meta.lastChapterHandoff.ending_snapshot = newEndingSnapshot.trim();
-            currentChapterState.meta.lastChapterHandoff.action_handoff = newActionHandoff.trim();
+            effectiveState.meta.lastChapterHandoff.ending_snapshot = newEndingSnapshot.trim();
+            effectiveState.meta.lastChapterHandoff.action_handoff = newActionHandoff.trim();
 
             // 保存
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('handoff_updated', currentChapterState);
+                deps.onSaveCharacterEdit('handoff_updated', effectiveState);
             }
 
             // 触发更新
             if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', currentChapterState);
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
             deps.toastr.success('章节衔接点已更新', '保存成功');
@@ -1683,7 +1744,7 @@ $('#extensions-settings-button').after(html);
     bindAPITestHandlers($wrapper, deps);
     bindPresetSelectorHandlers($wrapper, deps);
     // V7.0: 叙事模式切换 - 传入获取当前章节的函数
-    bindNarrativeModeSwitchHandler($wrapper, deps, () => currentChapterState);
+    bindNarrativeModeSwitchHandler($wrapper, deps, () => getEffectiveChapterState());
     // 提示词管理处理器
     bindPromptManagerHandlers($wrapper, deps);
 
@@ -1918,3 +1979,4 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
 }
 
 export { populateSettingsUI };
+

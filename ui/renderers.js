@@ -122,7 +122,7 @@ function getLeaderStateFromChat() {
             : null;
         const chat = ctx?.chat;
         if (!Array.isArray(chat)) return null;
-        for (let i = 0; i < chat.length; i++) {
+        for (let i = chat.length - 1; i >= 0; i--) {
             const piece = chat[i];
             if (piece && !piece.is_user && piece.leader && piece.leader.staticMatrices) {
                 const leaderState = piece.leader;
@@ -1208,195 +1208,158 @@ export function updateDashboard(chapterState) {
     if (notesContainer.length > 0) {
         const notes = chapterState.activeChapterDesignNotes;
         if (notes && typeof notes === 'object') {
-            // 通用渲染函数（极简紧凑版）
+            // 通用渲染函数（保持原有风格）
             const renderField = (icon, label, content) => {
                 if (!content || content === 'N/A') return '';
-                return `<div style="margin: 3px 0;"><strong><i class="${icon} fa-fw"></i> ${label}:</strong> <span style="margin-left: 6px;">${content}</span></div>`;
+                return `<div style="margin: 3px 0;"><strong><i class="${icon} fa-fw"></i> ${label}:</strong> <span style="margin-left: 6px; color: var(--sbt-text-light);">${content}</span></div>`;
             };
 
-            // 渲染玩家焦点执行报告（简洁版）
+            // 1. 玩家焦点执行 (黄色)
             let playerFocusHtml = '';
-            if (notes.player_focus_execution && typeof notes.player_focus_execution === 'object') {
-                const focusExec = notes.player_focus_execution;
-                const hasContent = focusExec.player_instruction || focusExec.execution_logic || focusExec.conflict_resolution;
-
-                if (hasContent) {
+            if (notes.player_focus_execution) {
+                const exec = notes.player_focus_execution;
+                if (exec.player_instruction || exec.execution_logic) {
                     playerFocusHtml = `
-                        <div style="background: var(--sbt-background-dark); padding: 10px; border-radius: 6px; margin-bottom: 10px; border-left: 3px solid #FFD700;">
-                            <h6 style="margin: 0 0 6px 0; color: #FFD700;"><i class="fa-solid fa-crown fa-fw"></i> 玩家意见执行</h6>
-                            ${focusExec.player_instruction ? `<div style="margin: 3px 0;"><strong>指令:</strong> <span style="margin-left: 6px;">${focusExec.player_instruction}</span></div>` : ''}
-                            ${focusExec.execution_logic ? `<div style="margin: 3px 0;"><strong>逻辑:</strong> <span style="margin-left: 6px;">${focusExec.execution_logic}</span></div>` : ''}
-                            ${focusExec.conflict_resolution ? `<div style="margin: 3px 0;"><strong>冲突:</strong> <span style="margin-left: 6px; font-style: italic;">${focusExec.conflict_resolution}</span></div>` : ''}
+                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #FFD700;">
+                            <h6 style="margin: 0 0 4px 0; color: #FFD700; font-size: 0.95em;"><i class="fa-solid fa-crown fa-fw"></i> 玩家意志执行</h6>
+                            ${renderField('fa-solid fa-bullhorn', '指令', exec.player_instruction)}
+                            ${renderField('fa-solid fa-gears', '逻辑', exec.execution_logic)}
+                            ${renderField('fa-solid fa-shield-halved', '冲突', exec.conflict_resolution)}
                         </div>
                     `;
                 }
             }
 
-            // 双地平线 & 时间线说明
-            let dualHorizonHtml = '';
-            if (typeof notes.dual_horizon_analysis === 'string' && notes.dual_horizon_analysis.trim()) {
-                dualHorizonHtml = `
-                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #1abc9c;">
-                        <h6 style="margin: 0 0 4px 0; color: #1abc9c; font-size: 0.95em;"><i class="fa-solid fa-mountain-sun fa-fw"></i> 双地平线分析</h6>
-                        <div style="margin: 3px 0;">${notes.dual_horizon_analysis}</div>
+            // 2. 情感基调与故事线 (紫色)
+            let toneHtml = '';
+            if (notes.emotional_tone_strategy) {
+                const tone = notes.emotional_tone_strategy;
+                toneHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #9b59b6;">
+                        <h6 style="margin: 0 0 4px 0; color: #9b59b6; font-size: 0.95em;"><i class="fa-solid fa-palette fa-fw"></i> 基调与编织</h6>
+                        ${renderField('fa-solid fa-heart', '基调', tone.core_emotional_tone)}
+                        ${renderField('fa-solid fa-diagram-project', '故事线', tone.chosen_storylines_and_reasoning)}
+                        ${renderField('fa-solid fa-check-double', '相容性', tone.compatibility_check)}
+                        ${renderField('fa-solid fa-link', '编织逻辑', notes.storyline_weaving)}
                     </div>
                 `;
             }
 
-            let chronologyHtml = '';
-            if (typeof notes.chronology_compliance === 'string' && notes.chronology_compliance.trim()) {
-                chronologyHtml = `
-                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #2980b9;">
-                        <h6 style="margin: 0 0 4px 0; color: #2980b9; font-size: 0.95em;"><i class="fa-solid fa-clock fa-fw"></i> 时间线交代</h6>
-                        <div style="margin: 3px 0;">${notes.chronology_compliance}</div>
+            // 3. 叙事模式专属 (网文-橙色 / 正剧-蓝色)
+            let modeHtml = '';
+            if (notes.satisfaction_blueprint?.core_pleasure_source) {
+                // 网文模式
+                const bp = notes.satisfaction_blueprint;
+                modeHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-warning-color);">
+                        <h6 style="margin: 0 0 4px 0; color: var(--sbt-warning-color); font-size: 0.95em;"><i class="fa-solid fa-fire fa-fw"></i> 网文爽点蓝图</h6>
+                        ${renderField('fa-solid fa-bolt', '核心快感', bp.core_pleasure_source)}
+                        ${renderField('fa-solid fa-arrow-trend-down', '预期差', bp.expectation_setup)}
+                        ${renderField('fa-solid fa-explosion', '高潮反馈', bp.climax_payoff)}
+                        ${renderField('fa-solid fa-gift', '奖励', bp.tangible_rewards)}
+                        ${renderField('fa-solid fa-anchor', '钩子', bp.hook_design)}
                     </div>
                 `;
-            }
-
-            // 渲染满足感蓝图（网文模式KPI）- 极简版
-            let satisfactionHtml = '';
-            if (notes.satisfaction_blueprint && typeof notes.satisfaction_blueprint === 'object') {
-                const blueprint = notes.satisfaction_blueprint;
-                const isWebNovelMode = blueprint.core_pleasure_source && blueprint.core_pleasure_source !== 'N/A';
-
-                if (isWebNovelMode) {
-                    satisfactionHtml = `
-                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-warning-color);">
-                            <h6 style="margin: 0 0 4px 0; color: var(--sbt-warning-color); font-size: 0.95em;"><i class="fa-solid fa-fire fa-fw"></i> 网文模式</h6>
-                            ${renderField('fa-solid fa-heart-pulse', '核心快感', blueprint.core_pleasure_source)}
-                            ${renderField('fa-solid fa-arrow-down-up-across-line', '预期差', blueprint.expectation_setup)}
-                            ${renderField('fa-solid fa-burst', '高潮', blueprint.climax_payoff)}
-                            ${renderField('fa-solid fa-gift', '奖励', blueprint.tangible_rewards)}
-                            ${renderField('fa-solid fa-fish-fins', '钩子', blueprint.hook_design)}
-                        </div>
-                    `;
-                }
-            }
-
-            // 渲染正剧模式呼吸节奏 - 极简版
-            let classicRpgHtml = '';
-            if (notes.classic_rpg_breath && typeof notes.classic_rpg_breath === 'object') {
+            } else if (notes.classic_rpg_breath?.current_phase) {
+                // 正剧模式
                 const breath = notes.classic_rpg_breath;
-                const isClassicMode = breath.current_phase && breath.current_phase !== 'N/A';
-
-                if (isClassicMode) {
-                    classicRpgHtml = `
-                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-primary-accent);">
-                            <h6 style="margin: 0 0 4px 0; color: var(--sbt-primary-accent); font-size: 0.95em;"><i class="fa-solid fa-masks-theater fa-fw"></i> 正剧模式</h6>
-                            ${renderField('fa-solid fa-wind', '呼吸', breath.current_phase)}
-                            ${renderField('fa-solid fa-film', '类型', breath.scene_sequel_type)}
-                            ${renderField('fa-solid fa-gauge', '理由', breath.pacing_rationale)}
-                            ${renderField('fa-solid fa-cloud', '氛围', breath.atmospheric_focus)}
-                        </div>
-                    `;
-                }
-            }
-
-            // 渲染沉浸模式设计逻辑 - 极简版
-            let elevationHtml = '';
-            if (notes.elevation_design_logic && typeof notes.elevation_design_logic === 'object') {
-                const elevation = notes.elevation_design_logic;
-                const hasContent = elevation.unique_spark && elevation.unique_spark !== 'N/A';
-
-                if (hasContent) {
-                    elevationHtml = `
-                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #e91e63;">
-                            <h6 style="margin: 0 0 4px 0; color: #e91e63; font-size: 0.95em;"><i class="fa-solid fa-heart-pulse fa-fw"></i> 沉浸模式</h6>
-                            ${renderField('fa-solid fa-lightbulb', '创意', elevation.unique_spark)}
-                            ${renderField('fa-solid fa-shield-halved', '自辩', elevation.irreplaceability_defense)}
-                            ${renderField('fa-solid fa-book-open', '策略', elevation.reference_strategy)}
-                        </div>
-                    `;
-                }
-            }
-
-            // 渲染情感基调策略 - 极简版
-            let emotionalToneHtml = '';
-            if (notes.emotional_tone_strategy && typeof notes.emotional_tone_strategy === 'object') {
-                const strategy = notes.emotional_tone_strategy;
-                const hasContent = strategy.core_emotional_tone || strategy.chosen_storylines_and_reasoning || strategy.compatibility_check;
-
-                if (hasContent) {
-                    emotionalToneHtml = `
-                        <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #9b59b6;">
-                            <h6 style="margin: 0 0 4px 0; color: #9b59b6; font-size: 0.95em;"><i class="fa-solid fa-heart fa-fw"></i> 情感基调</h6>
-                            ${renderField('fa-solid fa-palette', '基调', strategy.core_emotional_tone)}
-                            ${renderField('fa-solid fa-diagram-project', '故事线', strategy.chosen_storylines_and_reasoning)}
-                            ${renderField('fa-solid fa-circle-check', '相容性', strategy.compatibility_check)}
-                        </div>
-                    `;
-                }
-            }
-
-            // 事件优先级报告
-            let eventPriorityHtml = '';
-            const priorityReport = notes.event_priority_report || {};
-            const tierConfig = [
-                { key: 'S_tier_events', label: 'S级事件', icon: 'fa-solid fa-star-of-life', color: '#e74c3c' },
-                { key: 'A_tier_events', label: 'A级事件', icon: 'fa-solid fa-star', color: '#e67e22' },
-                { key: 'B_tier_events', label: 'B级事件', icon: 'fa-solid fa-star-half-stroke', color: '#f1c40f' },
-                { key: 'deferred_events', label: '暂缓事件', icon: 'fa-solid fa-clock-rotate-left', color: '#95a5a6' }
-            ];
-            const tierSections = tierConfig.map(({ key, label, icon, color }) => {
-                const items = Array.isArray(priorityReport[key]) ? priorityReport[key] : [];
-                if (items.length === 0) return '';
-                const list = items.map(item => `<li>${item}</li>`).join('');
-                return `
-                    <div style="margin-bottom: 6px;">
-                        <div style="font-weight: 600; color: ${color};"><i class="${icon}"></i> ${label}</div>
-                        <ul style="margin: 4px 0 0 1em; padding: 0; list-style: disc;">${list}</ul>
+                modeHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-primary-accent);">
+                        <h6 style="margin: 0 0 4px 0; color: var(--sbt-primary-accent); font-size: 0.95em;"><i class="fa-solid fa-masks-theater fa-fw"></i> 正剧呼吸节奏</h6>
+                        ${renderField('fa-solid fa-wind', '相位', breath.current_phase)}
+                        ${renderField('fa-solid fa-film', '类型', breath.scene_sequel_type)}
+                        ${renderField('fa-solid fa-lightbulb', '理由', breath.pacing_rationale)}
+                        ${renderField('fa-solid fa-cloud', '氛围', breath.atmospheric_focus)}
                     </div>
                 `;
-            }).join('');
-            const allocationEntries = Object.entries(priorityReport.beat_allocation || {}).filter(([, value]) => value !== undefined && value !== null);
-            if (tierSections || priorityReport.priority_conflict_resolution || allocationEntries.length > 0) {
-                const allocationHtml = allocationEntries.length > 0
-                    ? `<div style="margin-top: 6px;">
-                            <strong><i class="fa-solid fa-chart-pie"></i> 节拍分配:</strong>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 4px; margin-top: 4px;">
-                                ${allocationEntries.map(([key, value]) => `<div style="background: var(--sbt-background); padding: 4px 6px; border-radius: 4px;">${key.replace(/_/g, ' ')}: <strong>${value}</strong></div>`).join('')}
+            }
+
+            // 4. 沉浸流 (粉色)
+            let immersionHtml = '';
+            if (notes.elevation_design_logic?.unique_spark) {
+                const elev = notes.elevation_design_logic;
+                immersionHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #e91e63;">
+                        <h6 style="margin: 0 0 4px 0; color: #e91e63; font-size: 0.95em;"><i class="fa-solid fa-heart-pulse fa-fw"></i> 沉浸流设计</h6>
+                        ${renderField('fa-solid fa-wand-magic-sparkles', '创意', elev.unique_spark)}
+                        ${renderField('fa-solid fa-fingerprint', '独特性', elev.irreplaceability_defense)}
+                        ${renderField('fa-solid fa-book-open', '策略', elev.reference_strategy)}
+                    </div>
+                `;
+            }
+
+            // 5. 逻辑与时空 (青色) - 扩容点
+            let logicHtml = '';
+            if (notes.chronology_compliance || notes.dual_horizon_analysis || notes.affinity_logic_audit) {
+                logicHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #1abc9c;">
+                        <h6 style="margin: 0 0 4px 0; color: #1abc9c; font-size: 0.95em;"><i class="fa-solid fa-brain fa-fw"></i> 逻辑与时空</h6>
+                        ${renderField('fa-solid fa-clock', '时空', notes.chronology_compliance)}
+                        ${renderField('fa-solid fa-binoculars', '双地平线', notes.dual_horizon_analysis)}
+                        ${notes.affinity_logic_audit ? `
+                            <div style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.1);">
+                                <div style="font-size:0.9em; font-weight:bold; color:#1abc9c; margin-bottom:2px;"><i class="fa-solid fa-scale-balanced"></i> 零度校准:</div>
+                                ${renderField('fa-solid fa-user', '对象', notes.affinity_logic_audit.target_character)}
+                                ${renderField('fa-solid fa-chart-line', '阶段', notes.affinity_logic_audit.current_affinity_stage)}
+                                ${renderField('fa-solid fa-check', '自辩', notes.affinity_logic_audit.zero_degree_check)}
                             </div>
-                        </div>`
-                    : '';
-                const conflictHtml = priorityReport.priority_conflict_resolution
-                    ? `<div style="margin-top: 6px;"><strong><i class="fa-solid fa-scale-balanced"></i> 冲突取舍:</strong> <span style="margin-left: 4px;">${priorityReport.priority_conflict_resolution}</span></div>`
-                    : '';
-                eventPriorityHtml = `
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            // 6. 事件优先级 (橙红) - 扩容点
+            let priorityHtml = '';
+            if (notes.event_priority_report) {
+                const pr = notes.event_priority_report;
+                priorityHtml = `
                     <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #d35400;">
                         <h6 style="margin: 0 0 4px 0; color: #d35400; font-size: 0.95em;"><i class="fa-solid fa-ranking-star fa-fw"></i> 事件优先级</h6>
-                        ${tierSections}
-                        ${conflictHtml}
-                        ${allocationHtml}
+                        ${renderField('fa-solid fa-star', 'S级', Array.isArray(pr.S_tier_events) ? pr.S_tier_events.join('; ') : pr.S_tier_events)}
+                        ${renderField('fa-solid fa-clock-rotate-left', '延后(S)', Array.isArray(pr.deferred_events) ? pr.deferred_events.join('; ') : pr.deferred_events)}
+                        ${renderField('fa-solid fa-scale-unbalanced', '取舍', pr.priority_conflict_resolution)}
                     </div>
                 `;
             }
 
-            // 渲染自我审查报告 - 极简版
-            const report = notes.self_scrutiny_report || {};
+            // 7. 结构与收尾 (深蓝) - 新增
+            let endingHtml = '';
+            if (notes.ending_structure_choice || notes.connection_and_hook) {
+                endingHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #34495e;">
+                        <h6 style="margin: 0 0 4px 0; color: #34495e; font-size: 0.95em;"><i class="fa-solid fa-door-closed fa-fw"></i> 结构与收尾</h6>
+                        ${renderField('fa-solid fa-scissors', '结构裁决', notes.ending_structure_choice)}
+                        ${renderField('fa-solid fa-anchor', '承上启下', notes.connection_and_hook)}
+                    </div>
+                `;
+            }
+
+            // 8. 自我审查 (灰色)
             let scrutinyHtml = '';
-            if (report.anti_performance || report.anti_thematic_greed || report.ending_safety_check) {
+            const sr = notes.self_scrutiny_report;
+            if (sr && (sr.anti_performance || sr.anti_thematic_greed)) {
                 scrutinyHtml = `
-                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-primary-accent);">
-                        <h6 style="margin: 0 0 4px 0; color: var(--sbt-primary-accent); font-size: 0.95em;"><i class="fa-solid fa-magnifying-glass-chart fa-fw"></i> 自我审查</h6>
-                        ${renderField('fa-solid fa-user-check', '去表演化', report.anti_performance)}
-                        ${renderField('fa-solid fa-filter', '主题聚焦', report.anti_thematic_greed)}
-                        ${renderField('fa-solid fa-flag-checkered', '终章检查', report.ending_safety_check)}
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #7f8c8d;">
+                        <h6 style="margin: 0 0 4px 0; color: #7f8c8d; font-size: 0.95em;"><i class="fa-solid fa-user-secret fa-fw"></i> 自我审查</h6>
+                        ${renderField('fa-solid fa-mask', '去表演化', sr.anti_performance)}
+                        ${renderField('fa-solid fa-filter', '聚焦检查', sr.anti_thematic_greed)}
                     </div>
                 `;
             }
 
-            // 组装最终HTML - 紧凑版，只显示存在的部分
+            // 组装
             const notesHtml = `
                 ${playerFocusHtml}
-                ${emotionalToneHtml}
-                ${satisfactionHtml}
-                ${classicRpgHtml}
-                ${elevationHtml}
-                ${renderField('fa-solid fa-diagram-project', '故事线编织', notes.storyline_weaving)}
-                ${renderField('fa-solid fa-link', '承上启下', notes.connection_and_hook)}
+                ${modeHtml}
+                ${immersionHtml}
+                ${toneHtml}
+                ${priorityHtml}
+                ${logicHtml}
+                ${endingHtml}
                 ${scrutinyHtml}
             `;
             notesContainer.html(notesHtml);
+
         } else {
             notesContainer.html('<p class="sbt-instructions">当前章节没有可用的设计笔记。</p>');
         }

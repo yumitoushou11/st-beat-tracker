@@ -5,7 +5,7 @@ import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js'; 
 export class HistorianAgent extends Agent {
 
-    async execute(context) { 
+    async execute(context, abortSignal = null) { 
         this.diagnose(`--- 首席史官AI V4 启动 (NSFW-Aware) ---`);
 
         console.groupCollapsed('[SBT-HISTORIAN-PROBE] Received Full Input Context');
@@ -37,7 +37,7 @@ export class HistorianAgent extends Agent {
         console.groupEnd();
 
     try {
-       const responseText = await this.deps.mainLlmService.callLLM([{ role: 'user', content: prompt }]);  
+       const responseText = await this.deps.mainLlmService.callLLM([{ role: 'user', content: prompt }], null, abortSignal);  
 
         let potentialJsonString;
         const codeBlockMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
@@ -89,6 +89,9 @@ export class HistorianAgent extends Agent {
             return result;
 
         } catch (error) {
+            if (error.name === 'AbortError') {
+                throw error; // Re-throw AbortError to be handled upstream
+            }
             this.diagnose("--- 首席史官AI在编纂历史时失败 ---", error);
             if (this.toastr) {
                 this.toastr.error(`章节复盘失败: ${error.message.substring(0, 200)}...`, "史官AI错误");

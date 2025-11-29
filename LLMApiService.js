@@ -69,7 +69,7 @@ async testConnection() {
     const testMessages = [{ role: 'user', content: "Hello! Please reply with only one word: 'Success'." }];
 
     try {
-        const responseText = await this.#executeApiCall(testMessages, null);
+        const responseText = await this.#executeApiCall(testMessages, null, null);
 
         if (responseText && responseText.toLowerCase().includes('success')) {
             return `连接成功！模型返回: "${responseText}"`;
@@ -92,7 +92,7 @@ async testConnection() {
         throw new Error(`连接测试失败: ${detail}`);
     }
 }
-    async callLLM(prompt, streamCallback = null) {
+    async callLLM(prompt, streamCallback = null, abortSignal = null) {
         if (!prompt) throw new Error("输入内容不能为空");
 
         // 根据提供商模式验证配置
@@ -108,25 +108,32 @@ async testConnection() {
             }
         }
 
-        return await this.#callLLMWithRetry(prompt, streamCallback);
+        return await this.#callLLMWithRetry(prompt, streamCallback, abortSignal);
     }
 
     /**
      * @private
      *  包含自动重试逻辑的核心 LLM 调用方法。
      */
-    async #callLLMWithRetry(prompt, streamCallback) {
+    async #callLLMWithRetry(prompt, streamCallback, abortSignal) {
         const MAX_RETRIES = 3;
         let lastError = null;
         let retryToast = null;
 
         for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
             try {
-                const result = await this.#executeApiCall(prompt, streamCallback);
+                // 将 abortSignal 传递给执行层
+                const result = await this.#executeApiCall(prompt, streamCallback, abortSignal);
                 
-              if (retryToast) this.EDITOR.clear(retryToast);
-            return result;
+                if (retryToast) this.EDITOR.clear(retryToast);
+                return result;
             } catch (error) {
+                // 如果是中止错误，则不再重试，立即向上抛出
+                if (error.name === 'AbortError') {
+                    console.log('[LLMApiService] API 调用被用户中止。');
+                    throw error;
+                }
+                
                 lastError = error;
                 console.warn(`[LLMApiService] 第 ${attempt} 次API调用失败:`, error);
 
@@ -182,7 +189,7 @@ async testConnection() {
      * 策略分发器：根据 api_provider 决定使用哪种API调用策略
      * 这个方法只负责执行一次API调用，不关心重试。
      */
-    async #executeApiCall(prompt, streamCallback = null) {
+    async #executeApiCall(prompt, streamCallback = null, abortSignal = null) {
         let messages;
         if (Array.isArray(prompt)) {
             messages = prompt;
@@ -199,16 +206,16 @@ async testConnection() {
         switch (this.config.api_provider) {
             case 'sillytavern_preset':
                 console.log("策略: SillyTavern 预设模式");
-                return this.#callViaSillyTavernPreset(messages, streamCallback);
+                return this.#callViaSillyTavernPreset(messages, streamCallback, abortSignal);
 
             case 'sillytavern_proxy_openai':
                 console.log("策略: SillyTavern 代理模式");
-                return this.#callViaSillyTavernProxy(messages, streamCallback);
+                return this.#callViaSillyTavernProxy(messages, streamCallback, abortSignal);
 
             case 'direct_openai':
             default:
                 console.log("策略: 直接 Fetch 模式");
-                return this.#callViaDirectFetch(messages, streamCallback);
+                return this.#callViaDirectFetch(messages, streamCallback, abortSignal);
         }
     }
 
@@ -218,10 +225,15 @@ async testConnection() {
      * 直接使用用户在 SillyTavern 连接管理器中配置的预设，零配置，最佳用户体验
      * @param {Array} messages - 消息数组
      * @param {Function|null} streamCallback - 流式回调（注意：预设模式暂不支持流式传输）
+     * @param {AbortSignal|null} abortSignal - 中止信号 (此模式下不支持)
      */
-    async #callViaSillyTavernPreset(messages, streamCallback) {
+    async #callViaSillyTavernPreset(messages, streamCallback, abortSignal) {
         console.log('[SBT-预设模式] 使用 SillyTavern 预设调用');
 
+        if (abortSignal) {
+            console.warn('[LLMApiService] SillyTavern 预设模式不支持中止操作。');
+        }
+        
         // 注意：ConnectionManagerRequestService 不支持流式传输
         if (streamCallback) {
             console.warn('[SBT-预设模式] 预设模式暂不支持流式传输，将使用标准响应模式');
@@ -319,7 +331,7 @@ async testConnection() {
      * 此策略可绕过浏览器CORS限制，适用于需要代理的场景
      * 注意：此方法通过 HTTP 端点调用，与 Amily2 的实现方式一致
      */
-    async #callViaSillyTavernProxy(messages, streamCallback) {
+    async #callViaSillyTavernProxy(messages, streamCallback, abortSignal) {
         try {
             const requestData = {
                 stream: this.config.stream,
@@ -344,7 +356,8 @@ async testConnection() {
         ...getRequestHeaders(),
         'Content-Type': 'application/json'
     },
-                body: JSON.stringify(requestData)
+                body: JSON.stringify(requestData),
+                signal: abortSignal, // 传递中止信号
             });
 
             if (!response.ok) {
@@ -483,7 +496,7 @@ async testConnection() {
      * 策略二：直接使用 fetch 进行 API 请求
      * 注意：此策略可能遇到CORS跨域问题
      */
-    async #callViaDirectFetch(messages, streamCallback) {
+    async #callViaDirectFetch(messages, streamCallback, abortSignal) {
         let apiEndpoint = this.config.api_url;
         if (!apiEndpoint.endsWith("/chat/completions")) {
             apiEndpoint += "/chat/completions";
@@ -507,9 +520,9 @@ async testConnection() {
                 if (!streamCallback || typeof streamCallback !== 'function') {
                     throw new Error("流式模式下必须提供有效的streamCallback函数");
                 }
-                return await this.#handleStreamResponse(apiEndpoint, headers, data, streamCallback);
+                return await this.#handleStreamResponse(apiEndpoint, headers, data, streamCallback, abortSignal);
             } else {
-                return await this.#handleRegularResponse(apiEndpoint, headers, data);
+                return await this.#handleRegularResponse(apiEndpoint, headers, data, abortSignal);
             }
         } catch (error) {
             console.error("直接调用 LLM API 错误:", error);
@@ -517,11 +530,12 @@ async testConnection() {
         }
     }
 
-    async #handleRegularResponse(apiEndpoint, headers, data) {
+    async #handleRegularResponse(apiEndpoint, headers, data, abortSignal) {
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify(data)
+            body: JSON.stringify(data),
+            signal: abortSignal, // 传递中止信号
         });
 
         if (!response.ok) {
@@ -540,11 +554,12 @@ async testConnection() {
         return this.#cleanResponse(translatedText);
     }
 
-    async #handleStreamResponse(apiEndpoint, headers, data, streamCallback) {
+    async #handleStreamResponse(apiEndpoint, headers, data, streamCallback, abortSignal) {
         const response = await fetch(apiEndpoint, {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify(data)
+            body: JSON.stringify(data),
+            signal: abortSignal, // 传递中止信号
         });
 
         if (!response.ok) {
