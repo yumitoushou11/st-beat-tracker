@@ -188,10 +188,21 @@ html {
 .sbt-status-badge { padding: 2px 8px; font-size: 0.8em; border-radius: 10px; margin-right: 10px; white-space: nowrap; }
 .sbt-status-badge.status-active { background-color: var(--sbt-primary-accent); color: #000; }
 .sbt-status-badge.status-dormant { background-color: var(--sbt-bg-medium); }
+.sbt-status-badge.status-completed { background-color: var(--sbt-success-color); color: #000; }
+.sbt-status-badge.status-paused { background-color: var(--sbt-warning-color); color: #000; }
 .sbt-storyline-details { font-size: 0.9em; }
-#sbt-character-chart { 
-    display: grid; 
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+.sbt-storyline-progress { margin-top: 8px; }
+.sbt-storyline-progress-header { display: flex; justify-content: space-between; font-size: 0.8em; color: var(--sbt-text-medium); }
+.sbt-storyline-progress-value { font-weight: bold; color: var(--sbt-text-light); }
+.sbt-storyline-stage { color: var(--sbt-primary-accent); font-weight: 600; }
+.sbt-storyline-progress-delta { margin-top: 4px; font-size: 0.75em; color: var(--sbt-text-medium); text-align: right; }
+.sbt-progress-bar.storyline { height: 8px; margin-top: 4px; background-color: var(--sbt-bg-darker); }
+.sbt-progress-fill.storyline { background: linear-gradient(90deg, var(--sbt-primary-accent), var(--sbt-success-color)); }
+.sbt-storyline-progress-empty { font-size: 0.85em; color: var(--sbt-text-medium); margin-top: 6px; }
+
+#sbt-character-chart {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
     gap: 10px;
     /* 新增：确保所有卡片在垂直方向上对齐 */
     align-items: start; 
@@ -1658,6 +1669,72 @@ input:checked + .sbt-slider:before {
 
 .sbt-storyline-edit-tips i {
     color: var(--sbt-primary-accent);
+}
+
+.sbt-player-supplement-wrapper {
+    border-left: 3px solid var(--sbt-warning-color);
+    padding-left: 8px;
+}
+
+.sbt-player-supplement-textarea {
+    min-height: 120px;
+    border-color: rgba(255, 149, 0, 0.4);
+    background-color: rgba(255, 149, 0, 0.08);
+}
+
+.sbt-player-supplement-textarea:focus {
+    border-color: var(--sbt-warning-color);
+    background-color: rgba(255, 149, 0, 0.12);
+}
+
+.sbt-player-supplement-tip {
+    background-color: rgba(255, 149, 0, 0.12);
+    border-left-color: var(--sbt-warning-color);
+    color: var(--sbt-text-light);
+}
+
+.sbt-player-supplement-tip i {
+    color: var(--sbt-warning-color);
+}
+
+.sbt-storyline-player-supplement-view {
+    padding: 12px;
+    border-left: 3px solid var(--sbt-warning-color);
+    background-color: rgba(255, 149, 0, 0.08);
+    border-radius: 4px;
+}
+
+.sbt-storyline-player-supplement {
+    margin-top: 8px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--sbt-warning-color);
+    border-radius: 4px;
+    background-color: rgba(255, 159, 10, 0.1);
+    font-size: 0.9em;
+    line-height: 1.5;
+}
+
+.sbt-player-supplement-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--sbt-warning-color);
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.sbt-player-supplement-label i {
+    color: inherit;
+}
+
+.sbt-player-supplement-content {
+    color: var(--sbt-text-light);
+}
+
+.sbt-player-supplement-badge {
+    color: var(--sbt-warning-color);
+    margin-left: 8px;
+    font-size: 0.9em;
 }
 
 .sbt-storyline-name-input,
@@ -3291,6 +3368,35 @@ input:checked + .sbt-slider:before {
 
 .sbt-compact-focus-btn i {
     font-size: 0.9em;
+}
+
+.sbt-compact-toast-actions {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.sbt-stop-transition-btn {
+    color: #ffd7d7;
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.3), rgba(255, 71, 87, 0.15));
+    border-color: rgba(255, 71, 87, 0.4);
+}
+
+.sbt-stop-transition-btn:hover {
+    background: linear-gradient(135deg, rgba(255, 71, 87, 0.4), rgba(255, 71, 87, 0.25));
+    border-color: rgba(255, 71, 87, 0.6);
+}
+
+.sbt-stop-transition-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.sbt-stop-hint {
+    margin-top: 8px;
+    font-size: 0.85em;
+    color: #ffb3b3;
 }
 
 

@@ -649,7 +649,8 @@ ${chapter?.chapter_blueprint?.player_supplement ? `玩家在审阅上一章剧�
                 mergedStorylines[category][id] = {
                     ...staticData,
                     current_status: dynamicData.current_status || 'active',
-                    current_summary: dynamicData.current_summary || staticData.summary
+                    current_summary: dynamicData.current_summary || staticData.summary,
+                    player_supplement: dynamicData.player_supplement || ''
                 };
                 totalCount++;
             }
@@ -659,7 +660,7 @@ ${chapter?.chapter_blueprint?.player_supplement ? `玩家在审阅上一章剧�
             return '当前无活跃的故事线。';
         }
 
-        return `<storylines>\n${JSON.stringify(mergedStorylines, null, 2)}\n</storylines>\n**指令:** 优先推进 active 状态且与焦点契合的故事线。`;
+        return `<storylines>\n${JSON.stringify(mergedStorylines, null, 2)}\n</storylines>\n**指令:** 优先推进 active 状态且与焦点契合的故事线；若某条故事线包含 \`player_supplement\`，则这些内容等同于玩家的最高优先级指令，必须无条件融入剧情并兑现。`;
     })()}
 
 **2. 全局摘要:** ${longTermStorySummary}

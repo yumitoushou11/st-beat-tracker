@@ -1,9 +1,10 @@
-// ui/renderers.js
+﻿// ui/renderers.js
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { showCharacterDetailModal, showCharacterDetailPopup } from './renderers/characterModal.js';
 import { showWorldviewDetailModal } from './renderers/worldviewModal.js';
 import { showStorylineDetailModal } from './renderers/storylineModal.js';
 import { showRelationshipDetailModal } from './renderers/relationshipModal.js';
+import * as staticDataManager from '../src/StaticDataManager.js';
 
 // 【调试模式辅助函数】
 const debugLog = (...args) => {
@@ -26,6 +27,84 @@ const debugWarn = (...args) => {
         console.warn(...args);
     }
 };
+
+function buildFallbackChapterStateFromStaticCache() {
+    try {
+        if (!staticDataManager || typeof staticDataManager.getFullDatabase !== 'function') {
+            return null;
+        }
+        const db = staticDataManager.getFullDatabase() || {};
+        const characterIds = Object.keys(db);
+        if (characterIds.length === 0) return null;
+
+        const firstCharId = characterIds[0];
+        const cachedData = db[firstCharId];
+        if (!cachedData) return null;
+
+        const safeWorldview = cachedData.worldview || {};
+        const safeStorylines = cachedData.storylines || {};
+
+        const fallbackState = {
+            uid: `static_cache_${firstCharId}`,
+            characterId: firstCharId,
+            staticMatrices: {
+                characters: cachedData.characters || {},
+                worldview: {
+                    locations: safeWorldview.locations || {},
+                    items: safeWorldview.items || {},
+                    factions: safeWorldview.factions || {},
+                    concepts: safeWorldview.concepts || {},
+                    events: safeWorldview.events || {},
+                    races: safeWorldview.races || {}
+                },
+                storylines: {
+                    main_quests: safeStorylines.main_quests || {},
+                    side_quests: safeStorylines.side_quests || {},
+                    relationship_arcs: safeStorylines.relationship_arcs || {},
+                    personal_arcs: safeStorylines.personal_arcs || {}
+                },
+                relationship_graph: cachedData.relationship_graph || { edges: [] }
+            },
+            dynamicState: {
+                characters: {},
+                worldview: {
+                    locations: {},
+                    items: {},
+                    factions: {},
+                    concepts: {},
+                    events: {},
+                    races: {}
+                },
+                storylines: {
+                    main_quests: {},
+                    side_quests: {},
+                    relationship_arcs: {},
+                    personal_arcs: {}
+                }
+            },
+            meta: {
+                longTermStorySummary: cachedData.longTermStorySummary || '（静态数据预览）',
+                lastChapterHandoff: cachedData.lastChapterHandoff || null,
+                narrative_control_tower: cachedData.narrative_control_tower || { storyline_progress: {} }
+            },
+            chapter_blueprint: cachedData.chapter_blueprint || {},
+            activeChapterDesignNotes: cachedData.activeChapterDesignNotes || null
+        };
+
+        if (!fallbackState.meta.narrative_control_tower) {
+            fallbackState.meta.narrative_control_tower = { storyline_progress: {} };
+        }
+        if (!fallbackState.meta.narrative_control_tower.storyline_progress) {
+            fallbackState.meta.narrative_control_tower.storyline_progress = {};
+        }
+
+        fallbackState.__source = 'static_cache';
+        return fallbackState;
+    } catch (error) {
+        console.warn('[Renderers] 读取静态数据库失败，无法构建预览章节状态', error);
+        return null;
+    }
+}
 
 
 /**
@@ -314,11 +393,61 @@ function renderArchiveWorldview(worldviewData, category, container, categoryKey)
  * @param {JQuery<HTMLElement>} container - 渲染的目标容器
  * @param {string} category - 故事线分类（main_quests/side_quests/relationship_arcs/personal_arcs）
  * @param {string} categoryName - 分类显示名称
+ * @param {object} storylineProgress - 叙事控制塔记录的故事线进度
  */
-function renderArchiveStorylines(storylineData, container, category, categoryName) {
+function renderArchiveStorylines(storylineData, container, category, categoryName, storylineProgress = {}) {
     if (!container || container.length === 0) return;
 
     container.empty();
+
+    const stageLabelMap = {
+        setup: '铺垫阶段',
+        inciting_incident: '激励事件',
+        catalyst: '触发事件',
+        debate: '抉择阶段',
+        first_turning_point: '第一次转折',
+        fun_and_games: '探索阶段',
+        midpoint: '中期节点',
+        bad_guys_close_in: '逆境逼近',
+        climax_approach: '高潮前奏',
+        all_is_lost: '至暗时刻',
+        dark_night: '黑夜反思',
+        finale: '终章',
+        resolution: '结局阶段',
+        deepening: '关系深化',
+        discovery: '发现阶段',
+        confrontation: '对峙阶段',
+        aftermath: '余波阶段',
+        unknown: '阶段未记录'
+    };
+
+    const formatStageLabel = (stage) => {
+        if (!stage) return '阶段未记录';
+        return stageLabelMap[stage] || stage;
+    };
+    const clampProgressValue = (value) => {
+        const num = Number(value);
+        if (Number.isNaN(num)) return 0;
+        if (num < 0) return 0;
+        if (num > 100) return 100;
+        return num;
+    };
+
+    const resolveProgressState = (line, fallbackId) => {
+        const candidates = [
+            line?.storyline_id,
+            line?.id,
+            line?.uid,
+            fallbackId
+        ].filter(Boolean);
+
+        for (const key of candidates) {
+            if (storylineProgress && Object.prototype.hasOwnProperty.call(storylineProgress, key)) {
+                return storylineProgress[key];
+            }
+        }
+        return null;
+    };
 
     // 添加新建故事线按钮
     const addBtnHtml = `
@@ -381,6 +510,35 @@ function renderArchiveStorylines(storylineData, container, category, categoryNam
         const eyeIcon = isHidden ? 'fa-eye-slash' : 'fa-eye';
         const eyeTitle = isHidden ? '显示此故事线（当前已隐藏，不会被AI使用）' : '隐藏此故事线（暂时不让AI使用）';
 
+        const progressState = resolveProgressState(line, id);
+        let progressHtml = '';
+
+        if (progressState) {
+            const progressValue = clampProgressValue(progressState.current_progress);
+            const stageLabel = formatStageLabel(progressState.current_stage);
+            const displayValue = Math.round(progressValue);
+            const deltaValue = Number(progressState.last_increment);
+            const hasDelta = Number.isFinite(deltaValue) && deltaValue !== 0;
+            const deltaText = hasDelta
+                ? `<div class="sbt-storyline-progress-delta">本章推进 ${deltaValue > 0 ? '+' : ''}${deltaValue}%</div>`
+                : '';
+
+            progressHtml = `
+                <div class="sbt-storyline-progress">
+                    <div class="sbt-storyline-progress-header">
+                        <span class="sbt-storyline-stage">${stageLabel}</span>
+                        <span class="sbt-storyline-progress-value">${displayValue}%</span>
+                    </div>
+                    <div class="sbt-progress-bar storyline">
+                        <div class="sbt-progress-fill storyline" style="width: ${progressValue}%;"></div>
+                    </div>
+                    ${deltaText}
+                </div>
+            `;
+        } else {
+            progressHtml = '<div class="sbt-storyline-progress sbt-storyline-progress-empty">尚未记录进度</div>';
+        }
+
         const itemHtml = `
             <div class="sbt-archive-item sbt-storyline-card ${hiddenClass}" data-storyline-id="${id}" data-category="${category}">
                 <div class="sbt-archive-item-header">
@@ -402,6 +560,7 @@ function renderArchiveStorylines(storylineData, container, category, categoryNam
                     </div>
                 </div>
                 <div class="sbt-archive-item-desc">${descText}</div>
+                ${progressHtml}
                 ${line.type ? `<div class="sbt-archive-item-meta">类型: ${line.type}</div>` : ''}
                 ${historyHtml}
             </div>
@@ -656,32 +815,38 @@ function updateArchivePanel(chapterState) {
         return merged;
     };
 
+    const storylineProgress = chapterState.meta?.narrative_control_tower?.storyline_progress || {};
+
     renderArchiveStorylines(
         mergeStorylineData('main_quests'),
         $('#sbt-archive-main-quests'),
         'main_quests',
-        '主线任务'
+        '主线任务',
+        storylineProgress
     );
 
     renderArchiveStorylines(
         mergeStorylineData('side_quests'),
         $('#sbt-archive-side-quests'),
         'side_quests',
-        '支线任务'
+        '支线任务',
+        storylineProgress
     );
 
     renderArchiveStorylines(
         mergeStorylineData('relationship_arcs'),
         $('#sbt-archive-relationship-arcs'),
         'relationship_arcs',
-        '关系弧光'
+        '关系弧光',
+        storylineProgress
     );
 
     renderArchiveStorylines(
         mergeStorylineData('personal_arcs'),
         $('#sbt-archive-personal-arcs'),
         'personal_arcs',
-        '个人成长'
+        '个人成长',
+        storylineProgress
     );
 }
 
@@ -903,7 +1068,17 @@ function renderChapterBlueprint(blueprint) {
 }
 
 export function updateDashboard(chapterState) {
-    if (!chapterState || $('#beat-tracker-component-wrapper').length === 0) return;
+    if ($('#beat-tracker-component-wrapper').length === 0) return;
+
+    if (!chapterState || !chapterState.staticMatrices) {
+        const fallbackState = buildFallbackChapterStateFromStaticCache();
+        if (fallbackState) {
+            debugWarn('[Renderers] 未检测到 Leader 章节，使用静态数据库预览。');
+            chapterState = fallbackState;
+        }
+    }
+
+    if (!chapterState) return;
 
     // V4.2 调试：验证UI收到的章节数据
     debugGroup('[RENDERERS-V4.2-DEBUG] updateDashboard 收到数据');
@@ -1134,3 +1309,4 @@ export function updateDashboard(chapterState) {
 
 // 导出模态框函数，供外部使用
 export { showCharacterDetailModal, showCharacterDetailPopup, showWorldviewDetailModal, showStorylineDetailModal, showRelationshipDetailModal };
+

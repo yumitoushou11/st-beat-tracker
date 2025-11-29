@@ -4,6 +4,7 @@ import { updateDashboard, showCharacterDetailModal, showWorldviewDetailModal, sh
 import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
+import { clampAffinityValue } from '../utils/affinityUtils.js';
 import { showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
 import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets, populatePromptManagerUI, bindPromptManagerHandlers } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
@@ -552,15 +553,20 @@ $('#extensions-settings-button').after(html);
                 const $input = $(this);
                 const fromCharId = $input.data('from-char');
                 const toCharId = $input.data('to-char');
-                const newAffinity = parseInt($input.val(), 10);
+                const rawValue = ($input.val() ?? '').toString().trim();
+                if (rawValue === '') return;
 
-                if (!isNaN(newAffinity) && newAffinity >= 0 && newAffinity <= 100) {
-                    affinityUpdates.push({
-                        fromCharId,
-                        toCharId,
-                        affinity: newAffinity
-                    });
+                const normalizedAffinity = clampAffinityValue(rawValue, null);
+                if (normalizedAffinity === null || normalizedAffinity === undefined) {
+                    console.warn(`[UIManager] 无效的好感度输入 (${rawValue})，来源 ${fromCharId} -> ${toCharId}`);
+                    return;
                 }
+
+                affinityUpdates.push({
+                    fromCharId,
+                    toCharId,
+                    affinity: normalizedAffinity
+                });
             });
 
             // 调试日志
@@ -644,6 +650,11 @@ $('#extensions-settings-button').after(html);
             // 更新好感度
             for (const update of affinityUpdates) {
                 const { fromCharId, toCharId, affinity } = update;
+                const normalizedAffinity = clampAffinityValue(affinity, null);
+                if (normalizedAffinity === null || normalizedAffinity === undefined) {
+                    deps.warn(`[UIManager] 忽略无效的好感度值 (${affinity})，来源 ${fromCharId} -> ${toCharId}`);
+                    continue;
+                }
 
                 // 确保 dynamicState.characters 存在
                 if (!currentChapterState.dynamicState) {
@@ -663,9 +674,9 @@ $('#extensions-settings-button').after(html);
                 }
 
                 // 更新好感度值
-                currentChapterState.dynamicState.characters[fromCharId].relationships[toCharId].current_affinity = affinity;
+                currentChapterState.dynamicState.characters[fromCharId].relationships[toCharId].current_affinity = normalizedAffinity;
 
-                console.log(`好感度已更新: ${fromCharId} 对 ${toCharId} = ${affinity}`);
+                console.log(`好感度已更新: ${fromCharId} 对 ${toCharId} = ${normalizedAffinity}`);
             }
 
             console.groupEnd();
@@ -1347,6 +1358,7 @@ $('#extensions-settings-button').after(html);
         const currentSummary = $panel.find('textarea[data-path="current_summary"]').val()?.trim();
         const trigger = $panel.find('.sbt-storyline-trigger-input').val()?.trim();
         const currentStatus = $panel.find('.sbt-storyline-status-select').val();
+        const playerSupplement = $panel.find('textarea[data-path="player_supplement"]').val()?.trim();
 
         // 验证必填字段
         if (!title) {
@@ -1383,11 +1395,13 @@ $('#extensions-settings-button').after(html);
             currentChapterState.dynamicState.storylines[category][finalLineId] = {
                 current_status: currentStatus || 'active',
                 current_summary: currentSummary || summary || '故事线刚刚创建',
-                history: []
+                history: [],
+                player_supplement: playerSupplement || ''
             };
         } else {
             currentChapterState.dynamicState.storylines[category][finalLineId].current_status = currentStatus || 'active';
             currentChapterState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || summary || '';
+            currentChapterState.dynamicState.storylines[category][finalLineId].player_supplement = playerSupplement || '';
         }
 
         // 保存

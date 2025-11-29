@@ -2,6 +2,7 @@
 // 角色详情模态框相关的渲染逻辑
 
 import { mapValueToHue } from '../../utils/colorUtils.js';
+import { clampAffinityValue } from '../../utils/affinityUtils.js';
 import applicationFunctionManager from '../../manager.js';
 
 /**
@@ -144,7 +145,8 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
 
             if (staticRel || dynamicRel) {
                 hasRelationships = true;
-                const affinity = parseInt(dynamicRel?.current_affinity ?? staticRel?.affinity ?? 50, 10);
+                const rawAffinity = dynamicRel?.current_affinity ?? staticRel?.affinity ?? 50;
+                const affinity = clampAffinityValue(rawAffinity, 50);
                 const relationType = staticRel?.relation_type || staticRel?.description || '未知关系';
                 const affinityColor = mapValueToHue(affinity);
                 const otherCharName = otherChar?.core?.name || otherChar?.name || otherCharId;
@@ -196,7 +198,8 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
                                 }
                             }
                         }
-                        const finalAffinity = entry.final_affinity !== undefined ? ` → ${entry.final_affinity}` : '';
+                        const normalizedFinalAffinity = clampAffinityValue(entry.final_affinity, null);
+                        const finalAffinity = normalizedFinalAffinity === null || normalizedFinalAffinity === undefined ? '' : ` → ${normalizedFinalAffinity}`;
                         historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}${finalAffinity}</span></div></div>`;
                     });
                     historyHtml += '</div>';
@@ -223,7 +226,8 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
                 const staticRel = charRelationships[targetCharId];
                 const dynamicRel = chapterState.dynamicState.characters?.[charId]?.relationships?.[targetCharId];
 
-                const affinity = parseInt(dynamicRel?.current_affinity ?? staticRel?.affinity ?? 50, 10);
+                const rawAffinity = dynamicRel?.current_affinity ?? staticRel?.affinity ?? 50;
+                const affinity = clampAffinityValue(rawAffinity, 50);
                 const relationType = staticRel?.relation_type || staticRel?.description || '未知关系';
                 const affinityColor = mapValueToHue(affinity);
                 const targetCharName = targetChar?.core?.name || targetChar?.name || targetCharId;
@@ -275,7 +279,8 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
                                 }
                             }
                         }
-                        const finalAffinity = entry.final_affinity !== undefined ? ` → ${entry.final_affinity}` : '';
+                        const normalizedFinalAffinity = clampAffinityValue(entry.final_affinity, null);
+                        const finalAffinity = normalizedFinalAffinity === null || normalizedFinalAffinity === undefined ? '' : ` → ${normalizedFinalAffinity}`;
                         historyHtml += `<div class="sbt-history-entry"><div class="sbt-history-entry-header"><span class="sbt-history-timestamp">${timestamp}</span><span class="sbt-history-change ${change.startsWith('+') ? 'positive' : change.startsWith('-') ? 'negative' : ''}">${change}${finalAffinity}</span></div></div>`;
                     });
                     historyHtml += '</div>';
@@ -362,7 +367,8 @@ export function showCharacterDetailPopup(charId, chapterState) {
 
         // 优先使用动态数据
         const currentAffinity = dynamicRel?.current_affinity ?? staticRel?.affinity;
-        const affinity = currentAffinity ?? '??';
+        const normalizedAffinity = clampAffinityValue(currentAffinity, null);
+        const affinity = normalizedAffinity === null || normalizedAffinity === undefined ? '??' : normalizedAffinity;
         const reputation = staticRel?.relation_type || staticRel?.description || '关系未建立';
 
         relationshipsHtml += `

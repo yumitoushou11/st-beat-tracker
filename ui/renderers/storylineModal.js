@@ -27,7 +27,8 @@ export function showStorylineDetailModal(lineId, category, categoryName, chapter
         dynamicData = {
             current_status: 'active',
             current_summary: '',
-            history: []
+            history: [],
+            player_supplement: ''
         };
     }
 
@@ -44,7 +45,8 @@ export function showStorylineDetailModal(lineId, category, categoryName, chapter
         involved_chars: staticData?.involved_chars || [],
         current_status: dynamicData?.current_status || 'active',
         current_summary: dynamicData?.current_summary || staticData?.summary || '',
-        history: dynamicData?.history || []
+        history: dynamicData?.history || [],
+        player_supplement: dynamicData?.player_supplement || ''
     };
 
     // 获取分类图标
@@ -196,6 +198,27 @@ export function showStorylineDetailModal(lineId, category, categoryName, chapter
                 ` : `
                     <div class="sbt-storyline-content">
                         ${mergedData.current_summary ? `<p class="sbt-text-content">${mergedData.current_summary.replace(/\n/g, '<br>')}</p>` : '<p class="sbt-empty-text">暂无当前进展</p>'}
+                    </div>
+                `}
+            </div>
+        </div>
+
+        <div class="sbt-character-detail-section">
+            <div class="sbt-character-detail-section-title"><i class="fa-solid fa-user-pen"></i>玩家意见补充（最高优先级）</div>
+            <div class="sbt-character-detail-section-content">
+                ${isEditMode ? `
+                    <div class="sbt-storyline-edit-wrapper sbt-player-supplement-wrapper">
+                        <textarea class="sbt-storyline-textarea sbt-player-supplement-textarea" data-path="player_supplement" placeholder="请输入玩家对本故事线的补充或限制...&#10;&#10;提示：&#10;- 记录玩家的意志、底线或必须达成的目标&#10;- 这里的内容会随故事线一起发送给所有AI，优先级最高">${mergedData.player_supplement}</textarea>
+                        <div class="sbt-storyline-edit-tips sbt-player-supplement-tip">
+                            <i class="fa-solid fa-triangle-exclamation"></i>
+                            <span>玩家补充被当做强制指令，所有AI必须无条件执行。</span>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="sbt-storyline-player-supplement-view">
+                        ${mergedData.player_supplement
+                            ? `<p class="sbt-text-content">${mergedData.player_supplement.replace(/\n/g, '<br>')}</p>`
+                            : '<p class="sbt-empty-text">暂无玩家补充</p>'}
                     </div>
                 `}
             </div>
