@@ -1281,7 +1281,7 @@ _applyBlueprintMask(blueprint, currentBeat) {
     return maskedBlueprint;
 }
 /**带有智能重试机制的UI同步器。如果失败，则会在有限次数内自动重试。*/
-_syncUiWithRetry() {
+    _syncUiWithRetry() {
         // 1. 尝试从消息历史中寻找 Leader 状态
         const { piece } = this.USER.findLastMessageWithLeader();
         const metadataLeader = this.USER.getContext()?.chatMetadata?.leader;
@@ -1359,6 +1359,97 @@ _syncUiWithRetry() {
         this.uiSyncRetryCount++;
         // this.info(`  -> 未找到leader状态，将在 ${RETRY_DELAY}ms 后重试...`); // 减少刷屏
         this.uiSyncRetryTimer = setTimeout(() => this._syncUiWithRetry(), RETRY_DELAY);
+    }
+    /**
+     * 尝试从静态数据库构建一个章节预览，用于在缺少 leader 状态时展示。
+     * @returns {Chapter|null}
+     */
+    _buildChapterPreviewFromStaticCache() {
+        try {
+            const context = this.USER.getContext ? this.USER.getContext() : {};
+            let charId = context?.characterId || null;
+            let cachedData = null;
+
+            if (charId) {
+                cachedData = staticDataManager.loadStaticData?.(charId) || null;
+            }
+
+            if (!cachedData) {
+                const db = staticDataManager.getFullDatabase?.() || {};
+                const ids = Object.keys(db);
+                if (ids.length === 0) {
+                    this.info('[Engine] 静态数据库为空，无法提供预览。');
+                    return null;
+                }
+                charId = ids[0];
+                cachedData = db[charId];
+            }
+
+            if (!cachedData) {
+                this.warn('[Engine] 未能找到可用的静态缓存数据。');
+                return null;
+            }
+
+            const safeWorldview = cachedData.worldview || {};
+            const safeStorylines = cachedData.storylines || {};
+
+            const chapterData = {
+                uid: `static_cache_${charId}`,
+                characterId: charId,
+                staticMatrices: {
+                    characters: cachedData.characters || {},
+                    worldview: {
+                        locations: safeWorldview.locations || {},
+                        items: safeWorldview.items || {},
+                        factions: safeWorldview.factions || {},
+                        concepts: safeWorldview.concepts || {},
+                        events: safeWorldview.events || {},
+                        races: safeWorldview.races || {}
+                    },
+                    storylines: {
+                        main_quests: safeStorylines.main_quests || {},
+                        side_quests: safeStorylines.side_quests || {},
+                        relationship_arcs: safeStorylines.relationship_arcs || {},
+                        personal_arcs: safeStorylines.personal_arcs || {}
+                    },
+                    relationship_graph: cachedData.relationship_graph || { edges: [] }
+                },
+                dynamicState: {
+                    characters: {},
+                    worldview: {
+                        locations: {},
+                        items: {},
+                        factions: {},
+                        concepts: {},
+                        events: {},
+                        races: {}
+                    },
+                    storylines: {
+                        main_quests: {},
+                        side_quests: {},
+                        relationship_arcs: {},
+                        personal_arcs: {}
+                    }
+                },
+                meta: {
+                    longTermStorySummary: cachedData.longTermStorySummary || '（静态数据预览）',
+                    lastChapterHandoff: cachedData.lastChapterHandoff || null,
+                    narrative_control_tower: cachedData.narrative_control_tower || { storyline_progress: {} }
+                },
+                chapter_blueprint: cachedData.chapter_blueprint || {},
+                activeChapterDesignNotes: cachedData.activeChapterDesignNotes || null,
+                __source: 'static_cache'
+            };
+
+            if (!chapterData.meta.narrative_control_tower.storyline_progress) {
+                chapterData.meta.narrative_control_tower.storyline_progress = {};
+            }
+
+            return new Chapter(chapterData);
+        } catch (error) {
+            this.diagnose('[Engine] 构建静态缓存章节预览失败:', error);
+            return null;
+        }
     }
     /**
      * [辅助函数] 从剧本纯文本中提取出“终章信标”部分。

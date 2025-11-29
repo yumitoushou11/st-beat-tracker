@@ -35,6 +35,7 @@ export function showStorylineDetailModal(lineId, category, categoryName, chapter
     if (!staticData && !isNew) return;
 
     const isEditMode = editMode || isNew;
+    const isStaticArchiveMode = chapterState?.__source === 'static_cache' || chapterState?.uid === 'temp_cached_view';
 
     // 合并静态和动态数据
     const mergedData = {
@@ -116,7 +117,12 @@ export function showStorylineDetailModal(lineId, category, categoryName, chapter
     }
 
     // 构建详细信息HTML
+    const staticModeBanner = isStaticArchiveMode
+        ? `<div class="sbt-static-edit-banner"><i class="fa-solid fa-database"></i> 当前正处于「静态档案编辑模式」，保存后会直接写入世界档案，供未来的新故事使用。</div>`
+        : '';
+
     const detailHtml = `
+        ${staticModeBanner}
         <div class="sbt-character-detail-header">
             <div class="sbt-character-detail-name">
                 <i class="fa-solid fa-${getCategoryIcon()}"></i>

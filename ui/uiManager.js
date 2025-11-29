@@ -30,11 +30,51 @@ const deps = {
     }
 };
 
+const STATIC_CACHE_SOURCE = 'static_cache';
+const TEMP_CACHE_UID = 'temp_cached_view';
+
+function isStaticArchiveState(state) {
+    return !!(state && (state.__source === STATIC_CACHE_SOURCE || state.uid === TEMP_CACHE_UID));
+}
+
+function resolveStaticCharacterId(state) {
+    if (!state) return null;
+    if (state.characterId) return state.characterId;
+    const characters = state.staticMatrices?.characters || {};
+    const ids = Object.keys(characters);
+    return ids.length > 0 ? ids[0] : null;
+}
+
 export function initializeUIManager(dependencies) {
     Object.assign(deps, dependencies);
 
     deps.showSagaFocusPopup = showSagaFocusPopup;
     deps.showNarrativeFocusPopup = showNarrativeFocusPopup;
+    const originalSaveHandler = typeof deps.onSaveCharacterEdit === 'function' ? deps.onSaveCharacterEdit : null;
+    deps.onSaveCharacterEdit = async (actionType, chapterState) => {
+        if (isStaticArchiveState(chapterState)) {
+            const characterId = resolveStaticCharacterId(chapterState);
+            if (!characterId) {
+                deps.warn(`[UIManager] 静态档案保存失败：缺少 characterId（action=${actionType}）`);
+                return;
+            }
+            if (!chapterState.staticMatrices) {
+                deps.warn('[UIManager] 静态档案保存失败：staticMatrices 不存在');
+                return;
+            }
+            try {
+                staticDataManager.saveStaticData(characterId, chapterState.staticMatrices);
+                deps.info(`[UIManager] 静态档案已写入 (${characterId}) [${actionType}]`);
+            } catch (error) {
+                deps.diagnose('[UIManager] 写入静态档案失败:', error);
+                throw error;
+            }
+            return;
+        }
+        if (originalSaveHandler) {
+            return originalSaveHandler(actionType, chapterState);
+        }
+    };
     
     if (deps.eventBus) {
         deps.eventBus.on('CHAPTER_UPDATED', (chapterState) => {
@@ -69,11 +109,21 @@ $('#extensions-settings-button').after(html);
         }
     // -- 维护当前章节状态的全局引用 --
     let currentChapterState = null;
+    const refreshStaticModeBanner = () => {
+        const $banner = $('#sbt-static-mode-banner');
+        if ($banner.length === 0) return;
+        if (isStaticArchiveState(currentChapterState)) {
+            $banner.show();
+        } else {
+            $banner.hide();
+        }
+    };
 
     // 监听CHAPTER_UPDATED事件，保存最新的章节状态
     if (deps.eventBus) {
         deps.eventBus.on('CHAPTER_UPDATED', (chapterState) => {
             currentChapterState = chapterState;
+            refreshStaticModeBanner();
         });
     }
 
@@ -101,7 +151,9 @@ $('#extensions-settings-button').after(html);
 
             // 构造一个临时的 chapterState 对象
             const tempChapterState = {
-                uid: 'temp_cached_view',
+                uid: TEMP_CACHE_UID,
+                __source: STATIC_CACHE_SOURCE,
+                characterId: firstCharId,
                 staticMatrices: {
                     characters: cachedData.characters || {},
                     worldview: cachedData.worldview || {
@@ -139,9 +191,10 @@ $('#extensions-settings-button').after(html);
             };
 
             // 只在没有真实章节状态时才显示缓存数据（避免覆盖建筑师生成的设计笔记）
-            if (!currentChapterState || currentChapterState.uid === 'temp_cached_view') {
+            if (!currentChapterState || isStaticArchiveState(currentChapterState)) {
                 // 更新当前状态引用
                 currentChapterState = tempChapterState;
+                refreshStaticModeBanner();
 
                 // 调用 updateDashboard 显示数据
                 updateDashboard(tempChapterState);

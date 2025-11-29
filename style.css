@@ -1671,6 +1671,21 @@ input:checked + .sbt-slider:before {
     color: var(--sbt-primary-accent);
 }
 
+.sbt-static-edit-banner {
+    margin-bottom: 12px;
+    padding: 10px 12px;
+    border-left: 3px solid var(--sbt-warning-color);
+    background-color: rgba(255, 193, 7, 0.12);
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: var(--sbt-text-light);
+}
+
+.sbt-static-edit-banner i {
+    margin-right: 6px;
+    color: var(--sbt-warning-color);
+}
+
 .sbt-player-supplement-wrapper {
     border-left: 3px solid var(--sbt-warning-color);
     padding-left: 8px;
