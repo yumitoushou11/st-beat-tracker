@@ -1,4 +1,4 @@
-﻿// FILE: StoryBeatEngine.js
+// FILE: StoryBeatEngine.js
 
 import { Chapter } from './Chapter.js';
 import * as stateManager from './stateManager.js'; 
@@ -15,6 +15,7 @@ import { HistorianAgent } from './ai/historianAgent.js';
 import { ArchitectAgent } from './ai/architectAgent.js';
  import { deepmerge } from './utils/deepmerge.js';
 import { TurnConductorAgent } from './ai/turnConductorAgent.js';
+import { NarrativeControlTowerManager } from './src/NarrativeControlTowerManager.js';
 import { promptManager } from './promptManager.js';
 export class StoryBeatEngine {
     constructor(dependencies) {
@@ -81,6 +82,8 @@ export class StoryBeatEngine {
                 console.warn(...args);
             }
         };
+
+        this.narrativeControlTowerManager = new NarrativeControlTowerManager(this);
     }
 
     _setStatus(newStatus) {
@@ -741,7 +744,7 @@ const spoilerBlockPlaceholder = {
     try {
         this.info("异步处理流程启动...");
         this.currentChapter = Chapter.fromJSON(lastStatePiece.leader);
-        this._syncStorylineProgressWithStorylines(this.currentChapter);
+        this.narrativeControlTowerManager.syncStorylineProgressWithStorylines(this.currentChapter);
 
         // 触发UI刷新事件，确保监控面板显示最新状态（包括故事梗概）
         this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
@@ -1320,7 +1323,7 @@ _applyBlueprintMask(blueprint, currentBeat) {
 
             // 恢复状态到内存
             this.currentChapter = Chapter.fromJSON(resolvedLeader);
-            this._syncStorylineProgressWithStorylines(this.currentChapter);
+            this.narrativeControlTowerManager.syncStorylineProgressWithStorylines(this.currentChapter);
             
             // 触发UI更新
             this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
@@ -2163,635 +2166,17 @@ _applyBlueprintMask(blueprint, currentBeat) {
 
         // V4.0 步骤七：更新叙事控制塔 (Narrative Control Tower)
         if (delta.rhythm_assessment || delta.storyline_progress_deltas) {
-            this._updateNarrativeControlTower(workingChapter, delta);
+            this.narrativeControlTowerManager.update(workingChapter, delta);
         }
 
         this.info("--- 状态更新Delta应用完毕 ---");
         return workingChapter;
     }
 
-    /**
-     * V4.0 叙事控制塔统一更新方法
-     * 整合所有节奏相关数据到 narrative_control_tower
-     * @param {Chapter} workingChapter - 当前章节实例
-     * @param {object} delta - 史官生成的增量数据
-     */
-    _updateNarrativeControlTower(workingChapter, delta) {
-        this.debugGroup('[ENGINE-V4] 叙事控制塔更新流程');
-        this.info(" -> 开始更新叙事控制塔...");
-
-        // 确保 narrative_control_tower 存在
-        if (!workingChapter.meta.narrative_control_tower) {
-            workingChapter.meta.narrative_control_tower = {
-                recent_chapters_intensity: [],
-                last_chapter_rhythm: null,
-                storyline_progress: {},
-                global_story_phase: {
-                    phase: "setup",
-                    phase_description: "故事刚刚开始，处于建立阶段",
-                    overall_progress: 0,
-                    distance_to_climax: "far"
-                },
-                device_cooldowns: {
-                    spotlight_protocol: {
-                        last_usage_chapter_uid: null,
-                        recent_usage_count: 0,
-                        usage_history: []
-                    },
-                    time_dilation: {
-                        last_usage_chapter_uid: null,
-                        recent_usage_count: 0,
-                        usage_history: []
-                    }
-                },
-                chekhov_guns: {},
-                rhythm_directive: {
-                    mandatory_constraints: [],
-                    suggested_chapter_type: "Scene",
-                    intensity_range: { min: 1, max: 10 },
-                    impending_thresholds: [],
-                    rhythm_dissonance_opportunities: [],
-                    generated_at: null
-                }
-            };
-            this.info(" -> 已初始化 narrative_control_tower");
-        }
-
-        const tower = workingChapter.meta.narrative_control_tower;
-        const rhythmData = delta.rhythm_assessment;
-
-        // === 第一层：微观节奏更新 ===
-        if (rhythmData) {
-            // 添加本章的情感强度记录
-            const intensityRecord = {
-                chapter_uid: workingChapter.uid,
-                emotional_intensity: rhythmData.emotional_intensity || 5,
-                chapter_type: rhythmData.chapter_type || "Scene"
-            };
-            tower.recent_chapters_intensity.push(intensityRecord);
-            this.info(`  ✓ [微观] 添加章节记录: intensity=${intensityRecord.emotional_intensity}, type=${intensityRecord.chapter_type}`);
-
-            // 只保留最近5章
-            if (tower.recent_chapters_intensity.length > 5) {
-                tower.recent_chapters_intensity = tower.recent_chapters_intensity.slice(-5);
-            }
-
-            // 保存本章节奏评估
-            tower.last_chapter_rhythm = {
-                chapter_type: rhythmData.chapter_type,
-                chapter_type_reasoning: rhythmData.chapter_type_reasoning || "",
-                emotional_intensity: rhythmData.emotional_intensity,
-                intensity_reasoning: rhythmData.intensity_reasoning || "",
-                requires_cooldown: rhythmData.requires_cooldown || false,
-                cooldown_reasoning: rhythmData.cooldown_reasoning || "",
-                narrative_devices_used: rhythmData.narrative_devices_used || {},
-                device_usage_details: rhythmData.device_usage_details || ""
-            };
-            this.info(`  ✓ [微观] 保存 last_chapter_rhythm`);
-
-            // === V5.0 叙事节奏环更新 ===
-            if (rhythmData.recommended_next_phase || rhythmData.phase_transition_triggered) {
-                // 确保节奏环存在
-                if (!tower.narrative_rhythm_clock) {
-                    tower.narrative_rhythm_clock = {
-                        current_phase: "inhale",
-                        phase_description: {},
-                        cycle_count: 0,
-                        last_phase_change_chapter: null,
-                        current_phase_duration: 0,
-                        recommended_next_phase: null,
-                        phase_history: []
-                    };
-                }
-
-                const clock = tower.narrative_rhythm_clock;
-                const oldPhase = clock.current_phase;
-                const newPhase = rhythmData.recommended_next_phase || oldPhase;
-
-                // V7.0: 获取叙事模式配置
-                const narrativeMode = workingChapter.meta?.narrative_control_tower?.narrative_mode;
-                const currentMode = narrativeMode?.current_mode || 'classic_rpg';
-                const modeConfig = narrativeMode?.mode_config?.[currentMode];
-
-                // 如果相位发生变化
-                if (rhythmData.phase_transition_triggered && newPhase !== oldPhase) {
-                    // 检查是否完成一个周期（pause → inhale）
-                    if (oldPhase === 'pause' && newPhase === 'inhale') {
-                        clock.cycle_count = (clock.cycle_count || 0) + 1;
-                        this.info(`  ✓ [节奏环] 完成第 ${clock.cycle_count} 次呼吸周期`);
-                    }
-
-                    // V7.0: 记录相位变化历史(包含模式信息)
-                    clock.phase_history.push({
-                        phase: newPhase,
-                        chapter_uid: workingChapter.uid,
-                        reason: rhythmData.phase_transition_reasoning || '史官评估',
-                        narrative_mode: currentMode // V7.0: 记录当时的模式
-                    });
-                    // 保留最近5次
-                    if (clock.phase_history.length > 5) {
-                        clock.phase_history = clock.phase_history.slice(-5);
-                    }
-
-                    // 更新当前相位
-                    clock.current_phase = newPhase;
-                    clock.last_phase_change_chapter = workingChapter.uid;
-                    clock.current_phase_duration = 1;
-                    this.info(`  ✓ [节奏环] 相位转换: ${oldPhase} → ${newPhase} [${currentMode === 'web_novel' ? '🔥网文模式' : '🎭正剧模式'}]`);
-                } else {
-                    // 相位未变化，增加持续计数
-                    clock.current_phase_duration = (clock.current_phase_duration || 0) + 1;
-                    this.info(`  ✓ [节奏环] 维持相位: ${oldPhase} (持续 ${clock.current_phase_duration} 章)`);
-
-                    // V7.0: 检查相位持续时间是否超出模式建议
-                    if (modeConfig?.phase_duration_modifiers && clock.current_phase_duration > 0) {
-                        const modifier = modeConfig.phase_duration_modifiers[clock.current_phase] || 1.0;
-                        const baseLimit = {
-                            inhale: 3,
-                            hold: 2,
-                            exhale: 2,
-                            pause: 2
-                        }[clock.current_phase] || 2;
-
-                        const adjustedLimit = Math.ceil(baseLimit * modifier);
-
-                        if (clock.current_phase_duration >= adjustedLimit) {
-                            this.info(`  ⚠️ [节奏环] ${currentMode}模式下,${clock.current_phase}相位已持续${clock.current_phase_duration}章,建议限制为${adjustedLimit}章`);
-                        }
-                    }
-                }
-
-                // 保存史官推荐
-                clock.recommended_next_phase = rhythmData.recommended_next_phase || null;
-            }
-
-            // === 第四层：叙事技法冷却状态更新 ===
-            if (rhythmData.narrative_devices_used) {
-                const cooldowns = tower.device_cooldowns;
-
-                if (rhythmData.narrative_devices_used.spotlight_protocol) {
-                    cooldowns.spotlight_protocol.last_usage_chapter_uid = workingChapter.uid;
-                    cooldowns.spotlight_protocol.usage_history.push({
-                        chapter_uid: workingChapter.uid,
-                        emotional_weight: rhythmData.emotional_intensity,
-                        trigger_reason: rhythmData.device_usage_details
-                    });
-                    // 计算最近5章使用次数
-                    cooldowns.spotlight_protocol.recent_usage_count = cooldowns.spotlight_protocol.usage_history
-                        .filter(h => tower.recent_chapters_intensity.some(c => c.chapter_uid === h.chapter_uid))
-                        .length;
-                    // 保留最近10条
-                    if (cooldowns.spotlight_protocol.usage_history.length > 10) {
-                        cooldowns.spotlight_protocol.usage_history = cooldowns.spotlight_protocol.usage_history.slice(-10);
-                    }
-                    this.info(`  ✓ [冷却] 更新 spotlight_protocol (recent_count=${cooldowns.spotlight_protocol.recent_usage_count})`);
-                }
-
-                if (rhythmData.narrative_devices_used.time_dilation) {
-                    cooldowns.time_dilation.last_usage_chapter_uid = workingChapter.uid;
-                    cooldowns.time_dilation.usage_history.push({
-                        chapter_uid: workingChapter.uid,
-                        emotional_weight: rhythmData.emotional_intensity,
-                        trigger_reason: rhythmData.device_usage_details
-                    });
-                    cooldowns.time_dilation.recent_usage_count = cooldowns.time_dilation.usage_history
-                        .filter(h => tower.recent_chapters_intensity.some(c => c.chapter_uid === h.chapter_uid))
-                        .length;
-                    if (cooldowns.time_dilation.usage_history.length > 10) {
-                        cooldowns.time_dilation.usage_history = cooldowns.time_dilation.usage_history.slice(-10);
-                    }
-                    this.info(`  ✓ [冷却] 更新 time_dilation (recent_count=${cooldowns.time_dilation.recent_usage_count})`);
-                }
-            }
-        }
-
-        // === 第二层：中观节奏更新（故事线进度）===
-        if (delta.storyline_progress_deltas && Array.isArray(delta.storyline_progress_deltas)) {
-            const progressDeltas = delta.storyline_progress_deltas;
-            this.info(`  -> [中观] 处理 ${progressDeltas.length} 条故事线进度更新`);
-
-            for (const pd of progressDeltas) {
-                const { storyline_id, previous_progress, progress_delta, new_progress,
-                        delta_reasoning, threshold_crossed, new_stage } = pd;
-
-                if (!tower.storyline_progress[storyline_id]) {
-                    tower.storyline_progress[storyline_id] = {
-                        current_progress: 0,
-                        current_stage: "unknown",
-                        pacing_curve: "default",
-                        last_increment: 0,
-                        threshold_alerts: []
-                    };
-                }
-
-                const sp = tower.storyline_progress[storyline_id];
-                sp.current_progress = new_progress;
-                sp.last_increment = progress_delta;
-
-                // 记录史官提供的额外元数据，供UI与占位故事线使用
-                if (!sp.metadata || typeof sp.metadata !== 'object') {
-                    sp.metadata = {};
-                }
-                const metadataKeys = [
-                    'storyline_title',
-                    'storyline_summary',
-                    'storyline_type',
-                    'storyline_category',
-                    'storyline_trigger',
-                    'involved_chars',
-                    'player_supplement',
-                    'current_status',
-                    'current_summary'
-                ];
-                for (const key of metadataKeys) {
-                    if (pd[key] !== undefined && pd[key] !== null) {
-                        sp.metadata[key] = pd[key];
-                    }
-                }
-                if (delta_reasoning) {
-                    sp.metadata.delta_reasoning = delta_reasoning;
-                }
-
-                if (new_stage) {
-                    sp.current_stage = new_stage;
-                }
-
-                // 处理阈值跨越
-                if (threshold_crossed) {
-                    this.info(`  ✓ [中观] ${storyline_id}: 跨越阈值 "${threshold_crossed}" (${previous_progress}% -> ${new_progress}%)`);
-                } else {
-                    this.info(`  ✓ [中观] ${storyline_id}: 进度 +${progress_delta}% (${new_progress}%)`);
-                }
-
-                // 自动在静态/动态故事线中创建可编辑占位条目
-                this._materializeStorylineProgressEntry(
-                    workingChapter,
-                    storyline_id,
-                    sp,
-                    { extraSource: pd }
-                );
-            }
-        }
-
-        // 确保旧有的故事线进度也能映射到可编辑故事线
-        this._syncStorylineProgressWithStorylines(workingChapter);
-
-        // === 生成节奏指令 (Rhythm Directive) ===
-        this._calculateRhythmDirective(workingChapter);
-
-        this.debugLog('[V4] 控制塔状态:', {
-            recent_intensity: tower.recent_chapters_intensity,
-            storyline_progress: tower.storyline_progress,
-            rhythm_directive: tower.rhythm_directive
-        });
-        this.debugGroupEnd();
-    }
-
-    /**
-     * 将叙事控制塔中的故事线进度节点映射到可编辑的静态/动态故事线结�?
-     * @param {Chapter} chapter
-     */
-    _syncStorylineProgressWithStorylines(chapter) {
-        if (!chapter) return;
-        this._normalizeStorylineStaticData(chapter);
-        const storylineMap = chapter.meta?.narrative_control_tower?.storyline_progress || {};
-        const storylineProgressEntries = Object.entries(storylineMap);
-        if (storylineProgressEntries.length === 0) {
-            return;
-        }
-        storylineProgressEntries.forEach(([storylineId, progressInfo]) => {
-            this._materializeStorylineProgressEntry(chapter, storylineId, progressInfo);
-        });
-    }
-
-    /**
-     * 将 initial_summary/description 同步到 summary，保证UI可编辑
-     * @param {Chapter} chapter
-     */
-    _normalizeStorylineStaticData(chapter) {
-        const storylines = chapter?.staticMatrices?.storylines;
-        if (!storylines) return;
-        const categories = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
-        const toText = (value) => {
-            if (typeof value === 'string') return value;
-            if (value === undefined || value === null) return '';
-            try {
-                return JSON.stringify(value);
-            } catch {
-                return String(value);
-            }
-        };
-
-        categories.forEach(category => {
-            const bucket = storylines[category];
-            if (!bucket) return;
-            Object.entries(bucket).forEach(([lineId, entry]) => {
-                if (!entry || typeof entry !== 'object') return;
-                let patched = false;
-                if (!entry.summary || entry.summary === '') {
-                    if (entry.initial_summary) {
-                        entry.summary = toText(entry.initial_summary);
-                        patched = true;
-                    } else if (entry.description) {
-                        entry.summary = toText(entry.description);
-                        patched = true;
-                    }
-                }
-                if (!entry.initial_summary && entry.summary) {
-                    entry.initial_summary = entry.summary;
-                    patched = true;
-                }
-                if (patched) {
-                    this.debugLog(`[StorylineNormalize] ${category}/${lineId} 摘要字段已校准`);
-                }
-            });
-        });
-    }
-
-    /**
-     * 根据剧情进度节点（storyline_progress）生成可供UI编辑的故事线条目
-     * @param {Chapter} chapter
-     * @param {string} storylineId
-     * @param {object} progressInfo - narrative_control_tower.storyline_progress中的条目
-     * @param {object} options - 额外元数据来源
-     */
-    _materializeStorylineProgressEntry(chapter, storylineId, progressInfo = {}, options = {}) {
-        if (!chapter || !storylineId) return;
-        const staticStorylines = chapter.staticMatrices?.storylines;
-        const dynamicStorylines = chapter.dynamicState?.storylines;
-        if (!staticStorylines || !dynamicStorylines) return;
-
-        const metadataSources = [];
-        if (options.extraSource) {
-            metadataSources.push(options.extraSource);
-        }
-        if (progressInfo.metadata && typeof progressInfo.metadata === 'object') {
-            metadataSources.push(progressInfo.metadata);
-        }
-        metadataSources.push(progressInfo);
-
-        const pickValue = (keys) => {
-            for (const source of metadataSources) {
-                if (!source || typeof source !== 'object') continue;
-                for (const key of keys) {
-                    if (Object.prototype.hasOwnProperty.call(source, key)) {
-                        const value = source[key];
-                        if (value !== undefined && value !== null && value !== '') {
-                            return value;
-                        }
-                    }
-                }
-            }
-            return undefined;
-        };
-
-        const title = pickValue(['storyline_title', 'title', 'name']);
-        const summary = pickValue(['storyline_summary', 'summary', 'current_summary', 'delta_reasoning']);
-        const typeHint = pickValue(['storyline_type', 'type']);
-        const categoryHint = pickValue(['storyline_category', 'category']);
-        const trigger = pickValue(['storyline_trigger', 'trigger']);
-        const involvedChars = pickValue(['involved_chars']);
-        const playerSupplement = pickValue(['player_supplement']);
-        const currentStatus = pickValue(['current_status']);
-        const currentSummary = pickValue(['current_summary', 'delta_reasoning', 'storyline_summary', 'summary']);
-
-        const resolvedCategory = this._resolveStorylineCategory(storylineId, {
-            storyline_category: categoryHint,
-            storyline_type: typeHint
-        });
-
-        if (!resolvedCategory) {
-            this.warn(`[StorylineNetwork] 无法识别故事线 ${storylineId} 的分类，跳过实体化。`);
-            return;
-        }
-
-        if (!staticStorylines[resolvedCategory]) {
-            staticStorylines[resolvedCategory] = {};
-        }
-        if (!dynamicStorylines[resolvedCategory]) {
-            dynamicStorylines[resolvedCategory] = {};
-        }
-
-        const staticBucket = staticStorylines[resolvedCategory];
-        const dynamicBucket = dynamicStorylines[resolvedCategory];
-
-        const safeTitle = title || storylineId;
-        const safeSummary = summary || '（尚未撰写摘要）';
-        const safeType = typeHint || resolvedCategory;
-        const safeTrigger = trigger || '剧情推进触发';
-        const safeInvolved = Array.isArray(involvedChars) ? involvedChars : [];
-
-        let createdPlaceholder = false;
-
-        if (!staticBucket[storylineId]) {
-            staticBucket[storylineId] = {
-                title: safeTitle,
-                summary: safeSummary,
-                initial_summary: safeSummary,
-                trigger: safeTrigger,
-                type: safeType,
-                involved_chars: safeInvolved
-            };
-            createdPlaceholder = true;
-        } else {
-            const staticEntry = staticBucket[storylineId];
-            if (!staticEntry.title && safeTitle) staticEntry.title = safeTitle;
-            if ((!staticEntry.summary || staticEntry.summary === '') && safeSummary) {
-                staticEntry.summary = safeSummary;
-            }
-            if ((!staticEntry.initial_summary || staticEntry.initial_summary === '') && (safeSummary || staticEntry.summary)) {
-                staticEntry.initial_summary = staticEntry.summary || safeSummary;
-            }
-            if (!staticEntry.type && safeType) staticEntry.type = safeType;
-            if (!staticEntry.trigger && trigger) staticEntry.trigger = safeTrigger;
-            if ((!staticEntry.involved_chars || staticEntry.involved_chars.length === 0) && safeInvolved.length > 0) {
-                staticEntry.involved_chars = safeInvolved;
-            }
-        }
-
-        if (!dynamicBucket[storylineId]) {
-            dynamicBucket[storylineId] = {
-                current_status: currentStatus || 'active',
-                current_summary: currentSummary || safeSummary,
-                history: [],
-                player_supplement: playerSupplement || ''
-            };
-            createdPlaceholder = true;
-        } else {
-            const dynamicEntry = dynamicBucket[storylineId];
-            if (!dynamicEntry.current_status && currentStatus) {
-                dynamicEntry.current_status = currentStatus;
-            }
-            if ((!dynamicEntry.current_summary || dynamicEntry.current_summary === '尚未记录进展') && (currentSummary || safeSummary)) {
-                dynamicEntry.current_summary = currentSummary || safeSummary;
-            }
-            if (!dynamicEntry.player_supplement && playerSupplement) {
-                dynamicEntry.player_supplement = playerSupplement;
-            }
-        }
-
-        if (progressInfo) {
-            if (!progressInfo.metadata || typeof progressInfo.metadata !== 'object') {
-                progressInfo.metadata = {};
-            }
-            const metadata = progressInfo.metadata;
-            if (safeTitle && !metadata.storyline_title) metadata.storyline_title = safeTitle;
-            if (safeSummary && !metadata.storyline_summary) metadata.storyline_summary = safeSummary;
-            if (safeType && !metadata.storyline_type) metadata.storyline_type = safeType;
-            if (resolvedCategory && !metadata.storyline_category) metadata.storyline_category = resolvedCategory;
-            if (safeTrigger && !metadata.storyline_trigger) metadata.storyline_trigger = safeTrigger;
-            if (Array.isArray(safeInvolved) && safeInvolved.length > 0 && (!Array.isArray(metadata.involved_chars) || metadata.involved_chars.length === 0)) {
-                metadata.involved_chars = safeInvolved;
-            }
-        }
-
-        if (createdPlaceholder) {
-            this.info(`[StorylineNetwork] 已为 ${storylineId} 生成可编辑占位（${resolvedCategory}）。`);
-        }
-    }
-
-    /**
-     * 根据类型、分类或ID前缀推断故事线的归属分类
-     * @param {string} storylineId
-     * @param {object} hints
-     * @returns {'main_quests'|'side_quests'|'relationship_arcs'|'personal_arcs'}
-     */
-    _resolveStorylineCategory(storylineId, hints = {}) {
-        const normalize = (value) => {
-            if (value === undefined || value === null) return '';
-            return value.toString().trim().toLowerCase().replace(/[\s_-]+/g, '');
-        };
-
-        const categorySynonyms = {
-            main_quests: ['mainquests', 'mainquest', 'main', '主线', '主線', 'campaign', 'saga', 'primary'],
-            side_quests: ['sidequests', 'sidequest', 'side', '支线', '支線', 'branch', 'optional'],
-            relationship_arcs: ['relationshiparcs', 'relationship', 'romance', '感情', '羁绊', '羈絆', 'bond'],
-            personal_arcs: ['personalarcs', 'personal', 'characterarc', 'character', '角色', '成长', '成長', 'arc']
-        };
-
-        const matchCategory = (value, allowPartial = false) => {
-            if (!value) return null;
-            for (const [category, synonyms] of Object.entries(categorySynonyms)) {
-                for (const synonym of synonyms) {
-                    if (value === synonym) {
-                        return category;
-                    }
-                    if (allowPartial && value.includes(synonym)) {
-                        return category;
-                    }
-                }
-            }
-            return null;
-        };
-
-        const explicitHint = normalize(hints.storyline_category || hints.category);
-        const explicitMatch = matchCategory(explicitHint);
-        if (explicitMatch) return explicitMatch;
-
-        const typeHint = normalize(hints.storyline_type || hints.type);
-        const typeMatch = matchCategory(typeHint, true);
-        if (typeMatch) return typeMatch;
-
-        const idHint = normalize(storylineId);
-        const idMatch = matchCategory(idHint, true);
-        if (idMatch) return idMatch;
-
-        // 默认归类到个人弧线，保证至少可被编辑
-        return 'personal_arcs';
-    }
-
-    /**
-     * V4.0 节奏指令计算器
-     * 综合所有控制塔数据，生成建筑师AI的唯一决策输入
-     * @param {Chapter} workingChapter - 当前章节实例
-     */
-    _calculateRhythmDirective(workingChapter) {
-        const tower = workingChapter.meta.narrative_control_tower;
-        const directive = tower.rhythm_directive;
-
-        // 重置指令
-        directive.mandatory_constraints = [];
-        directive.impending_thresholds = [];
-        directive.rhythm_dissonance_opportunities = [];
-
-        // === 冷却约束检查 ===
-        const lastRhythm = tower.last_chapter_rhythm;
-        if (lastRhythm?.requires_cooldown) {
-            directive.mandatory_constraints.push("cooldown_required");
-            directive.intensity_range = { min: 1, max: 5 };
-            directive.suggested_chapter_type = "Sequel";
-            this.info(`  ✓ [指令] 强制冷却: 上一章需要冷却`);
-        } else {
-            directive.intensity_range = { min: 1, max: 10 };
-            directive.suggested_chapter_type = "Scene";
-        }
-
-        // 聚光灯协议使用频率检查
-        const spotlightCooldown = tower.device_cooldowns.spotlight_protocol;
-        if (spotlightCooldown.recent_usage_count >= 2) {
-            directive.mandatory_constraints.push("spotlight_forbidden");
-            this.info(`  ✓ [指令] 聚光灯禁用: 最近5章已使用 ${spotlightCooldown.recent_usage_count} 次`);
-        }
-
-        // === 阈值预警检查 ===
-        for (const [storylineId, progress] of Object.entries(tower.storyline_progress)) {
-            const thresholds = [
-                { value: 15, name: "inciting_incident" },
-                { value: 25, name: "first_turning_point" },
-                { value: 50, name: "midpoint" },
-                { value: 75, name: "climax_approach" },
-                { value: 90, name: "resolution" }
-            ];
-
-            for (const threshold of thresholds) {
-                // 检查是否即将触发（差距在10%以内）
-                if (progress.current_progress < threshold.value &&
-                    progress.current_progress >= threshold.value - 10) {
-                    directive.impending_thresholds.push({
-                        storyline_id: storylineId,
-                        threshold: threshold.name,
-                        progress: progress.current_progress,
-                        trigger_at: threshold.value
-                    });
-                }
-            }
-        }
-
-        // === 节奏错位机会检测 ===
-        const progressEntries = Object.entries(tower.storyline_progress);
-        if (progressEntries.length >= 2) {
-            // 找出进度最高和最低的故事线
-            let maxProgress = { id: null, value: 0 };
-            let minProgress = { id: null, value: 100 };
-
-            for (const [id, p] of progressEntries) {
-                if (p.current_progress > maxProgress.value) {
-                    maxProgress = { id, value: p.current_progress };
-                }
-                if (p.current_progress < minProgress.value) {
-                    minProgress = { id, value: p.current_progress };
-                }
-            }
-
-            // 如果差距超过40%，存在节奏错位机会
-            const gap = maxProgress.value - minProgress.value;
-            if (gap >= 40) {
-                directive.rhythm_dissonance_opportunities.push({
-                    description: `${maxProgress.id}(${maxProgress.value}%)进度领先，${minProgress.id}(${minProgress.value}%)滞后${gap}%，可利用主线压力催化滞后线`
-                });
-                this.info(`  ✓ [指令] 检测到节奏错位机会: ${gap}% 差距`);
-            }
-        }
-
-        // 时间戳
-        directive.generated_at = new Date().toISOString();
-        this.info(`  ✓ [指令] rhythm_directive 已生成`);
-    }
-
     onStateChange = () => {
-    // 使用 debounce 防止事件风暴（例如，快速删除多条消息）
-    clearTimeout(this.syncDebounceTimer);
-    this.syncDebounceTimer = setTimeout(() => {
+        // 使用 debounce 防止事件风暴（例如，快速删除多条消息）
+        clearTimeout(this.syncDebounceTimer);
+        this.syncDebounceTimer = setTimeout(() => {
         this.info("[SBE Engine] 状态变更事件触发，启动智能UI同步流程...");
           const { piece, deep } = this.USER.findLastMessageWithLeader();
         const $anchorIndex = $('#sbt-chapter-anchor-index');
@@ -2807,11 +2192,9 @@ _applyBlueprintMask(blueprint, currentBeat) {
         this.uiSyncRetryCount = 0;
         this._syncUiWithRetry();
 
-    }, 150);
-}
-    
-
-    async _runGenesisFlow(firstMessageContent = null) {
+        }, 150);
+    }
+        async _runGenesisFlow(firstMessageContent = null) {
         this._setStatus(ENGINE_STATUS.BUSY_GENESIS);
         this.info(`--- 创世纪流程启动 (ECI模型 V3.1) ---`);
         this.debugGroup(`BRIDGE-PROBE [GENESIS-FLOW-ECI]`);
@@ -2885,7 +2268,7 @@ _applyBlueprintMask(blueprint, currentBeat) {
             // 使用 deepmerge 确保数据完整性 (如果是新建的 Chapter，staticMatrices 是空的，合并后即为 full data；如果是复用的，合并自身无副作用)
             if (finalStaticMatrices) {
                 this.currentChapter.staticMatrices = deepmerge(this.currentChapter.staticMatrices, finalStaticMatrices);
-                this._normalizeStorylineStaticData(this.currentChapter);
+                this.narrativeControlTowerManager.normalizeStorylineStaticData(this.currentChapter);
                 this.info(`GENESIS: 数据注入完成。数据来源: [${sourceLabel}]`);
             } else {
                 throw new Error("严重错误：未能从任何来源获取到静态数据矩阵。");
@@ -3076,7 +2459,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
         } else {
             workingChapter = new Chapter({ characterId: activeCharId });
         }
-        this._syncStorylineProgressWithStorylines(workingChapter);
+        this.narrativeControlTowerManager.syncStorylineProgressWithStorylines(workingChapter);
 
         // 确保静态数据是最新的
         const staticData = staticDataManager.loadStaticData(activeCharId);
@@ -3109,7 +2492,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
                 // 从 leader 读取史官已保存的结果
                 if (targetPiece.leader && Chapter.isValidStructure(targetPiece.leader)) {
                     workingChapter = Chapter.fromJSON(targetPiece.leader);
-                    this._syncStorylineProgressWithStorylines(workingChapter);
+                    this.narrativeControlTowerManager.syncStorylineProgressWithStorylines(workingChapter);
                     this.info("✓ 史官结果已从 leader 恢复，正在合并最新的前端数据...");
 
                     //【关键修复】在恢复中间状态后，必须重新合并最新的静态数据，以包含用户在重试期间可能做出的修改
@@ -3501,7 +2884,7 @@ async reanalyzeWorldbook() {
         const { piece: lastStatePiece } = this.USER.findLastMessageWithLeader();
         if (lastStatePiece && Chapter.isValidStructure(lastStatePiece.leader)) {
             this.currentChapter = Chapter.fromJSON(lastStatePiece.leader);
-            this._syncStorylineProgressWithStorylines(this.currentChapter);
+            this.narrativeControlTowerManager.syncStorylineProgressWithStorylines(this.currentChapter);
             this.info("热重载: 已从聊天记录中成功加载当前 Chapter 状态。");
             // 触发UI刷新，确保监控面板显示最新状态
             this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
