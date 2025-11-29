@@ -16,6 +16,7 @@ import { ArchitectAgent } from './ai/architectAgent.js';
  import { deepmerge } from './utils/deepmerge.js';
 import { TurnConductorAgent } from './ai/turnConductorAgent.js';
 import { NarrativeControlTowerManager } from './src/NarrativeControlTowerManager.js';
+import { EntityContextManager } from './src/EntityContextManager.js';
 import { promptManager } from './promptManager.js';
 export class StoryBeatEngine {
     constructor(dependencies) {
@@ -52,10 +53,6 @@ export class StoryBeatEngine {
         this.conductorLlmService = null; // 回合裁判专用服务
         this.turnConductorAgent = null;
 
-        // V2.0: 实体清单缓存
-        this.entityManifestCache = null; // 缓存生成的实体清单
-        this.lastStaticMatricesChecksum = null; // 用于检测 staticMatrices 是否变化
-
         // 【调试模式辅助方法】
         this.debugLog = (...args) => {
             if (localStorage.getItem('sbt-debug-mode') === 'true') {
@@ -84,6 +81,7 @@ export class StoryBeatEngine {
         };
 
         this.narrativeControlTowerManager = new NarrativeControlTowerManager(this);
+        this.entityContextManager = new EntityContextManager(this);
     }
 
     _setStatus(newStatus) {
@@ -322,341 +320,6 @@ export class StoryBeatEngine {
      * [V2.0 辅助方法] 生成实体清单（带缓存）
      * 用于TurnConductor进行ID匹配，以及动态上下文召回
      */
-    _getOrGenerateEntityManifest() {
-        this.debugGroup('[ENGINE-V2-PROBE] 实体清单缓存管理');
-
-        if (!this.currentChapter || !this.currentChapter.staticMatrices) {
-            this.debugWarn('⚠️ Chapter 或 staticMatrices 不存在，无法生成清单');
-            this.debugGroupEnd();
-            return { content: '', totalCount: 0 };
-        }
-
-        // 计算当前 staticMatrices 的简单校验和
-        const currentChecksum = simpleHash(JSON.stringify(this.currentChapter.staticMatrices));
-
-        // 如果缓存存在且校验和匹配，直接返回缓存
-        if (this.entityManifestCache && this.lastStaticMatricesChecksum === currentChecksum) {
-            this.debugLog('✓ 缓存命中，直接返回已缓存的实体清单');
-            this.debugGroupEnd();
-            return this.entityManifestCache;
-        }
-
-        // 否则，重新生成清单
-        this.debugLog('✓ 缓存失效或不存在，正在重新生成实体清单...');
-        const manifest = this._generateEntityManifest(this.currentChapter.staticMatrices);
-
-        // 更新缓存
-        this.entityManifestCache = manifest;
-        this.lastStaticMatricesChecksum = currentChecksum;
-
-        this.debugLog(`✓ 清单已生成并缓存，共 ${manifest.totalCount} 条实体`);
-        this.debugGroupEnd();
-
-        return manifest;
-    }
-
-    /**
-     * [V2.0 辅助方法] 从 staticMatrices 生成轻量级实体清单
-     */
-    _generateEntityManifest(staticMatrices) {
-        const manifestLines = [];
-        let count = 0;
-
-        // 1. 角色
-        if (staticMatrices.characters) {
-            for (const charId in staticMatrices.characters) {
-                const char = staticMatrices.characters[charId];
-                const keywords = char.core?.keywords || char.keywords || [];
-                manifestLines.push(`- ${charId}: ${char.core?.name || char.name || '未命名'} (${keywords.join(', ')})`);
-                count++;
-            }
-        }
-
-        // 2. 世界观实体
-        if (staticMatrices.worldview) {
-            ['locations', 'items', 'factions', 'concepts', 'events', 'races'].forEach(category => {
-                if (staticMatrices.worldview[category]) {
-                    for (const entityId in staticMatrices.worldview[category]) {
-                        const entity = staticMatrices.worldview[category][entityId];
-                        const keywords = entity.keywords || [];
-                        const name = entity.name || entity.title || '未命名';
-                        manifestLines.push(`- ${entityId}: ${name} (${keywords.join(', ')})`);
-                        count++;
-                    }
-                }
-            });
-        }
-
-        // 3. 故事线
-        if (staticMatrices.storylines) {
-            ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'].forEach(category => {
-                if (staticMatrices.storylines[category]) {
-                    for (const storylineId in staticMatrices.storylines[category]) {
-                        const storyline = staticMatrices.storylines[category][storylineId];
-                        manifestLines.push(`- ${storylineId}: ${storyline.title || '未命名'}`);
-                        count++;
-                    }
-                }
-            });
-        }
-
-        return {
-            content: manifestLines.join('\n'),
-            totalCount: count
-        };
-    }
-
-    /**
-     * [自由章模式] 生成包含所有世界观档案的完整上下文
-     * @returns {string} 格式化的完整世界观档案
-     */
-    _generateFullWorldviewContext() {
-        this.debugGroup('[ENGINE-FREE-ROAM] 生成完整世界观档案');
-
-        const chapter = this.currentChapter;
-        if (!chapter || !chapter.staticMatrices) {
-            console.error('❌ 错误：无法获取章节数据');
-            this.debugGroupEnd();
-            return '';
-        }
-
-        const allEntityIds = [];
-
-        // 收集所有角色ID
-        if (chapter.staticMatrices.characters) {
-            allEntityIds.push(...Object.keys(chapter.staticMatrices.characters));
-        }
-
-        // 收集所有世界观元素ID
-        if (chapter.staticMatrices.worldview) {
-            for (const category of ['locations', 'items', 'factions', 'concepts', 'events', 'races']) {
-                if (chapter.staticMatrices.worldview[category]) {
-                    allEntityIds.push(...Object.keys(chapter.staticMatrices.worldview[category]));
-                }
-            }
-        }
-
-        // 收集所有故事线ID
-        if (chapter.staticMatrices.storylines) {
-            for (const category of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
-                if (chapter.staticMatrices.storylines[category]) {
-                    allEntityIds.push(...Object.keys(chapter.staticMatrices.storylines[category]));
-                }
-            }
-        }
-
-        this.debugLog(`✓ 收集到 ${allEntityIds.length} 个实体ID`);
-
-        const contextContent = this._retrieveEntitiesByIdsInternal(
-            allEntityIds,
-            '自由章模式-完整档案'
-        );
-
-        const finalContent = contextContent ? [
-            ``,
-            `### 🎲 自由章模式 - 完整世界观档案`,
-            ``,
-            `【导演指示】本章为自由章模式，以下是完整的世界观档案供你自由调用：`,
-            ``,
-            contextContent
-        ].join('\n') : '';
-
-        this.debugLog(`✓ 完整世界观档案生成完成，长度: ${finalContent.length} 字符`);
-        this.debugGroupEnd();
-
-        return finalContent;
-    }
-
-    /**
-     * [V3.0 新增] 生成并缓存章节级静态上下文
-     * 在章节启动时调用，将 chapter_context_ids 中的所有实体一次性注入
-     * @param {string[]} chapterContextIds - 章节规划的实体ID数组
-     * @returns {string} 格式化的章节级实体详细信息
-     */
-    _generateChapterStaticContext(chapterContextIds, sourceChapter = null) {
-        this.debugGroup('[ENGINE-V3-PROBE] 章节级静态上下文生成');
-        this.debugLog('章节规划实体ID列表:', chapterContextIds);
-
-        if (!chapterContextIds || chapterContextIds.length === 0) {
-            this.debugLog('✓ 本章无预设实体');
-            this.debugGroupEnd();
-            return '';
-        }
-
-        const contextContent = this._retrieveEntitiesByIdsInternal(
-            chapterContextIds,
-            '章节级静态上下文',
-            sourceChapter
-        );
-
-        const finalContent = contextContent ? [
-            ``,
-            `### 📂 章节级核心实体档案 (Chapter-Level Entity Archive)`,
-            ``,
-            `以下是本章规划涉及的核心实体。这些实体在整个章节中始终可用，你可以随时引用：`,
-            ``,
-            contextContent
-        ].join('\n') : '';
-
-        this.debugLog(`✓ 章节级静态上下文生成完成，长度: ${finalContent.length} 字符`);
-        this.debugLog('生成的内容预览（前200字符）:', finalContent.substring(0, 200));
-        this.debugGroupEnd();
-
-        return finalContent;
-    }
-
-    /**
-     * [V3.0 重构] 内部实体检索方法，被章节级和回合级检索共用
-     * @param {string[]} entityIds - 实体ID数组
-     * @param {string} contextLabel - 上下文标签（用于日志）
-     * @param {object} sourceChapter - 可选的源章节对象（用于章节转换时）
-     * @returns {string} 格式化的实体详细信息（不含标题）
-     */
-    _retrieveEntitiesByIdsInternal(entityIds, contextLabel = '上下文', sourceChapter = null) {
-        this.debugGroup(`[ENGINE-V3-PROBE] ${contextLabel}召回`);
-        this.debugLog('需要召回的实体ID列表:', entityIds);
-
-        if (!entityIds || entityIds.length === 0) {
-            this.debugLog('✓ 无需召回');
-            this.debugGroupEnd();
-            return '';
-        }
-
-        // 使用传入的章节或当前章节
-        const chapter = sourceChapter || this.currentChapter;
-        if (!chapter || !chapter.staticMatrices) {
-            console.error('❌ 错误：无法获取 staticMatrices，章节对象为空');
-            this.debugGroupEnd();
-            return '';
-        }
-
-        const staticMatrices = chapter.staticMatrices;
-        const retrievedEntities = [];
-
-        for (const entityId of entityIds) {
-            let entity = null;
-            let category = '';
-
-            // 1. 在角色中查找
-            if (staticMatrices.characters?.[entityId]) {
-                entity = staticMatrices.characters[entityId];
-                category = 'characters';
-            }
-            // 2. 在世界观中查找（只有未找到时才继续）
-            if (!entity && staticMatrices.worldview) {
-                for (const worldCategory of ['locations', 'items', 'factions', 'concepts', 'events', 'races']) {
-                    if (staticMatrices.worldview[worldCategory]?.[entityId]) {
-                        entity = staticMatrices.worldview[worldCategory][entityId];
-                        category = `worldview.${worldCategory}`;
-                        break;
-                    }
-                }
-            }
-            // 3. 在故事线中查找（只有未找到时才继续）
-            if (!entity && staticMatrices.storylines) {
-                // 智能识别：根据ID前缀推断可能的分类
-                let categoriesToSearch = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
-
-                // 如果ID以quest_开头，优先搜索quest类别
-                if (entityId.startsWith('quest_')) {
-                    categoriesToSearch = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
-                }
-                // 如果ID以arc_开头，优先搜索arc类别
-                else if (entityId.startsWith('arc_')) {
-                    categoriesToSearch = ['relationship_arcs', 'personal_arcs', 'main_quests', 'side_quests'];
-                }
-
-                for (const storylineCategory of categoriesToSearch) {
-                    if (staticMatrices.storylines[storylineCategory]?.[entityId]) {
-                        entity = staticMatrices.storylines[storylineCategory][entityId];
-                        category = `storylines.${storylineCategory}`;
-                        break;
-                    }
-                }
-            }
-
-            if (entity) {
-                // 【档案隐藏功能】检查实体是否被隐藏
-                if (entity.isHidden === true) {
-                    this.debugLog(`⊘ 跳过隐藏实体: ${entityId} (${category})`);
-                    continue; // 跳过这个实体，不添加到召回列表
-                }
-
-                this.debugLog(`✓ 找到实体: ${entityId} (${category})`);
-                retrievedEntities.push({
-                    id: entityId,
-                    category: category,
-                    data: entity
-                });
-            } else {
-                this.debugWarn(`⚠️ 未找到实体: ${entityId}`);
-
-                // 诊断信息：列出可能的原因
-                if (entityId.startsWith('quest_') || entityId.startsWith('arc_')) {
-                    this.debugGroup('🔍 故事线ID诊断');
-                    this.debugLog('当前 staticMatrices.storylines 结构:');
-                    if (staticMatrices.storylines) {
-                        for (const cat of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
-                            const ids = staticMatrices.storylines[cat] ? Object.keys(staticMatrices.storylines[cat]) : [];
-                            this.debugLog(`  ${cat}:`, ids.length > 0 ? ids : '(空)');
-                        }
-                    } else {
-                        this.debugLog('  storylines不存在');
-                    }
-                    this.debugLog('💡 建议: 如果这是新故事线，ID应该使用 NEW: 前缀');
-                    this.debugGroupEnd();
-                }
-            }
-        }
-
-        this.debugLog(`✓ 成功召回 ${retrievedEntities.length}/${entityIds.length} 个实体`);
-        this.debugGroupEnd();
-
-        // 格式化输出（仅内容，不含标题）
-        if (retrievedEntities.length === 0) {
-            return '';
-        }
-
-        return retrievedEntities.map(({ id, category, data }) => {
-            return `### ${id} (${category})\n\`\`\`json\n${JSON.stringify(data, null, 2)}\n\`\`\``;
-        }).join('\n\n');
-    }
-
-    /**
-     * [V3.0 适配] 回合级动态上下文检索（仅检索章节规划外的实体）
-     * @param {string[]} realtimeContextIds - turnConductor 识别的实体ID数组
-     * @returns {string} 格式化的实时召回内容
-     */
-    _retrieveEntitiesByIds(realtimeContextIds) {
-        this.debugGroup('[ENGINE-V3-PROBE] 回合级动态上下文召回');
-        this.debugLog('turnConductor 识别的实体ID:', realtimeContextIds);
-
-        if (!realtimeContextIds || realtimeContextIds.length === 0) {
-            this.debugLog('✓ 无需召回');
-            this.debugGroupEnd();
-            return '';
-        }
-
-        // V3.0 新增：过滤掉已在章节级注入的实体
-        const chapterContextIds = this.currentChapter?.chapter_blueprint?.chapter_context_ids || [];
-        const outOfPlanIds = realtimeContextIds.filter(id => !chapterContextIds.includes(id));
-
-        this.debugLog(`章节规划实体: ${chapterContextIds.length} 个`);
-        this.debugLog(`规划外实体: ${outOfPlanIds.length} 个`, outOfPlanIds);
-
-        if (outOfPlanIds.length === 0) {
-            this.debugLog('✓ 所有识别的实体均已在章节级注入，无需额外召回');
-            this.debugGroupEnd();
-            return '';
-        }
-
-        const contextContent = this._retrieveEntitiesByIdsInternal(outOfPlanIds, '回合级动态上下文');
-        this.debugGroupEnd();
-
-        // V3.2: 返回时不带标题，因为外层会统一添加
-        return contextContent;
-    }
-
 onPromptReady = async (eventData) => {
         const WATCHDOG_DELAY = 1000; // 看门狗延迟，单位：毫秒 (1秒)
     const now = Date.now();
@@ -756,7 +419,7 @@ const spoilerBlockPlaceholder = {
             this.info("🎲 [自由章模式] 跳过回合执导，将世界观档案全部发送到前台");
 
             // 生成包含所有世界观档案的完整上下文
-            const allWorldviewContext = this._generateFullWorldviewContext();
+            const allWorldviewContext = this.entityContextManager.generateFullWorldviewContext();
 
             // 直接注入到占位符
             const worldviewInjection = `【世界观档案（自由章模式）】\n${allWorldviewContext}`;
@@ -860,7 +523,7 @@ const spoilerBlockPlaceholder = {
                 this.info(`检测到 ${conductorDecision.realtime_context_ids.length} 个需要实时召回的实体`);
                 this.debugLog('实体ID列表:', conductorDecision.realtime_context_ids);
 
-                dynamicContextInjection = this._retrieveEntitiesByIds(conductorDecision.realtime_context_ids);
+                dynamicContextInjection = this.entityContextManager.retrieveEntitiesByIds(conductorDecision.realtime_context_ids);
 
                 if (dynamicContextInjection) {
                     this.info('✓ 动态上下文已生成，将注入到 Prompt');
@@ -2327,7 +1990,7 @@ _applyBlueprintMask(blueprint, currentBeat) {
                     const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
                     this.debugGroup('[ENGINE-V3-DEBUG] GENESIS - 章节上下文缓存');
                     this.debugLog('建筑师返回的 chapter_context_ids:', chapterContextIds);
-                    this.currentChapter.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds);
+                    this.currentChapter.cachedChapterStaticContext = this.entityContextManager.generateChapterStaticContext(chapterContextIds);
                     this.debugLog('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
                     this.debugGroupEnd();
                     this.info(`GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
@@ -2650,7 +2313,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
             this.debugGroup('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
             this.debugLog('建筑师返回的 chapter_context_ids:', chapterContextIds);
-            updatedNewChapter.cachedChapterStaticContext = this._generateChapterStaticContext(chapterContextIds, updatedNewChapter);        
+            updatedNewChapter.cachedChapterStaticContext = this.entityContextManager.generateChapterStaticContext(chapterContextIds, updatedNewChapter);        
             this.debugLog('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
             this.debugGroupEnd();
             this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
