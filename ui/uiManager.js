@@ -1382,9 +1382,11 @@ $('#extensions-settings-button').after(html);
         }
 
         // 保存静态数据
+        const safeSummary = summary || '';
         currentChapterState.staticMatrices.storylines[category][finalLineId] = {
             title: title,
-            summary: summary || '',
+            summary: safeSummary,
+            initial_summary: safeSummary,
             trigger: trigger || '玩家主动触发',
             type: category,
             involved_chars: involvedChars
@@ -1394,13 +1396,13 @@ $('#extensions-settings-button').after(html);
         if (!currentChapterState.dynamicState.storylines[category][finalLineId]) {
             currentChapterState.dynamicState.storylines[category][finalLineId] = {
                 current_status: currentStatus || 'active',
-                current_summary: currentSummary || summary || '故事线刚刚创建',
+                current_summary: currentSummary || safeSummary || '故事线刚刚创建',
                 history: [],
                 player_supplement: playerSupplement || ''
             };
         } else {
             currentChapterState.dynamicState.storylines[category][finalLineId].current_status = currentStatus || 'active';
-            currentChapterState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || summary || '';
+            currentChapterState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || safeSummary || '';
             currentChapterState.dynamicState.storylines[category][finalLineId].player_supplement = playerSupplement || '';
         }
 

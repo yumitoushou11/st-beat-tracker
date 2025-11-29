@@ -2359,15 +2359,59 @@ _syncUiWithRetry() {
      * @param {Chapter} chapter
      */
     _syncStorylineProgressWithStorylines(chapter) {
-        if (!chapter || !chapter.meta?.narrative_control_tower?.storyline_progress) {
-            return;
-        }
-        const storylineProgressEntries = Object.entries(chapter.meta.narrative_control_tower.storyline_progress);
+        if (!chapter) return;
+        this._normalizeStorylineStaticData(chapter);
+        const storylineMap = chapter.meta?.narrative_control_tower?.storyline_progress || {};
+        const storylineProgressEntries = Object.entries(storylineMap);
         if (storylineProgressEntries.length === 0) {
             return;
         }
         storylineProgressEntries.forEach(([storylineId, progressInfo]) => {
             this._materializeStorylineProgressEntry(chapter, storylineId, progressInfo);
+        });
+    }
+
+    /**
+     * 将 initial_summary/description 同步到 summary，保证UI可编辑
+     * @param {Chapter} chapter
+     */
+    _normalizeStorylineStaticData(chapter) {
+        const storylines = chapter?.staticMatrices?.storylines;
+        if (!storylines) return;
+        const categories = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
+        const toText = (value) => {
+            if (typeof value === 'string') return value;
+            if (value === undefined || value === null) return '';
+            try {
+                return JSON.stringify(value);
+            } catch {
+                return String(value);
+            }
+        };
+
+        categories.forEach(category => {
+            const bucket = storylines[category];
+            if (!bucket) return;
+            Object.entries(bucket).forEach(([lineId, entry]) => {
+                if (!entry || typeof entry !== 'object') return;
+                let patched = false;
+                if (!entry.summary || entry.summary === '') {
+                    if (entry.initial_summary) {
+                        entry.summary = toText(entry.initial_summary);
+                        patched = true;
+                    } else if (entry.description) {
+                        entry.summary = toText(entry.description);
+                        patched = true;
+                    }
+                }
+                if (!entry.initial_summary && entry.summary) {
+                    entry.initial_summary = entry.summary;
+                    patched = true;
+                }
+                if (patched) {
+                    this.debugLog(`[StorylineNormalize] ${category}/${lineId} 摘要字段已校准`);
+                }
+            });
         });
     }
 
@@ -2450,6 +2494,7 @@ _syncUiWithRetry() {
             staticBucket[storylineId] = {
                 title: safeTitle,
                 summary: safeSummary,
+                initial_summary: safeSummary,
                 trigger: safeTrigger,
                 type: safeType,
                 involved_chars: safeInvolved
@@ -2458,7 +2503,12 @@ _syncUiWithRetry() {
         } else {
             const staticEntry = staticBucket[storylineId];
             if (!staticEntry.title && safeTitle) staticEntry.title = safeTitle;
-            if (!staticEntry.summary && summary) staticEntry.summary = safeSummary;
+            if ((!staticEntry.summary || staticEntry.summary === '') && safeSummary) {
+                staticEntry.summary = safeSummary;
+            }
+            if ((!staticEntry.initial_summary || staticEntry.initial_summary === '') && (safeSummary || staticEntry.summary)) {
+                staticEntry.initial_summary = staticEntry.summary || safeSummary;
+            }
             if (!staticEntry.type && safeType) staticEntry.type = safeType;
             if (!staticEntry.trigger && trigger) staticEntry.trigger = safeTrigger;
             if ((!staticEntry.involved_chars || staticEntry.involved_chars.length === 0) && safeInvolved.length > 0) {
@@ -2742,6 +2792,7 @@ _syncUiWithRetry() {
             // 使用 deepmerge 确保数据完整性 (如果是新建的 Chapter，staticMatrices 是空的，合并后即为 full data；如果是复用的，合并自身无副作用)
             if (finalStaticMatrices) {
                 this.currentChapter.staticMatrices = deepmerge(this.currentChapter.staticMatrices, finalStaticMatrices);
+                this._normalizeStorylineStaticData(this.currentChapter);
                 this.info(`GENESIS: 数据注入完成。数据来源: [${sourceLabel}]`);
             } else {
                 throw new Error("严重错误：未能从任何来源获取到静态数据矩阵。");
