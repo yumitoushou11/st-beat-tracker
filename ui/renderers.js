@@ -1,9 +1,10 @@
-﻿// ui/renderers.js
+// ui/renderers.js
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { showCharacterDetailModal, showCharacterDetailPopup } from './renderers/characterModal.js';
 import { showWorldviewDetailModal } from './renderers/worldviewModal.js';
 import { showStorylineDetailModal } from './renderers/storylineModal.js';
 import { showRelationshipDetailModal } from './renderers/relationshipModal.js';
+import applicationFunctionManager from '../manager.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
 
 // 【调试模式辅助函数】
@@ -104,6 +105,59 @@ function buildFallbackChapterStateFromStaticCache() {
         console.warn('[Renderers] 读取静态数据库失败，无法构建预览章节状态', error);
         return null;
     }
+}
+
+const STATIC_CACHE_SOURCE = 'static_cache';
+const TEMP_CACHE_UID = 'temp_cached_view';
+
+function isStaticSnapshot(state) {
+    if (!state) return false;
+    return state.__source === STATIC_CACHE_SOURCE || state.uid === TEMP_CACHE_UID;
+}
+
+function getLeaderStateFromChat() {
+    try {
+        const ctx = typeof applicationFunctionManager?.getContext === 'function'
+            ? applicationFunctionManager.getContext()
+            : null;
+        const chat = ctx?.chat;
+        if (!Array.isArray(chat)) return null;
+        for (let i = 0; i < chat.length; i++) {
+            const piece = chat[i];
+            if (piece && !piece.is_user && piece.leader && piece.leader.staticMatrices) {
+                const leaderState = piece.leader;
+                leaderState.__source = leaderState.__source || 'leader_chat';
+                if (typeof window !== 'undefined') {
+                    window.__sbtLiveLeaderAvailable = true;
+                }
+                return leaderState;
+            }
+        }
+    } catch (error) {
+        debugWarn('[Renderers] 读取聊天 leader 状态失败:', error);
+    }
+    return null;
+}
+
+export function resolveRenderableChapterState(chapterState) {
+    let effectiveState = chapterState;
+    if (!effectiveState || !effectiveState.staticMatrices || isStaticSnapshot(effectiveState)) {
+        const leaderState = getLeaderStateFromChat();
+        if (leaderState) {
+            debugLog('[Renderers] 使用聊天 leader 状态作为渲染源。');
+            effectiveState = leaderState;
+        }
+    }
+
+    if (!effectiveState || !effectiveState.staticMatrices) {
+        const fallbackState = buildFallbackChapterStateFromStaticCache();
+        if (fallbackState) {
+            debugWarn('[Renderers] 未找到有效章节状态，使用静态缓存作为兜底。');
+            effectiveState = fallbackState;
+        }
+    }
+
+    return effectiveState || null;
 }
 
 
@@ -578,6 +632,7 @@ function renderRelationshipGraph(chapterState) {
     if (!container || container.length === 0) return;
 
     container.empty();
+    const unfamiliarStatuses = new Set(['陌生人', '点头之交', '单方面认识']);
 
     const relationshipGraph = chapterState?.staticMatrices?.relationship_graph;
     const edges = relationshipGraph?.edges || [];
@@ -595,8 +650,20 @@ function renderRelationshipGraph(chapterState) {
     };
 
     // 统计信息
-    const reunionPendingCount = edges.filter(e => e.timeline?.reunion_pending).length;
-    const firstMeetingCount = edges.filter(e => !e.narrative_status?.first_scene_together).length;
+    const separationCount = edges.filter(e => {
+        const timeline = e.timeline || {};
+        if (typeof timeline.separation_state === 'boolean') {
+            return timeline.separation_state;
+        }
+        return timeline.reunion_pending === true;
+    }).length;
+    const firstMeetingCount = edges.filter(e => {
+        const meetingStatus = (e.timeline?.meeting_status || '').trim();
+        if (meetingStatus) {
+            return unfamiliarStatuses.has(meetingStatus);
+        }
+        return e.narrative_status?.first_scene_together === false;
+    }).length;
 
     // 渲染统计信息
     const statsHtml = `
@@ -607,11 +674,11 @@ function renderRelationshipGraph(chapterState) {
             </div>
             <div class="sbt-relationship-stat-item">
                 <i class="fa-solid fa-clock-rotate-left" style="color: #f39c12;"></i>
-                <span>待重逢: <span class="sbt-relationship-stat-value">${reunionPendingCount}</span></span>
+                <span>处于分离: <span class="sbt-relationship-stat-value">${separationCount}</span></span>
             </div>
             <div class="sbt-relationship-stat-item">
                 <i class="fa-solid fa-handshake" style="color: #3498db;"></i>
-                <span>待初识: <span class="sbt-relationship-stat-value">${firstMeetingCount}</span></span>
+                <span>待熟识: <span class="sbt-relationship-stat-value">${firstMeetingCount}</span></span>
             </div>
         </div>
     `;
@@ -624,29 +691,24 @@ function renderRelationshipGraph(chapterState) {
 
         // 关系类型翻译
         const typeTranslations = {
-            'childhood_friends': '童年玩伴',
-            'family_siblings': '兄弟姐妹',
-            'family_parent': '父母子女',
-            'romantic_interest': '恋慕关系',
-            'rivals': '竞争对手',
-            'mentor_student': '师生关系',
-            'allies': '盟友关系',
-            'enemies': '敌对关系',
-            'colleagues': '同事关系',
-            'friends': '朋友关系'
+            'childhood_friends': '青梅旧盟',
+            'enemies': '宿敌对峙',
+            'lovers': '恋人羁绊',
+            'stranger_with_history': '陌路旧识'
         };
-        const typeText = typeTranslations[edge.type] || edge.type || '未知关系';
+        const typeText = edge.type_label || typeTranslations[edge.type] || edge.type || '未知关系';
 
-        // 分离时长翻译
-        const separationTranslations = {
-            'none': '无分离',
-            'days': '数天',
-            'weeks': '数周',
-            'months': '数月',
-            'years': '数年',
-            'unknown': '未知'
-        };
-        const separationText = separationTranslations[edge.timeline?.separation_duration] || edge.timeline?.separation_duration || '未知';
+        const relationshipLabel = edge.relationship_label || '尚未命名的关系';
+        const meetingStatus = (edge.timeline?.meeting_status || '未知').trim();
+        const rawSeparationState = edge.timeline?.separation_state;
+        const isSeparated = typeof rawSeparationState === 'boolean'
+            ? rawSeparationState
+            : edge.timeline?.reunion_pending === true;
+        const separationText = isSeparated ? '物理分离' : '同处一地';
+        const lastInteraction = edge.timeline?.last_interaction || '未知';
+        const meetingPending = meetingStatus
+            ? unfamiliarStatuses.has(meetingStatus)
+            : edge.narrative_status?.first_scene_together === false;
 
         // 计算情感权重等级
         const weight = edge.emotional_weight || 0;
@@ -657,20 +719,21 @@ function renderRelationshipGraph(chapterState) {
 
         // 确定卡片样式
         let cardClass = 'sbt-relationship-edge-card';
-        if (edge.timeline?.reunion_pending) cardClass += ' reunion-pending';
-        else if (!edge.narrative_status?.first_scene_together) cardClass += ' first-meeting-pending';
+        if (isSeparated) cardClass += ' reunion-pending';
+        if (meetingPending) cardClass += ' first-meeting-pending';
 
         // 时间线状态标签
-        let timelineStatusHtml = '';
-        if (edge.timeline?.reunion_pending) {
-            timelineStatusHtml = '<span class="sbt-timeline-status reunion-pending"><i class="fa-solid fa-clock-rotate-left"></i> 待重逢</span>';
-        } else if (!edge.narrative_status?.first_scene_together) {
-            timelineStatusHtml = '<span class="sbt-timeline-status first-meeting"><i class="fa-solid fa-handshake"></i> 待初识</span>';
-        } else if (edge.timeline?.separation_duration === 'none') {
-            timelineStatusHtml = '<span class="sbt-timeline-status active"><i class="fa-solid fa-check"></i> 活跃</span>';
-        } else {
-            timelineStatusHtml = '<span class="sbt-timeline-status separated"><i class="fa-solid fa-user-clock"></i> 分离中</span>';
-        }
+        const timelineStatusHtml = `
+            <span class="sbt-timeline-status meeting-status">
+                <i class="fa-solid fa-user-group"></i> ${meetingStatus || '未知相识'}
+            </span>
+            <span class="sbt-timeline-status ${isSeparated ? 'separated' : 'active'}">
+                <i class="fa-solid ${isSeparated ? 'fa-route' : 'fa-users'}"></i> ${separationText}
+            </span>
+            <span class="sbt-timeline-status last-interaction">
+                <i class="fa-solid fa-clock"></i> ${lastInteraction}
+            </span>
+        `;
 
         // 未解决张力标签
         let tensionsHtml = '';
@@ -712,6 +775,7 @@ function renderRelationshipGraph(chapterState) {
                             <i class="fa-solid fa-heart sbt-heart-icon"></i>
                             <span class="sbt-participant-name">${participant2}</span>
                         </div>
+                        <div class="sbt-relationship-label-line">${relationshipLabel}</div>
                         <div class="sbt-relationship-meta-row">
                             <span class="sbt-relationship-type-badge">${typeText}</span>
                             ${timelineStatusHtml}
@@ -1070,17 +1134,14 @@ function renderChapterBlueprint(blueprint) {
 export function updateDashboard(chapterState) {
     if ($('#beat-tracker-component-wrapper').length === 0) return;
 
-    if (!chapterState || !chapterState.staticMatrices) {
-        const fallbackState = buildFallbackChapterStateFromStaticCache();
-        if (fallbackState) {
-            debugWarn('[Renderers] 未检测到 Leader 章节，使用静态数据库预览。');
-            chapterState = fallbackState;
-        }
+    let effectiveState = resolveRenderableChapterState(chapterState);
+
+    if (!effectiveState) return;
+    chapterState = effectiveState;
+    if (typeof window !== 'undefined' && window.__sbtLiveLeaderAvailable === true) {
+        $('#sbt-static-mode-banner').hide();
     }
-
-    if (!chapterState) return;
-
-    // V4.2 调试：验证UI收到的章节数据
+// V4.2 调试：验证UI收到的章节数据
     debugGroup('[RENDERERS-V4.2-DEBUG] updateDashboard 收到数据');
     debugLog('章节UID:', chapterState.uid);
     debugLog('终章信标:', chapterState.chapter_blueprint?.endgame_beacons);
@@ -1171,6 +1232,27 @@ export function updateDashboard(chapterState) {
                 }
             }
 
+            // 双地平线 & 时间线说明
+            let dualHorizonHtml = '';
+            if (typeof notes.dual_horizon_analysis === 'string' && notes.dual_horizon_analysis.trim()) {
+                dualHorizonHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #1abc9c;">
+                        <h6 style="margin: 0 0 4px 0; color: #1abc9c; font-size: 0.95em;"><i class="fa-solid fa-mountain-sun fa-fw"></i> 双地平线分析</h6>
+                        <div style="margin: 3px 0;">${notes.dual_horizon_analysis}</div>
+                    </div>
+                `;
+            }
+
+            let chronologyHtml = '';
+            if (typeof notes.chronology_compliance === 'string' && notes.chronology_compliance.trim()) {
+                chronologyHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #2980b9;">
+                        <h6 style="margin: 0 0 4px 0; color: #2980b9; font-size: 0.95em;"><i class="fa-solid fa-clock fa-fw"></i> 时间线交代</h6>
+                        <div style="margin: 3px 0;">${notes.chronology_compliance}</div>
+                    </div>
+                `;
+            }
+
             // 渲染满足感蓝图（网文模式KPI）- 极简版
             let satisfactionHtml = '';
             if (notes.satisfaction_blueprint && typeof notes.satisfaction_blueprint === 'object') {
@@ -1246,6 +1328,49 @@ export function updateDashboard(chapterState) {
                 }
             }
 
+            // 事件优先级报告
+            let eventPriorityHtml = '';
+            const priorityReport = notes.event_priority_report || {};
+            const tierConfig = [
+                { key: 'S_tier_events', label: 'S级事件', icon: 'fa-solid fa-star-of-life', color: '#e74c3c' },
+                { key: 'A_tier_events', label: 'A级事件', icon: 'fa-solid fa-star', color: '#e67e22' },
+                { key: 'B_tier_events', label: 'B级事件', icon: 'fa-solid fa-star-half-stroke', color: '#f1c40f' },
+                { key: 'deferred_events', label: '暂缓事件', icon: 'fa-solid fa-clock-rotate-left', color: '#95a5a6' }
+            ];
+            const tierSections = tierConfig.map(({ key, label, icon, color }) => {
+                const items = Array.isArray(priorityReport[key]) ? priorityReport[key] : [];
+                if (items.length === 0) return '';
+                const list = items.map(item => `<li>${item}</li>`).join('');
+                return `
+                    <div style="margin-bottom: 6px;">
+                        <div style="font-weight: 600; color: ${color};"><i class="${icon}"></i> ${label}</div>
+                        <ul style="margin: 4px 0 0 1em; padding: 0; list-style: disc;">${list}</ul>
+                    </div>
+                `;
+            }).join('');
+            const allocationEntries = Object.entries(priorityReport.beat_allocation || {}).filter(([, value]) => value !== undefined && value !== null);
+            if (tierSections || priorityReport.priority_conflict_resolution || allocationEntries.length > 0) {
+                const allocationHtml = allocationEntries.length > 0
+                    ? `<div style="margin-top: 6px;">
+                            <strong><i class="fa-solid fa-chart-pie"></i> 节拍分配:</strong>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 4px; margin-top: 4px;">
+                                ${allocationEntries.map(([key, value]) => `<div style="background: var(--sbt-background); padding: 4px 6px; border-radius: 4px;">${key.replace(/_/g, ' ')}: <strong>${value}</strong></div>`).join('')}
+                            </div>
+                        </div>`
+                    : '';
+                const conflictHtml = priorityReport.priority_conflict_resolution
+                    ? `<div style="margin-top: 6px;"><strong><i class="fa-solid fa-scale-balanced"></i> 冲突取舍:</strong> <span style="margin-left: 4px;">${priorityReport.priority_conflict_resolution}</span></div>`
+                    : '';
+                eventPriorityHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #d35400;">
+                        <h6 style="margin: 0 0 4px 0; color: #d35400; font-size: 0.95em;"><i class="fa-solid fa-ranking-star fa-fw"></i> 事件优先级</h6>
+                        ${tierSections}
+                        ${conflictHtml}
+                        ${allocationHtml}
+                    </div>
+                `;
+            }
+
             // 渲染自我审查报告 - 极简版
             const report = notes.self_scrutiny_report || {};
             let scrutinyHtml = '';
@@ -1269,7 +1394,6 @@ export function updateDashboard(chapterState) {
                 ${elevationHtml}
                 ${renderField('fa-solid fa-diagram-project', '故事线编织', notes.storyline_weaving)}
                 ${renderField('fa-solid fa-link', '承上启下', notes.connection_and_hook)}
-                ${renderField('fa-solid fa-palette', '美学创新', notes.aesthetic_innovation_report)}
                 ${scrutinyHtml}
             `;
             notesContainer.html(notesHtml);
@@ -1309,4 +1433,5 @@ export function updateDashboard(chapterState) {
 
 // 导出模态框函数，供外部使用
 export { showCharacterDetailModal, showCharacterDetailPopup, showWorldviewDetailModal, showStorylineDetailModal, showRelationshipDetailModal };
+
 
