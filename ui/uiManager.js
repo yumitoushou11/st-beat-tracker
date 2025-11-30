@@ -1423,6 +1423,21 @@ $('#extensions-settings-button').after(html);
         deps.toastr.info(`显示回合裁判分析已 ${isChecked ? '开启' : '关闭'}`, "设置已更新");
     });
 
+    // -- 实体召回开关（测试功能） --
+    const $entityRecallToggle = $('#sbt-enable-entity-recall-toggle');
+    const isEntityRecallEnabled = localStorage.getItem('sbt-entity-recall-enabled') === 'true'; // 默认关闭
+    $entityRecallToggle.prop('checked', isEntityRecallEnabled);
+
+    $wrapper.on('change', '#sbt-enable-entity-recall-toggle', function() {
+        const isChecked = $(this).is(':checked');
+        localStorage.setItem('sbt-entity-recall-enabled', isChecked);
+        deps.toastr.info(
+            `实体召回功能已 ${isChecked ? '开启（测试模式）' : '关闭（默认模式）'}`,
+            isChecked ? "AI需要识别实体ID" : "所有实体完整注入"
+        );
+        deps.info(`[UIManager] 实体召回功能: ${isChecked ? '启用' : '禁用'}`);
+    });
+
     // -- 调试模式开关 --
     const $debugModeToggle = $('#sbt-debug-mode-toggle');
     // 默认关闭调试模式，只有明确设为'true'时才开启

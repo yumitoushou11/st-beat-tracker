@@ -508,18 +508,13 @@ const spoilerBlockPlaceholder = {
 
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
 
-            this.info('[PROBE][CONDUCTOR-DECISION] 收到回合指挥官的完整决策:', JSON.parse(JSON.stringify(conductorDecision)));
+            this.info('[PROBE][CONDUCTOR-V9] 收到回合裁判的GPS定位:', JSON.parse(JSON.stringify(conductorDecision)));
 
-            // 【V4.0】边界验证日志
-            if (conductorDecision.micro_instruction?.scope_limit_reasoning) {
-                this.info(`[BOUNDARY-CHECK] scope_limit边界推理: ${conductorDecision.micro_instruction.scope_limit_reasoning}`);
-            }
-
-            if (conductorDecision.decision === 'TRIGGER_TRANSITION' || conductorDecision.decision === 'TRIGGER_EMERGENCY_TRANSITION') {
-                const reason = conductorDecision.decision === 'TRIGGER_EMERGENCY_TRANSITION' ? "【紧急熔断】" : "【常规】";
-                this.info(`PROBE [PENDING-TRANSITION]: 回合指挥官已发出${reason}章节转换的后台密令。`);
+            // 【V9.0】检查是否触发章节转换
+            if (conductorDecision.status === 'TRIGGER_TRANSITION') {
+                this.info(`PROBE [PENDING-TRANSITION]: 回合裁判已发出章节转换信号`);
                 this.isTransitionPending = true;
-                this.pendingTransitionPayload = { decision: conductorDecision.decision };
+                this.pendingTransitionPayload = { decision: conductorDecision.status };
             }
 
             // V2.0: 处理实时上下文召回
@@ -542,137 +537,154 @@ const spoilerBlockPlaceholder = {
             }
 
 if (this.currentChapter.chapter_blueprint) {
-    // 【V4.2 新增】第0层：剧透封锁禁令（最高优先级，独立消息）
-    const narrativeHold = conductorDecision.micro_instruction?.narrative_hold || '';
+    // 【V9.0 精简】第0层：剧透封锁禁令（最高优先级，独立消息）
+    const narrativeHold = conductorDecision.narrative_hold || '';
 
     if (narrativeHold && narrativeHold.trim() !== '' && narrativeHold !== '无' && narrativeHold !== '无。') {
         spoilerBlockPlaceholder.content = [
-            `# 🚫 【绝对禁止与封锁内容】`,
+            `# 🚫 【剧透封锁】`,
             ``,
-            `**这是本回合的剧透封锁禁令。以下内容是绝对禁止的，违反将导致叙事失败。**`,
-            ``,
-            narrativeHold,
-            ``,
-            `**请在开始写作前，再次确认你已理解并遵守上述封锁禁令。**`
+            narrativeHold
         ].join('\n');
         this.info('[SBT-INFO] ✓ 第0层剧透封锁已注入');
     } else {
-        spoilerBlockPlaceholder.content = [
-            `# 🚫 【绝对禁止与封锁内容】`,
-            ``,
-            `本回合无特殊剧透封锁要求。`
-        ].join('\n');
+        spoilerBlockPlaceholder.content = `# 🚫 【剧透封锁】\n\n本回合无特殊封锁要求。`;
         this.info('[SBT-INFO] ○ 第0层无封锁内容');
     }
 
-    // 【V4.3 新增】第0.5层：场景状态补充（剧本润滑 - 信息补充）
-    const scriptLubrication = conductorDecision.micro_instruction?.script_lubrication || '';
+    // 【V9.0 新增】第1层：硬编码通用执导规则（不再由裁判生成）
+    const currentBeatIdx = conductorDecision.current_beat_idx || 0;
+    const beats = this.currentChapter.chapter_blueprint.plot_beats || [];
+    const currentBeat = beats[currentBeatIdx];
 
-    if (scriptLubrication && scriptLubrication.trim() !== '' && scriptLubrication !== '无' && scriptLubrication !== '无。') {
-        spoilerBlockPlaceholder.content += '\n\n' + [
-            `---`,
-            ``,
-            `# 📍 【当前场景状态补充】`,
-            ``,
-            `**以下是本回合的场景物理状态信息，请将其作为当前场景的客观事实：**`,
-            ``,
-            scriptLubrication
-        ].join('\n');
-        this.info('[SBT-INFO] ✓ 第0.5层场景状态补充已注入');
-    } else {
-        this.info('[SBT-INFO] ○ 第0.5层无场景状态补充');
-    }
+    const hardcodedInstructions = this._buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats);
 
-    // 【V3.2 重构】第1层：最高优先级微指令（放在最前面，独立强调）
-    // 【V4.1 增强】添加强化负面约束
-    const formattedInstruction = this._formatMicroInstruction(conductorDecision.micro_instruction);
-    const strictNarrativeConstraints = this._buildStrictNarrativeConstraints(
-        conductorDecision.analysis.current_beat,
-        conductorDecision.micro_instruction,
-        conductorDecision.analysis.common_sense_review
-    );
+    instructionPlaceholder.content = hardcodedInstructions;
 
-    instructionPlaceholder.content = [
-        `# 【本回合导演微指令】`,
-        ``,
-        strictNarrativeConstraints,
-        ``,
-        formattedInstruction
-    ].join('\n');
-
-    // 【V3.2 重构】第2层：双轨召回档案（章节级 + 回合级）
-    const chapterStaticContext = this.currentChapter.cachedChapterStaticContext || '';
+    // 【V9.0 修改】第2层：召回档案（双模式：按需召回 vs 全量注入）
+    const isEntityRecallEnabled = localStorage.getItem('sbt-entity-recall-enabled') === 'true';
 
     let recallContent = [
         `# **【第2层：召回档案】**`,
-        `## (Entity Recall: Chapter-Level & Turn-Level)`,
         ``
     ];
 
-    // 第2A部分：章节级静态实体（始终注入）
-    if (chapterStaticContext) {
-        recallContent.push(chapterStaticContext);
-        this.info('✓ 章节级静态实体已注入到第2层');
-    } else {
-        recallContent.push(`📋 本章无预设核心实体。`);
+    if (isEntityRecallEnabled) {
+        // 【模式A：按需召回模式】章节级静态实体 + 回合级动态实体
+        recallContent.push(`## (Entity Recall: On-Demand Mode)`);
         recallContent.push(``);
-    }
 
-    // 第2B部分：回合级动态实体（按需注入）
-    if (dynamicContextInjection) {
-        recallContent.push(``);
-        recallContent.push(`---`);
-        recallContent.push(``);
-        recallContent.push(`### 📌 本回合额外召回 (Turn-Specific Recall)`);
-        recallContent.push(``);
-        recallContent.push(`以下是本回合涉及的**规划外**实体档案（未在章节规划中，但本回合需要）：`);
-        recallContent.push(``);
-        recallContent.push(dynamicContextInjection);
-        this.info('✓ 回合级动态召回已注入到第2层');
+        const chapterStaticContext = this.currentChapter.cachedChapterStaticContext || '';
+
+        // 第2A部分：章节级静态实体
+        if (chapterStaticContext) {
+            recallContent.push(chapterStaticContext);
+            this.info('✓ [按需召回] 章节级静态实体已注入');
+        } else {
+            recallContent.push(`📋 本章无预设核心实体。`);
+            recallContent.push(``);
+        }
+
+        // 第2B部分：回合级动态实体
+        if (dynamicContextInjection) {
+            recallContent.push(``);
+            recallContent.push(`---`);
+            recallContent.push(``);
+            recallContent.push(`### 📌 本回合额外召回 (Turn-Specific Recall)`);
+            recallContent.push(``);
+            recallContent.push(`以下是本回合涉及的**规划外**实体档案（未在章节规划中，但本回合需要）：`);
+            recallContent.push(``);
+            recallContent.push(dynamicContextInjection);
+            this.info('✓ [按需召回] 回合级动态召回已注入');
+        } else {
+            this.info('○ [按需召回] 本回合无动态召回需求');
+        }
     } else {
-        this.info('○ 本回合无动态召回需求');
+        // 【模式B：全量注入模式】一次性注入所有世界实体（完整档案，不过滤）
+        recallContent.push(`## (Entity Recall: Full Injection Mode)`);
+        recallContent.push(``);
+        recallContent.push(`**模式说明:** 召回功能已关闭，所有世界实体档案将一次性完整注入（不过滤）。`);
+        recallContent.push(``);
+
+        // 生成所有世界实体的完整上下文
+        const allWorldviewContext = this.entityContextManager.generateFullWorldviewContext();
+
+        if (allWorldviewContext) {
+            recallContent.push(allWorldviewContext);
+            this.info('✓ [全量注入] 所有世界实体已一次性注入');
+        } else {
+            recallContent.push(`📋 当前世界无实体数据。`);
+        }
     }
 
     recallPlaceholder.content = recallContent.join('\n');
 
-    // V3.0 调试：验证第2层召回内容
-    this.debugGroup('[ENGINE-V3-DEBUG] 第2层召回内容验证');
-    this.debugLog('recallContent 总长度:', recallPlaceholder.content.length);
-    this.debugLog('是否包含章节级实体档案:', recallPlaceholder.content.includes('📂 章节级核心实体档案'));
-    this.debugLog('是否包含char_yumi_pc:', recallPlaceholder.content.includes('char_yumi_pc'));
-    this.debugLog('是否包含本回合额外召回:', recallPlaceholder.content.includes('本回合额外召回'));
+    // V9.0 调试：验证第2层召回内容
+    this.debugGroup('[ENGINE-V9-DEBUG] 第2层召回内容验证');
+    this.debugLog('召回模式:', isEntityRecallEnabled ? '按需召回' : '全量注入');
+    this.debugLog('注入内容总长度:', recallPlaceholder.content.length);
+    if (isEntityRecallEnabled) {
+        this.debugLog('是否包含章节级实体:', recallPlaceholder.content.includes('📂 章节级核心实体档案'));
+        this.debugLog('是否包含回合级召回:', recallPlaceholder.content.includes('本回合额外召回'));
+    } else {
+        this.debugLog('是否为全量注入模式:', recallPlaceholder.content.includes('Full Injection Mode'));
+    }
     this.debugGroupEnd();
 
-    // 【V3.2 重构】第3层：本章创作蓝图（纯净版，不再包含实体档案）
-    // 【V4.1 增强】实现剧本动态掩码（信息迷雾）
-    const currentBeat = conductorDecision.analysis.current_beat;
+    // 【V9.0 修改】第3层：本章创作蓝图（纯净版，使用信息迷雾）
     const maskedBlueprint = this._applyBlueprintMask(
         this.currentChapter.chapter_blueprint,
-        currentBeat
+        currentBeatIdx
     );
 
+    // 【V9.0 新增】提取玩家补充意见，单独强调
+    const playerSupplement = this.currentChapter.chapter_blueprint?.player_supplement;
+
     const blueprintAsString = JSON.stringify(maskedBlueprint, null, 2);
-    const scriptContent = [
+
+    let scriptContent = [
         `# **【第3层：本章创作蓝图】**`,
         `## (Chapter Blueprint)`,
-        ``,
-        `⚠️ **【信息迷雾协议】** 剧本已根据当前进度进行动态掩码处理`,
-        `- 已完成的节拍：完整内容可见，标记为【已完成】（AI需要知道已发生的事情）`,
-        `- 当前执行节拍：完整内容可见，高亮标记为【⚠️ 当前执行目标 ⚠️】`,
-        `- 未来节拍：内容已屏蔽，状态为【待解锁】（防止剧透）`,
-        ``,
-        `\`\`\`json`,
-        blueprintAsString,
-        `\`\`\``,
         ``
-    ].join('\n');
+    ];
 
-    scriptPlaceholder.content = scriptContent;
-    this.info(`✓ 第3层创作蓝图已注入（当前节拍: ${currentBeat}，已应用动态掩码）`);
+    // 【绝对优先级】玩家补充意见（如果存在）
+    if (playerSupplement && playerSupplement.trim() !== '') {
+        scriptContent.push(`**【【【 ⚠️ 绝对优先级：玩家剧本补充 ⚠️ 】】】**`);
+        scriptContent.push(``);
+        scriptContent.push(`**玩家在审阅剧本后，提供了以下绝对优先级的补充说明：**`);
+        scriptContent.push(``);
+        scriptContent.push(`\`\`\``);
+        scriptContent.push(playerSupplement);
+        scriptContent.push(`\`\`\``);
+        scriptContent.push(``);
+        scriptContent.push(`**🚨 执行要求：**`);
+        scriptContent.push(`- 这是**最高优先级指令**，凌驾于所有其他设计和蓝图`);
+        scriptContent.push(`- 你必须**无条件执行**上述玩家补充的要求`);
+        scriptContent.push(`- 当玩家意见与蓝图冲突时，**始终以玩家意见为准**`);
+        scriptContent.push(``);
+        scriptContent.push(`---`);
+        scriptContent.push(``);
+        this.info('✓ 玩家补充意见已提取并置顶强调');
+    }
+
+    // 剧本蓝图主体
+    scriptContent.push(`⚠️ **【信息迷雾协议】** 剧本已根据当前进度进行动态掩码处理`);
+    scriptContent.push(`- 已完成的节拍：完整内容可见，标记为【已完成】（AI需要知道已发生的事情）`);
+    scriptContent.push(`- 当前执行节拍：完整内容可见，高亮标记为【⚠️ 当前执行目标 ⚠️】`);
+    scriptContent.push(`- 未来节拍：内容已屏蔽，状态为【待解锁】（防止剧透）`);
+    scriptContent.push(``);
+    scriptContent.push(`\`\`\`json`);
+    scriptContent.push(blueprintAsString);
+    scriptContent.push(`\`\`\``);
+    scriptContent.push(``);
+
+    scriptPlaceholder.content = scriptContent.join('\n');
+    this.info(`✓ 第3层创作蓝图已注入（当前节拍索引: ${currentBeatIdx}，已应用动态掩码）`);
 
     // V4.1 调试：验证掩码效果
     this.debugGroup('[ENGINE-V4.1-DEBUG] 剧本动态掩码验证');
-    this.debugLog('当前节拍:', currentBeat);
+    this.debugLog('当前节拍索引:', currentBeatIdx);
     this.debugLog('原始节拍数量:', this.currentChapter.chapter_blueprint.plot_beats?.length || 0);
     this.debugLog('掩码后节拍结构:');
     maskedBlueprint.plot_beats?.forEach((beat, idx) => {
@@ -739,12 +751,55 @@ if (this.currentChapter.chapter_blueprint) {
 };
     _buildRegularSystemPrompt() {
         const relationshipGuide = this._buildRelationshipGuide();
-        
+
  return [
         DIRECTOR_RULEBOOK_PROMPT,
         relationshipGuide
     ].join('\n\n---\n\n');
 }
+
+    /**
+     * 【V9.0 新增】构建硬编码的执导规则（不再由裁判AI生成）
+     * @param {number} currentBeatIdx - 当前节拍索引
+     * @param {object} currentBeat - 当前节拍对象
+     * @param {array} beats - 所有节拍数组
+     * @returns {string} 格式化的执导指令
+     */
+    _buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats) {
+        const nextBeat = beats[currentBeatIdx + 1];
+        const beatDescription = currentBeat?.physical_event || currentBeat?.description || '未知节拍';
+
+        return [
+            `# 🎬 【本回合执导指令】`,
+            ``,
+            `## 当前剧情进度`,
+            `- **当前节拍 (Index ${currentBeatIdx}):** ${beatDescription}`,
+            `- **下一节拍:** ${nextBeat ? (nextBeat.physical_event || nextBeat.description) : '（最后节拍）'}`,
+            ``,
+            `## 执导原则（必须严格遵守）`,
+            ``,
+            `### 1. 节点判定的宽容性`,
+            `- 只要玩家的行为在**意图**上符合当前节拍，即可推进`,
+            `- 不要死板纠结字面细节，理解玩家的真实意图`,
+            ``,
+            `### 2. 对话节点必须等待玩家参与`,
+            `${currentBeat?.exit_condition ? `- **当前节拍有退出条件:** ${currentBeat.exit_condition}` : ''}`,
+            `- 如果当前节拍涉及对话或互动，必须等待玩家的实质性回应`,
+            `- 不要自问自答，不要替玩家做决定`,
+            ``,
+            `### 3. 信息迷雾协议（防止剧透）`,
+            `- **你只能看到当前节拍及之前的内容**`,
+            `- 未来的节拍已被物理删除，你无法提前描写`,
+            `- 专注于当前节拍的演绎，不要猜测或暗示后续内容`,
+            ``,
+            `### 4. 停止位置`,
+            `- **本回合目标:** 完成当前节拍 (Index ${currentBeatIdx})`,
+            `- **停止位置:** 在当前节拍的核心事件完成后结束`,
+            `- 可以自然延伸对话和互动，但不要触发下一节拍的核心事件`,
+            ``
+        ].join('\n');
+    }
+
  _consolidateChapterEvents(log, startIndex, endIndex) {
         this.info(`[Event Consolidation] 正在固化消息索引 ${startIndex} 到 ${endIndex} 之间的关系事件...`);
 
@@ -895,7 +950,7 @@ _processStarMarkedBeats(blueprint) {
  * V4.1: 应用剧本动态掩码（方案二：信息迷雾）
  * 根据当前节拍进度，屏蔽未来节拍的详细内容
  */
-_applyBlueprintMask(blueprint, currentBeat) {
+_applyBlueprintMask(blueprint, currentBeatIdx) {
     if (!blueprint || !blueprint.plot_beats) {
         return blueprint;
     }
@@ -903,27 +958,8 @@ _applyBlueprintMask(blueprint, currentBeat) {
     // 深拷贝蓝图，避免修改原始数据
     const maskedBlueprint = JSON.parse(JSON.stringify(blueprint));
 
-    // 解析当前节拍索引
-    let currentBeatIndex = -1;
-    let isEndgame = false;
-
-    if (currentBeat.includes('【终章】')) {
-        isEndgame = true;
-        currentBeatIndex = maskedBlueprint.plot_beats.length; // 所有节拍都已完成
-    } else {
-        // 尝试从 "【节拍X】" 或 "【节拍X：名称】" 中提取索引
-        // 支持格式: 【节拍6】 或 【节拍6：初次会面】
-        const match = currentBeat.match(/【节拍(\d+)[：:】]/);
-        if (match) {
-            currentBeatIndex = parseInt(match[1]) - 1; // 转换为0-based索引
-        }
-    }
-
-    // 如果无法识别当前节拍，保守处理：只显示第一个节拍
-    if (currentBeatIndex === -1) {
-        this.warn(`⚠️ 无法解析当前节拍: ${currentBeat}，默认显示第一个节拍`);
-        currentBeatIndex = 0;
-    }
+    // 【V9.0 简化】直接使用数字索引，不再解析字符串
+    const currentBeatIndex = currentBeatIdx || 0;
 
     // 遍历节拍并应用掩码
     maskedBlueprint.plot_beats = maskedBlueprint.plot_beats.map((beat, index) => {
@@ -954,6 +990,7 @@ _applyBlueprintMask(blueprint, currentBeat) {
     });
 
     // 屏蔽终章信标（除非已经到达终局）
+    const isEndgame = currentBeatIndex >= maskedBlueprint.plot_beats.length;
     if (!isEndgame) {
         if (maskedBlueprint.endgame_beacons) {
             maskedBlueprint.endgame_beacons = ["【数据删除 - 仅在最后节拍解锁】"];

@@ -425,7 +425,7 @@ export function populatePromptManagerUI(deps) {
             const architectPrompt = promptManager.getArchitectPrompt();
             $('#sbt-architect-prompt').val(architectPrompt);
         } else {
-            $('#sbt-architect-prompt').attr('placeholder', '当前使用系统默认提示词（约900行）。\n\n💡 如需查看完整内容，请点击"导出"按钮。\n📝 如需自定义，请在此编辑后点击"保存"。\n\n建议：先导出查看默认内容，再基于默认内容进行修改。');
+            $('#sbt-architect-prompt').attr('placeholder', '当前使用系统默认提示词（约600行）。\n\n💡 如需查看完整内容，请点击"导出"按钮。\n📝 如需自定义，请在此编辑后点击"保存"。\n\n建议：先导出查看默认内容，再基于默认内容进行修改。');
         }
 
         // 加载回合执导提示词
@@ -433,7 +433,7 @@ export function populatePromptManagerUI(deps) {
             const conductorPrompt = promptManager.getConductorPrompt();
             $('#sbt-conductor-prompt').val(conductorPrompt);
         } else {
-            $('#sbt-conductor-prompt').attr('placeholder', '当前使用系统默认提示词（约800行）。\n\n💡 如需查看完整内容，请点击"导出"按钮。\n📝 如需自定义，请在此编辑后点击"保存"。\n\n建议：先导出查看默认内容，再基于默认内容进行修改。');
+            $('#sbt-conductor-prompt').attr('placeholder', '当前使用系统默认提示词（约200行）。\n\n💡 如需查看完整内容，请点击"导出"按钮。\n📝 如需自定义，请在此编辑后点击"保存"。\n\n建议：先导出查看默认内容，再基于默认内容进行修改。');
         }
 
         deps.info("[UIManager] 提示词管理UI已加载");

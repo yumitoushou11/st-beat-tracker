@@ -381,6 +381,20 @@
                         </label>
                     </div>
 
+                    <!-- 实体召回开关（测试功能） -->
+                    <div class="sbt-control-card">
+                        <label for="sbt-enable-entity-recall-toggle" class="sbt-toggle-switch-container">
+                            <div class="sbt-toggle-label">
+                                <span class="sbt-toggle-text">🧪 启用实体召回（测试中）</span>
+                                <i class="fa-solid fa-circle-info fa-fw" title="【测试功能】开启后，回合指导AI需要识别并输出本回合涉及的实体ID。关闭（默认）时，所有实体数据会完整注入，AI无需识别，响应更快。建议保持关闭状态，除非测试召回功能。"></i>
+                            </div>
+                            <div class="sbt-toggle-switch">
+                                <input type="checkbox" id="sbt-enable-entity-recall-toggle">
+                                <span class="sbt-slider"></span>
+                            </div>
+                        </label>
+                    </div>
+
                     <!-- V4.2: 章节节拍数量区间控制 -->
                     <div class="sbt-control-card">
                         <label for="sbt-beat-count-range" class="sbt-toggle-label">
