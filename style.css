@@ -2037,6 +2037,32 @@ input:checked + .sbt-slider:before {
     margin-right: 6px;
 }
 
+/* 新建关系按钮 */
+.sbt-add-relationship-btn {
+    background-color: rgba(10, 132, 255, 0.08);
+    border: 2px dashed rgba(10, 132, 255, 0.4);
+    color: var(--sbt-primary-accent);
+    padding: 10px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9em;
+    transition: all 0.2s ease;
+    margin-bottom: 12px;
+    width: 100%;
+}
+
+.sbt-add-relationship-btn:hover {
+    background-color: rgba(10, 132, 255, 0.15);
+    border-style: solid;
+    border-color: var(--sbt-primary-accent);
+    transform: translateY(-1px);
+}
+
+.sbt-add-relationship-btn i {
+    margin-right: 6px;
+}
+
 /* 新建故事线按钮 */
 .sbt-add-storyline-btn {
     background-color: rgba(10, 132, 255, 0.08);

@@ -8,12 +8,40 @@ import { mapValueToHue } from '../../utils/colorUtils.js';
  * @param {string} edgeId - 关系边ID
  * @param {object} chapterState - 完整的Chapter对象
  * @param {boolean} editMode - 是否为编辑模式
+ * @param {boolean} isNew - 是否为新建关系
  */
-export function showRelationshipDetailModal(edgeId, chapterState, editMode = false) {
+export function showRelationshipDetailModal(edgeId, chapterState, editMode = false, isNew = false) {
     const relationshipGraph = chapterState?.staticMatrices?.relationship_graph;
-    const edge = relationshipGraph?.edges?.find(e => e.id === edgeId);
+    let edge = relationshipGraph?.edges?.find(e => e.id === edgeId);
 
-    if (!edge) {
+    // 如果是新建关系，创建空对象
+    if (isNew) {
+        edge = {
+            id: edgeId,
+            participants: ['', ''],
+            type: '',
+            type_label: '',
+            relationship_label: '',
+            emotional_weight: 5,
+            timeline: {
+                meeting_status: '未知',
+                separation_state: false,
+                last_interaction: '故事开始前'
+            },
+            narrative_status: {
+                unresolved_tension: [],
+                major_events: [],
+                first_scene_together: false
+            },
+            tension_engine: {
+                conflict_source: '',
+                personality_chemistry: '',
+                cognitive_gap: ''
+            }
+        };
+    }
+
+    if (!edge && !isNew) {
         console.error('[SBT] 找不到关系边:', edgeId);
         return;
     }
@@ -25,8 +53,8 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
         return char?.core?.name || char?.name || charId.replace('char_', '');
     };
 
-    const participant1 = getCharName(edge.participants[0]);
-    const participant2 = getCharName(edge.participants[1]);
+    const participant1 = edge.participants[0] ? getCharName(edge.participants[0]) : '';
+    const participant2 = edge.participants[1] ? getCharName(edge.participants[1]) : '';
     const relationshipLabel = edge.relationship_label || '尚未命名的关系';
     const meetingStatus = (edge.timeline?.meeting_status || '未知').trim();
     const rawSeparationState = edge.timeline?.separation_state;
@@ -122,20 +150,31 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
         eventsHtml += '</div></div>';
     }
 
+    // 编辑模式状态
+    const isEditMode = editMode || isNew;
+
     // 编辑按钮HTML
-    const editButtonsHtml = editMode ? `
+    const editButtonsHtml = isEditMode ? `
         <div class="sbt-rel-modal-actions">
-            <button class="sbt-save-relationship-btn" data-edge-id="${edgeId}">
-                <i class="fa-solid fa-save fa-fw"></i> 保存
+            <button class="sbt-save-relationship-btn" data-edge-id="${edgeId}" data-is-new="${isNew}">
+                <i class="fa-solid fa-save fa-fw"></i> ${isNew ? '创建关系' : '保存'}
             </button>
             <button class="sbt-cancel-relationship-edit-btn" data-edge-id="${edgeId}">
                 <i class="fa-solid fa-times fa-fw"></i> 取消
             </button>
+            ${!isNew ? `
+            <button class="sbt-delete-relationship-btn" data-edge-id="${edgeId}">
+                <i class="fa-solid fa-trash fa-fw"></i> 删除
+            </button>
+            ` : ''}
         </div>
     ` : `
         <div class="sbt-rel-modal-actions">
             <button class="sbt-edit-relationship-mode-toggle" data-edge-id="${edgeId}">
                 <i class="fa-solid fa-pen-to-square fa-fw"></i> 编辑
+            </button>
+            <button class="sbt-delete-relationship-btn" data-edge-id="${edgeId}">
+                <i class="fa-solid fa-trash fa-fw"></i> 删除
             </button>
         </div>
     `;
@@ -156,19 +195,57 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
         </div>
     `;
 
+    // 构建角色选择器（新建模式）
+    let participantSelectorHtml = '';
+    if (isNew || isEditMode) {
+        const characterOptions = Object.entries(characters).map(([id, char]) => {
+            const name = char?.core?.name || char?.name || id;
+            return `<option value="${id}">${name}</option>`;
+        }).join('');
+
+        participantSelectorHtml = `
+            <div class="sbt-rel-participant-selectors">
+                <select class="sbt-rel-participant-select" data-participant-index="0">
+                    <option value="">选择角色1</option>
+                    ${characterOptions}
+                </select>
+                <i class="fa-solid fa-heart" style="color: var(--sbt-primary-accent); font-size: 1.2em;"></i>
+                <select class="sbt-rel-participant-select" data-participant-index="1">
+                    <option value="">选择角色2</option>
+                    ${characterOptions}
+                </select>
+            </div>
+        `;
+
+        // 如果不是新建，设置选中的值
+        if (!isNew) {
+            setTimeout(() => {
+                $(`.sbt-rel-participant-select[data-participant-index="0"]`).val(edge.participants[0]);
+                $(`.sbt-rel-participant-select[data-participant-index="1"]`).val(edge.participants[1]);
+            }, 0);
+        }
+    }
+
     // 构建详情HTML
     const detailHtml = `
         <div class="sbt-relationship-detail-modal">
             <div class="sbt-rel-modal-header">
                 <div class="sbt-rel-modal-title-row">
                     <div class="sbt-rel-modal-title">
-                        <span class="sbt-rel-participant">${participant1}</span>
-                        <i class="fa-solid fa-heart" style="color: var(--sbt-primary-accent); font-size: 1.2em;"></i>
-                        <span class="sbt-rel-participant">${participant2}</span>
+                        ${(isNew || isEditMode) ? participantSelectorHtml : `
+                            <span class="sbt-rel-participant">${participant1}</span>
+                            <i class="fa-solid fa-heart" style="color: var(--sbt-primary-accent); font-size: 1.2em;"></i>
+                            <span class="sbt-rel-participant">${participant2}</span>
+                        `}
+                        ${isNew ? '<span style="color: var(--sbt-warning-color); margin-left: 10px;">· 新建中</span>' : ''}
                     </div>
                     ${editButtonsHtml}
                 </div>
-                <div class="sbt-rel-relationship-label">${relationshipLabel}</div>
+                <div class="sbt-rel-relationship-label">
+                    ${isEditMode ? `
+                        <input type="text" class="sbt-rel-label-input" data-field="relationship_label" value="${relationshipLabel}" placeholder="关系标签（如：师徒、宿敌等）" />
+                    ` : relationshipLabel}
+                </div>
                 <div class="sbt-rel-modal-meta">
                     <span class="sbt-rel-type-badge">${typeText}</span>
                     ${statusHtml}

@@ -937,6 +937,18 @@ $('#extensions-settings-button').after(html);
         $('#sbt-relationship-detail-panel').hide();
     });
 
+    // -- 关系图谱: 新建关系 --
+    $wrapper.on('click', '.sbt-add-relationship-btn', function() {
+        const effectiveState = getEffectiveChapterState();
+        if (!effectiveState) return;
+
+        // 生成临时ID
+        const tempId = `edge_new_${Date.now()}`;
+
+        // 打开详情面板（新建模式）
+        showRelationshipDetailModal(tempId, effectiveState, true, true);
+    });
+
     // -- 关系图谱: 编辑模式切换 --
     $wrapper.on('click', '.sbt-edit-relationship-mode-toggle', function() {
         const edgeId = $(this).data('edge-id');
@@ -950,27 +962,130 @@ $('#extensions-settings-button').after(html);
     $wrapper.on('click', '.sbt-cancel-relationship-edit-btn', function() {
         const edgeId = $(this).data('edge-id');
         const effectiveState = getEffectiveChapterState();
-        if (!effectiveState) return;
 
-        showRelationshipDetailModal(edgeId, effectiveState, false);
+        // 检查是否是新建模式（edgeId以edge_new_开头）
+        if (edgeId.startsWith('edge_new_')) {
+            // 新建模式取消直接关闭面板
+            $('#sbt-relationship-detail-panel').hide();
+        } else {
+            if (edgeId && effectiveState) {
+                // 重新渲染为查看模式
+                showRelationshipDetailModal(edgeId, effectiveState, false, false);
+            }
+        }
     });
 
     // -- 关系图谱: 保存修改 --
-    $wrapper.on('click', '.sbt-save-relationship-btn', function() {
-        const edgeId = $(this).data('edge-id');
+    $wrapper.on('click', '.sbt-save-relationship-btn', async function() {
+        const $btn = $(this);
+        const oldEdgeId = $btn.data('edge-id');
+        const isNew = $btn.data('is-new') === 'true' || $btn.data('is-new') === true;
         const effectiveState = getEffectiveChapterState();
-        if (!effectiveState) return;
+
+        if (!oldEdgeId || !effectiveState) return;
 
         try {
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin fa-fw"></i> 保存中...');
+
             const $panel = $('#sbt-relationship-detail-content');
 
-            // 获取relationship_graph中的edge
+            // 初始化relationship_graph（如果不存在）
+            if (!effectiveState.staticMatrices.relationship_graph) {
+                effectiveState.staticMatrices.relationship_graph = { edges: [] };
+            }
             const relationshipGraph = effectiveState.staticMatrices.relationship_graph;
-            const edge = relationshipGraph?.edges?.find(e => e.id === edgeId);
+
+            // 如果是新建，需要验证必填字段并生成新ID
+            let newEdgeId = oldEdgeId;
+            let edge = relationshipGraph.edges.find(e => e.id === oldEdgeId);
+
+            if (isNew) {
+                // 获取选择的角色
+                const participant1 = $panel.find('.sbt-rel-participant-select[data-participant-index="0"]').val();
+                const participant2 = $panel.find('.sbt-rel-participant-select[data-participant-index="1"]').val();
+
+                if (!participant1 || !participant2) {
+                    deps.toastr.error('请选择两个角色建立关系', '保存失败');
+                    $btn.prop('disabled', false).html('<i class="fa-solid fa-save fa-fw"></i> 创建关系');
+                    return;
+                }
+
+                if (participant1 === participant2) {
+                    deps.toastr.error('不能选择同一个角色', '保存失败');
+                    $btn.prop('disabled', false).html('<i class="fa-solid fa-save fa-fw"></i> 创建关系');
+                    return;
+                }
+
+                // 检查是否已存在相同的关系
+                const existingEdge = relationshipGraph.edges.find(e =>
+                    (e.participants[0] === participant1 && e.participants[1] === participant2) ||
+                    (e.participants[0] === participant2 && e.participants[1] === participant1)
+                );
+
+                if (existingEdge) {
+                    deps.toastr.error('这两个角色之间已存在关系', '保存失败');
+                    $btn.prop('disabled', false).html('<i class="fa-solid fa-save fa-fw"></i> 创建关系');
+                    return;
+                }
+
+                // 生成新的关系ID
+                const timestamp = Date.now().toString(36);
+                newEdgeId = `edge_${participant1}_${participant2}_${timestamp}`;
+
+                console.log(`新建关系，生成ID: ${newEdgeId}`);
+
+                // 创建新关系对象
+                edge = {
+                    id: newEdgeId,
+                    participants: [participant1, participant2],
+                    type: '',
+                    type_label: '',
+                    relationship_label: '',
+                    emotional_weight: 5,
+                    timeline: {
+                        meeting_status: '未知',
+                        separation_state: false,
+                        last_interaction: '故事开始前'
+                    },
+                    narrative_status: {
+                        unresolved_tension: [],
+                        major_events: [],
+                        first_scene_together: false
+                    },
+                    tension_engine: {
+                        conflict_source: '',
+                        personality_chemistry: '',
+                        cognitive_gap: ''
+                    }
+                };
+
+                // 添加到关系图谱
+                relationshipGraph.edges.push(edge);
+            }
 
             if (!edge) {
                 deps.toastr.error('找不到该关系边', '错误');
+                $btn.prop('disabled', false).html(`<i class="fa-solid fa-save fa-fw"></i> ${isNew ? '创建关系' : '保存'}`);
                 return;
+            }
+
+            console.group('[关系编辑保存] 数据收集分析');
+            console.log('是否新建:', isNew);
+            console.log('修改前的关系数据:', JSON.parse(JSON.stringify(edge)));
+
+            // 如果不是新建，更新参与者（编辑模式下可能修改了参与者）
+            if (!isNew) {
+                const participant1 = $panel.find('.sbt-rel-participant-select[data-participant-index="0"]').val();
+                const participant2 = $panel.find('.sbt-rel-participant-select[data-participant-index="1"]').val();
+                if (participant1 && participant2 && participant1 !== participant2) {
+                    edge.participants = [participant1, participant2];
+                }
+            }
+
+            // 更新关系标签
+            const relationshipLabel = $panel.find('.sbt-rel-label-input').val();
+            if (relationshipLabel !== undefined) {
+                edge.relationship_label = relationshipLabel.trim();
             }
 
             // 更新情感权重
@@ -983,15 +1098,18 @@ $('#extensions-settings-button').after(html);
             const newTensions = [];
             $panel.find('.sbt-rel-tension-editable').each(function() {
                 const text = $(this).text().trim();
-                if (text) newTensions.push(text);
+                if (text && text !== '新张力') newTensions.push(text);
             });
 
             if (!edge.narrative_status) edge.narrative_status = {};
             edge.narrative_status.unresolved_tension = newTensions;
 
+            console.log('修改后的关系数据:', JSON.parse(JSON.stringify(edge)));
+            console.groupEnd();
+
             // 保存
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('relationship_updated', effectiveState);
+                await deps.onSaveCharacterEdit('relationship_updated', effectiveState);
             }
 
             // 触发更新事件
@@ -999,15 +1117,74 @@ $('#extensions-settings-button').after(html);
                 deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
             }
 
-            deps.toastr.success('关系已更新', '保存成功');
+            deps.toastr.success(isNew ? '关系已成功创建！' : '关系已更新', '保存成功');
 
-            // 返回查看模式
-            showRelationshipDetailModal(edgeId, effectiveState, false);
+            // 如果是新建，关闭面板；如果是编辑，返回查看模式
+            if (isNew) {
+                $('#sbt-relationship-detail-panel').hide();
+            } else {
+                showRelationshipDetailModal(newEdgeId, effectiveState, false, false);
+            }
 
         } catch (error) {
             deps.diagnose('[UIManager] 保存关系修改时发生错误:', error);
             deps.toastr.error(`保存失败: ${error.message}`, '错误');
+            $btn.prop('disabled', false).html(`<i class="fa-solid fa-save fa-fw"></i> ${isNew ? '创建关系' : '保存'}`);
         }
+    });
+
+    // -- 关系图谱: 删除关系 --
+    $wrapper.on('click', '.sbt-delete-relationship-btn', function() {
+        const $btn = $(this);
+        const edgeId = $btn.data('edge-id');
+        const effectiveState = getEffectiveChapterState();
+
+        if (!effectiveState) return;
+
+        const relationshipGraph = effectiveState.staticMatrices.relationship_graph;
+        const edge = relationshipGraph?.edges?.find(e => e.id === edgeId);
+
+        if (!edge) {
+            deps.toastr.error('找不到该关系', '错误');
+            return;
+        }
+
+        // 获取角色名称用于确认提示
+        const characters = effectiveState.staticMatrices.characters || {};
+        const getCharName = (charId) => {
+            const char = characters[charId];
+            return char?.core?.name || char?.name || charId;
+        };
+
+        const participant1 = getCharName(edge.participants[0]);
+        const participant2 = getCharName(edge.participants[1]);
+        const relationshipLabel = edge.relationship_label || '未命名关系';
+
+        // 确认删除
+        if (!confirm(`确定要删除「${participant1} ❤ ${participant2}」的关系「${relationshipLabel}」吗？此操作无法撤销。`)) {
+            return;
+        }
+
+        // 删除关系
+        const edgeIndex = relationshipGraph.edges.findIndex(e => e.id === edgeId);
+        if (edgeIndex !== -1) {
+            relationshipGraph.edges.splice(edgeIndex, 1);
+        }
+
+        // 关闭详情面板
+        $('#sbt-relationship-detail-panel').hide();
+
+        // 保存并刷新
+        if (typeof deps.onSaveCharacterEdit === 'function') {
+            deps.onSaveCharacterEdit('relationship_deleted', effectiveState);
+        }
+
+        // 触发更新事件
+        if (deps.eventBus) {
+            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
+        }
+
+        deps.toastr.success(`关系「${relationshipLabel}」已删除`, '删除成功');
     });
 
     // -- 关系图谱: 添加张力标签 --

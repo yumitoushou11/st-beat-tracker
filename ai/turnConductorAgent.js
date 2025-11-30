@@ -192,8 +192,22 @@ _createPrompt(context) {
     const { lastExchange, chapterBlueprint, staticMatrices, stylisticArchive, narrativeRhythmClock } = context;
     const activeChapterBlueprint = chapterBlueprint || { title: "错误", plot_beats: ["未找到有效的创作蓝图。"] };
 
-    // V2.0: 生成轻量级实体清单（Manifest）
-    const entityManifest = this._generateEntityManifest(staticMatrices);
+    // 【实体召回开关检测】默认关闭
+    const isEntityRecallEnabled = localStorage.getItem('sbt-entity-recall-enabled') === 'true';
+    console.log(`[回合执导] 实体召回模式: ${isEntityRecallEnabled ? '启用' : '关闭（默认）'}`);
+
+    // V2.0: 根据开关选择生成轻量级清单或完整数据
+    let entityData;
+    if (isEntityRecallEnabled) {
+        // 召回模式：生成轻量级清单（仅ID和名称）
+        entityData = this._generateEntityManifest(staticMatrices);
+    } else {
+        // 直接注入模式：生成完整实体数据
+        entityData = {
+            content: this._generateFullEntityData(staticMatrices),
+            totalCount: 0  // 完整注入模式不需要计数
+        };
+    }
 
     // V2.0: 提取文体档案摘要
     const stylisticSummary = this._extractStylisticSummary(stylisticArchive);
@@ -411,10 +425,14 @@ _createPrompt(context) {
 - OR "✓ 互动充足: 本节拍有对话/多角色场景，无需干预"
 
 ---
-## **第一章：V3.0 升级职责 - 规划外实体检索 (Out-of-Plan Entity Retrieval)**
+${isEntityRecallEnabled ? `## **第一章：V3.0 升级职责 - 规划外实体检索 (Out-of-Plan Entity Retrieval)**
+---` : `## **第一章：世界实体数据库 (World Entity Database)**
 ---
 
-**【核心使命】**
+**【数据访问模式：完整注入】**
+当前系统配置为**完整实体注入模式**（召回功能已关闭）。以下是所有可用的世界实体完整档案，你可以直接引用其中的任何信息，无需识别或输出实体ID。`}
+
+${isEntityRecallEnabled ? `**【核心使命】**
 在每一回合，你必须快速分析**完整的对话回合**（包括AI情境和玩家输入），识别出本回合涉及的**章节规划外的实体**（角色、地点、物品等），并将它们的ID列入 \`realtime_context_ids\` 数组。系统会根据这个列表，为演绎AI注入这些"意外出现"的实体档案。
 
 **【V3.0 核心哲学：分层上下文注入】**
@@ -459,7 +477,7 @@ _createPrompt(context) {
 以下是当前世界中所有已注册实体的索引，用于你进行ID识别：
 
 <entity_manifest>
-${entityManifest.content}
+${entityData.content}
 </entity_manifest>
 
 **【V3.0 当前章节实体池 (Chapter Context IDs)】**
@@ -472,7 +490,21 @@ ${entityManifest.content}
 
 <chapter_context_ids>
 ${JSON.stringify(activeChapterBlueprint.chapter_context_ids || [], null, 2)}
-</chapter_context_ids>
+</chapter_context_ids>` : `
+
+**【完整实体数据库】**
+以下是所有可用实体的完整档案数据：
+
+<entity_database>
+${entityData.content}
+</entity_database>
+
+**使用说明：**
+- 你可以直接引用上述任何实体的信息
+- 无需识别或输出实体ID
+- 无需区分规划内/外实体
+- 所有数据已完整提供，直接使用即可
+`}
 
 ---
 ## **第二章：输入情报 (Incoming Intelligence)**
@@ -884,10 +916,10 @@ ${activeChapterBlueprint.player_supplement ? `**玩家在审阅剧本后，提�
     "script_lubrication": "[V4.0：剧本润滑 - 更高明的封锁方式。格式：'[物理状态描述]，所以[设计意图说明]'。先描述设定的自然合理的物理状态，然后用'所以'说明这导致什么后续内容无法在本回合发生。让演绎AI理解因果关系。每回合必填]",
     "narrative_hold": "[V2.0：封锁禁令。格式：'禁止描写[具体名称]、禁止提及[具体名称]、禁止[具体动作/事件]']",
     "corrective_action": "[仅在 decision 为 CALIBRATE 时填充]"
-  },
+  },${isEntityRecallEnabled ? `
   "realtime_context_ids": [
     "[V3.0 升级：本回合涉及的【规划外】实体ID列表。只包含不在chapter_context_ids中但本回合需要的实体ID。如果本回合只涉及章节内实体，则为空数组[]]"
-  ],
+  ],` : ''}
   "postTurnAction": { "type": "CONTINUE" }
 }
 \`\`\`
@@ -897,10 +929,10 @@ ${activeChapterBlueprint.player_supplement ? `**玩家在审阅剧本后，提�
 - [ ] **【V14.0 玩家优先】** \`player_input_type\` 和 \`player_agency_status\` 是否正确识别和标注？
 - [ ] **【零度人格审查】** \`common_sense_review\` 是否提取了核心动作并评估了社交摩擦力？是否基于**普通人标准**而非角色性格？
 - [ ] **【零度人格审查】** 如果摩擦力为高/极高，\`lubrication_strategy\` 是否给出了重组方案？
-- [ ] **【零度人格审查】** 如果摩擦力为高/极高，你是否在 \`narrative_hold\` 中封锁了高摩擦动作（负面清单），并在 \`narrative_goal\` 中只给出宽泛的方向性建议（而非具体步骤）？
+- [ ] **【零度人格审查】** 如果摩擦力为高/极高，你是否在 \`narrative_hold\` 中封锁了高摩擦动作（负面清单），并在 \`narrative_goal\` 中只给出宽泛的方向性建议（而非具体步骤）？${isEntityRecallEnabled ? `
 - [ ] \`realtime_context_ids\` 是否**只包含规划外的实体**（不在 \`chapter_context_ids\` 中的实体）？
 - [ ] 你是否正确过滤了 \`chapter_context_ids\` 中的实体？（记住：章节内实体已注入，无需标记！）
-- [ ] 如果本回合只涉及章节内实体，你是否正确输出了空数组 \`[]\`？
+- [ ] 如果本回合只涉及章节内实体，你是否正确输出了空数组 \`[]\`？` : ''}
 - [ ] \`narrative_goal\` 是否使用了柔性表述，而非命令式语气？
 - [ ] \`scope_limit\` 是否使用"本回合目标"和"停止位置"的格式，而非具体动作描述？
 - [ ] \`narrative_hold\` 是否同时执行了剧透封锁和围栏防护？是否检查了当前节拍的自然延伸可能与下一节拍产生的逻辑冲突？
@@ -1027,6 +1059,91 @@ _extractStylisticSummary(stylisticArchive) {
 
     const result = summary.length > 0 ? summary.join('\n') : '（暂无显著的文体模式）';
     console.log(`✓ 摘要生成完成`);
+    console.groupEnd();
+
+    return result;
+}
+
+/**
+ * 生成完整的实体数据（用于非召回模式）
+ * @param {object} staticMatrices - 静态实体数据库
+ * @returns {string} 格式化的完整实体数据文本
+ */
+_generateFullEntityData(staticMatrices) {
+    if (!staticMatrices) {
+        this.diagnose('[完整注入] staticMatrices 为空，返回空数据');
+        return '（当前世界无实体数据）';
+    }
+
+    let sections = [];
+
+    console.group('[CONDUCTOR-FULL-INJECT] 完整实体数据注入');
+
+    // 角色数据
+    if (staticMatrices.characters && Object.keys(staticMatrices.characters).length > 0) {
+        sections.push('**=== 角色档案 (Characters) ===**\n');
+        Object.entries(staticMatrices.characters).forEach(([id, data]) => {
+            sections.push(`### ${data?.core?.name || data?.name || '未命名'} (ID: ${id})`);
+            sections.push('```json');
+            sections.push(JSON.stringify(data, null, 2));
+            sections.push('```\n');
+        });
+        console.log(`✓ 角色数量: ${Object.keys(staticMatrices.characters).length}`);
+    }
+
+    // 地点数据
+    if (staticMatrices.worldview?.locations && Object.keys(staticMatrices.worldview.locations).length > 0) {
+        sections.push('**=== 地点档案 (Locations) ===**\n');
+        Object.entries(staticMatrices.worldview.locations).forEach(([id, data]) => {
+            sections.push(`### ${data?.name || '未命名'} (ID: ${id})`);
+            sections.push('```json');
+            sections.push(JSON.stringify(data, null, 2));
+            sections.push('```\n');
+        });
+        console.log(`✓ 地点数量: ${Object.keys(staticMatrices.worldview.locations).length}`);
+    }
+
+    // 物品数据
+    if (staticMatrices.worldview?.items && Object.keys(staticMatrices.worldview.items).length > 0) {
+        sections.push('**=== 物品档案 (Items) ===**\n');
+        Object.entries(staticMatrices.worldview.items).forEach(([id, data]) => {
+            sections.push(`### ${data?.name || '未命名'} (ID: ${id})`);
+            sections.push('```json');
+            sections.push(JSON.stringify(data, null, 2));
+            sections.push('```\n');
+        });
+        console.log(`✓ 物品数量: ${Object.keys(staticMatrices.worldview.items).length}`);
+    }
+
+    // 故事线数据
+    if (staticMatrices.storylines) {
+        let hasStorylines = false;
+        for (const category in staticMatrices.storylines) {
+            if (staticMatrices.storylines[category] && Object.keys(staticMatrices.storylines[category]).length > 0) {
+                hasStorylines = true;
+                break;
+            }
+        }
+
+        if (hasStorylines) {
+            sections.push('**=== 故事线档案 (Storylines) ===**\n');
+            for (const [category, quests] of Object.entries(staticMatrices.storylines)) {
+                if (quests && Object.keys(quests).length > 0) {
+                    sections.push(`#### 分类: ${category}\n`);
+                    Object.entries(quests).forEach(([id, data]) => {
+                        sections.push(`##### ${data?.title || '未命名'} (ID: ${id})`);
+                        sections.push('```json');
+                        sections.push(JSON.stringify(data, null, 2));
+                        sections.push('```\n');
+                    });
+                }
+            }
+            console.log(`✓ 故事线数据已注入`);
+        }
+    }
+
+    const result = sections.length > 0 ? sections.join('\n') : '（当前世界无实体数据）';
+    console.log(`✓ 完整实体数据注入完成`);
     console.groupEnd();
 
     return result;

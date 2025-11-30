@@ -639,6 +639,13 @@ function renderRelationshipGraph(chapterState) {
 
     if (edges.length === 0) {
         container.html('<p class="sbt-instructions">暂无关系图谱数据。创世后将自动生成角色关系网络。</p>');
+        // 添加新建关系按钮
+        const addBtnHtml = `
+            <button class="sbt-add-relationship-btn" title="手动创建新关系">
+                <i class="fa-solid fa-heart-circle-plus fa-fw"></i> 新建关系
+            </button>
+        `;
+        container.append(addBtnHtml);
         return;
     }
 
@@ -789,6 +796,14 @@ function renderRelationshipGraph(chapterState) {
         `;
         container.append(cardHtml);
     });
+
+    // 添加新建关系按钮（放在所有关系卡之后）
+    const addBtnHtml = `
+        <button class="sbt-add-relationship-btn" title="手动创建新关系">
+            <i class="fa-solid fa-heart-circle-plus fa-fw"></i> 新建关系
+        </button>
+    `;
+    container.append(addBtnHtml);
 
     // 添加点击事件打开详情模态框
     container.off('click', '.sbt-relationship-card-clickable');

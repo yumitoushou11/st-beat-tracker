@@ -230,10 +230,11 @@ _getBasePromptTemplate() {
  * @param {string} config.beatCountRange - 节拍数量区间
  * @param {string} config.playerNarrativeFocus - 玩家叙事焦点
  * @param {boolean} config.hasImmersionMode - 是否启用沉浸模式
+ * @param {boolean} config.isEntityRecallEnabled - 是否启用实体召回
  * @returns {string} JSON输出标准的文本描述
  */
 _generateOutputSpecification(config) {
-    const { narrativeMode, beatCountRange, playerNarrativeFocus, hasImmersionMode } = config;
+    const { narrativeMode, beatCountRange, playerNarrativeFocus, hasImmersionMode, isEntityRecallEnabled } = config;
 
     // 基础输出结构（所有模式共用）
     let outputSpec = `**【【【 JSON 输出结构 】】】**
@@ -321,8 +322,8 @@ _generateOutputSpecification(config) {
     "ending_structure_choice": "[情感悬崖 / 软着陆] - 说明你为什么选择在这个点切断剧情？", // 新增字段
     "connection_and_hook": "[承上启下说明 + 软着陆/情感悬崖]",
   "chapter_blueprint": {
-    "title": "[章节名]",
-    "chapter_context_ids": ["char_A", "loc_B", "NEW:item_C"],
+    "title": "[章节名]",${isEntityRecallEnabled ? `
+    "chapter_context_ids": ["char_A", "loc_B", "NEW:item_C"],` : ''}
     "player_narrative_focus": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
     "plot_beats": [
       {
@@ -443,6 +444,10 @@ _createPrompt(context) {
         // 自定义提示词会加上安全通行证前缀
         return BACKEND_SAFE_PASS_PROMPT + customPrompt;
     }
+
+    // 【实体召回开关检测】默认关闭
+    const isEntityRecallEnabled = localStorage.getItem('sbt-entity-recall-enabled') === 'true';
+    console.log(`[建筑师] 实体召回模式: ${isEntityRecallEnabled ? '启用' : '关闭（默认）'}`);
 
     // 【默认流程】使用系统默认提示词（带动态数据注入）
     const { chapter, firstMessageContent } = context;
@@ -719,10 +724,13 @@ ${JSON.stringify(currentWorldState.relationship_graph || { edges: [] }, null, 2)
     *   利用 \`personality_chemistry\` 决定**对话风格**（是在此刻互怼、冷战、还是展现出不合时宜的默契？）。
 
 *   **D. 状态检查:**
-    *   若 \`reunion_pending: true\`，本章必须包含**重逢场景**，并依据上述张力引擎来决定重逢是“感人”还是“修罗场”。
-* **7. 上下文预取 (Context Prefetching):**
+    *   若 \`reunion_pending: true\`，本章必须包含**重逢场景**，并依据上述张力引擎来决定重逢是"感人"还是"修罗场"。
+${isEntityRecallEnabled ? `* **7. 上下文预取 (Context Prefetching):**
 *   **任务:** 必须将本章涉及的所有实体ID (char/loc/item/quest) 填入 \`chapter_context_ids\`。
-*   **原则:** 宁滥勿缺。包括 \`current_world_state\` 中已有的，以及本章新引入的 (\`NEW:char_xxx\`)。
+*   **原则:** 宁滥勿缺。包括 \`current_world_state\` 中已有的，以及本章新引入的 (\`NEW:char_xxx\`)。` : `* **7. 实体数据访问说明:**
+*   **当前模式:** 完整实体注入模式（召回功能已关闭）。
+*   **影响:** 所有实体数据已在回合执导时完整注入，你无需在蓝图中指定 \`chapter_context_ids\`。
+*   **注意:** 你仍然可以使用 \`NEW:xxx\` 格式引入新实体，系统会自动处理。`}
 
 <current_world_state>
 ${JSON.stringify(currentWorldState, null, 2)}
@@ -758,11 +766,11 @@ ${JSON.stringify(chronology, null, 2)}
        *   **Mode B: 软着陆 (Soft Landing) - [仅限日常/过渡章节]**
            *   **指令:** 情绪回落，为下一章做铺垫。
    *   **终章信标 (Endgame Beacon):** 描述最后节拍**之后 (T+1时刻)** 发生的、**无歧义的可观测事件**。
-       *   **悬崖模式下的信标:** 必须是**“静止的张力”**。例如：环境的空镜（火星熄灭）、僵持的动作（伸在半空的手）、或打破死寂的突兀声响（心跳声、远处的钟声）。**绝对禁止**描写缓解尴尬的动作（如喝水、咳嗽、坐下）。
+       *   **悬崖模式下的信标:** 必须是**"静止的张力"**。例如：环境的空镜（火星熄灭）、僵持的动作（伸在半空的手）、或打破死寂的突兀声响（心跳声、远处的钟声）。**绝对禁止**描写缓解尴尬的动作（如喝水、咳嗽、坐下）。
        *   **核心铁律:** 信标必须是新内容，**严禁重复**最后节拍的内容！
-       * **3. 上下文预取 (Context Injection):**
+${isEntityRecallEnabled ? `       * **3. 上下文预取 (Context Injection):**
    *   在 \`chapter_context_ids\` 中列出本章涉及的所有实体 ID (char/loc/item/quest)。
-   *   若需引入新实体，使用 \`NEW:char_xxx\` 格式。
+   *   若需引入新实体，使用 \`NEW:char_xxx\` 格式。` : ''}
 
 `;
 
@@ -773,7 +781,7 @@ ${JSON.stringify(chronology, null, 2)}
         beatCountRange: beatCountRange,
         playerNarrativeFocus: playerNarrativeFocus,
         hasImmersionMode: isImmersionModeExplicit,
-        
+        isEntityRecallEnabled: isEntityRecallEnabled
     });
 
     basePrompt += dynamicOutputSpec + `
