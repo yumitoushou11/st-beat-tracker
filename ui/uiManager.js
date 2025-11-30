@@ -1520,8 +1520,13 @@ $('#extensions-settings-button').after(html);
 
     // -- V8.0: 故事线追踪 - 查看故事线详情 --
     $wrapper.on('click', '.sbt-storyline-card', function(e) {
-        // 如果点击的是编辑或删除按钮，不触发查看详情
-        if ($(e.target).closest('.sbt-storyline-edit-btn, .sbt-storyline-delete-btn').length > 0) {
+        // 如果点击的是编辑、删除、显示/隐藏按钮，或者可编辑元素，不触发查看详情
+        if ($(e.target).closest('.sbt-storyline-edit-btn, .sbt-storyline-delete-btn, .sbt-storyline-toggle-visibility-btn').length > 0) {
+            return;
+        }
+
+        // 检查是否点击了可编辑元素（如历史记录的文本框）
+        if ($(e.target).is('[contenteditable="true"]') || $(e.target).closest('[contenteditable="true"]').length > 0) {
             return;
         }
 
@@ -1708,17 +1713,37 @@ $('#extensions-settings-button').after(html);
                 involved_chars: involvedChars
             };
 
+            // 收集历史记录数组
+            const history = [];
+            $panel.find('.sbt-history-entry-editable').each(function() {
+                const $entry = $(this);
+                const timestampInput = $entry.find('.sbt-history-timestamp-input').val();
+                const chapterInput = $entry.find('.sbt-history-chapter-input').val();
+                const status = $entry.find('.sbt-history-status-select').val();
+                const summary = $entry.find('.sbt-history-summary-input').val()?.trim();
+
+                if (summary) { // 只保存有摘要的条目
+                    history.push({
+                        timestamp: timestampInput ? new Date(timestampInput).toISOString() : new Date().toISOString(),
+                        chapter: chapterInput ? parseInt(chapterInput, 10) : undefined,
+                        status: status || 'active',
+                        summary: summary
+                    });
+                }
+            });
+
             // 保存动态数据
             if (!effectiveState.dynamicState.storylines[category][finalLineId]) {
                 effectiveState.dynamicState.storylines[category][finalLineId] = {
                     current_status: currentStatus || 'active',
                     current_summary: currentSummary || safeSummary || '故事线刚刚创建',
-                    history: [],
+                    history: history,
                     player_supplement: playerSupplement || ''
                 };
             } else {
                 effectiveState.dynamicState.storylines[category][finalLineId].current_status = currentStatus || 'active';
                 effectiveState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || safeSummary || '';
+                effectiveState.dynamicState.storylines[category][finalLineId].history = history;
                 effectiveState.dynamicState.storylines[category][finalLineId].player_supplement = playerSupplement || '';
             }
 
@@ -1839,6 +1864,78 @@ $('#extensions-settings-button').after(html);
     $wrapper.on('click', '.sbt-char-tag-delete', function(e) {
         e.stopPropagation();
         $(this).closest('.sbt-tag-editable').remove();
+    });
+
+    // -- V10.1: 故事线追踪 - 新增历史条目 --
+    $wrapper.on('click', '.sbt-add-history-entry-btn', function() {
+        const $historyContainer = $(this).closest('.sbt-storyline-history');
+        const $emptyText = $historyContainer.find('.sbt-empty-text');
+
+        // 移除空提示文本
+        if ($emptyText.length > 0) {
+            $emptyText.remove();
+        }
+
+        // 计算新的索引
+        const existingEntries = $historyContainer.find('.sbt-history-entry-editable');
+        const newIndex = existingEntries.length;
+
+        // 创建新的历史条目（空白模板）
+        const now = new Date();
+        const timestampISO = now.toISOString().substring(0, 16);
+
+        const newEntryHtml = `
+            <div class="sbt-history-entry sbt-history-entry-editable" data-index="${newIndex}">
+                <div class="sbt-history-entry-header">
+                    <input type="datetime-local" class="sbt-history-timestamp-input" data-index="${newIndex}" value="${timestampISO}" />
+                    <input type="number" class="sbt-history-chapter-input" data-index="${newIndex}" placeholder="章节号" value="" min="0" />
+                    <select class="sbt-history-status-select" data-index="${newIndex}">
+                        <option value="active" selected>进行中</option>
+                        <option value="completed">已完成</option>
+                        <option value="paused">已暂停</option>
+                        <option value="failed">已失败</option>
+                    </select>
+                    <button class="sbt-delete-history-entry-btn" data-index="${newIndex}" title="删除此条目"><i class="fa-solid fa-trash"></i></button>
+                </div>
+                <textarea class="sbt-history-summary-input" data-index="${newIndex}" placeholder="请输入进展摘要..."></textarea>
+            </div>
+        `;
+
+        // 插入到按钮所在的标题后面
+        $(this).closest('.sbt-storyline-history-title').after(newEntryHtml);
+
+        deps.toastr.success('已添加新的历史条目', '提示');
+    });
+
+    // -- V10.1: 故事线追踪 - 删除历史条目 --
+    $wrapper.on('click', '.sbt-delete-history-entry-btn', function(e) {
+        e.stopPropagation();
+
+        if (!confirm('确定要删除这条历史记录吗？')) {
+            return;
+        }
+
+        const $entry = $(this).closest('.sbt-history-entry-editable');
+        const $historyContainer = $entry.closest('.sbt-storyline-history');
+
+        $entry.remove();
+
+        // 重新索引剩余的条目
+        $historyContainer.find('.sbt-history-entry-editable').each(function(idx) {
+            $(this).attr('data-index', idx);
+            $(this).find('.sbt-history-timestamp-input').attr('data-index', idx);
+            $(this).find('.sbt-history-chapter-input').attr('data-index', idx);
+            $(this).find('.sbt-history-status-select').attr('data-index', idx);
+            $(this).find('.sbt-history-summary-input').attr('data-index', idx);
+            $(this).find('.sbt-delete-history-entry-btn').attr('data-index', idx);
+        });
+
+        // 如果没有条目了，显示空提示
+        if ($historyContainer.find('.sbt-history-entry-editable').length === 0) {
+            $historyContainer.find('.sbt-storyline-history-title').after('<div class="sbt-empty-text">暂无历史记录，点击上方按钮新增</div>');
+        }
+
+        deps.toastr.success('已删除历史条目', '提示');
     });
 
     // -- V8.0: 故事线追踪 - 编辑历史记录 --

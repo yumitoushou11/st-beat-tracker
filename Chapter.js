@@ -58,8 +58,8 @@ export class Chapter {
                     edges: [
                         // 关系边示例结构:
                         // {
-                        //   id: "rel_yumi_rofi",                    // 关系唯一ID
-                        //   participants: ["char_yumi", "char_rofi"], // 关系参与者ID数组
+                        //   id: "rel_yumi_laoo",                    // 关系唯一ID
+                        //   participants: ["char_yumi", "char_laoo"], // 关系参与者ID数组
                         //   type: "childhood_friends",              // 关系类型 (childhood_friends/family/romantic/rivals/etc.)
                         //   emotional_weight: 8,                    // 情感权重 (0-10, 影响叙事优先级)
                         //

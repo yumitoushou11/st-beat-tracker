@@ -1499,10 +1499,10 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
                             // 在history中只保留简化的状态变化记录（可选：限制长度）
                             const simplifiedEntry = {
-                                timestamp: storylineUpdate.history_entry.timestamp,
-                                status_change: storylineUpdate.history_entry.status_change,
-                                summary_update: storylineUpdate.history_entry.summary_update,
-                                source_chapter_uid: storylineUpdate.history_entry.source_chapter_uid
+                                timestamp: storylineUpdate.history_entry.timestamp || new Date().toISOString(),
+                                status: storylineUpdate.history_entry.status || dynamicStoryline.current_status || 'active',
+                                summary: storylineUpdate.history_entry.summary || storylineUpdate.history_entry.summary_update || '',
+                                chapter: storylineUpdate.history_entry.chapter || workingChapter.meta.chapterNumber
                             };
                             dynamicStoryline.history.push(simplifiedEntry);
 
@@ -2245,40 +2245,45 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
         }
 
         if (!skipHistorian) {
-            // 3. 获取史官的事务增量 (Delta)
+            // 3. 【V10.1 并行流程】启动史官复盘 + 挂载提前规划按钮
             loadingToast.find('.toast-message').html(`
                 史官正在复盘本章历史...<br>
                 <div class="sbt-compact-toast-actions">
                     <button id="sbt-early-focus-btn" class="sbt-compact-focus-btn" title="提前规划下一章">
                         <i class="fa-solid fa-pen-ruler"></i> 规划
                     </button>
-                    <button id="sbt-stop-transition-btn" class="sbt-compact-focus-btn sbt-stop-transition-btn" title="立即停止章节转换">    
+                    <button id="sbt-stop-transition-btn" class="sbt-compact-focus-btn sbt-stop-transition-btn" title="立即停止章节转换">
                         <i class="fa-solid fa-octagon-exclamation"></i> 停止
                     </button>
                 </div>
             `);
             this._bindStopButton('史官阶段');
 
-            // 添加提前规划按钮的事件监听
+            // 【核心修复】将史官执行和玩家输入变成两个独立的并行Promise
+            let playerInputPromise = null;
+
+            // 添加提前规划按钮的事件监听（不阻塞史官）
             $('#sbt-early-focus-btn').off('click').on('click', async () => {
-                if (this._earlyFocusPromise) {
+                if (playerInputPromise) {
                     this.info("已有一个提前规划弹窗在等待输入，忽略重复点击");
                     return;
                 }
 
                 const $btn = $('#sbt-early-focus-btn');
-                const promise = this._captureEarlyFocusInput(workingChapter, $btn);
-                this._earlyFocusPromise = promise;
+                this.info("玩家点击了提前规划按钮，开始并行捕获输入...");
 
-                try {
-                    await promise;
-                } catch (error) {
-                    this.warn("提前规划输入未能完成，将继续常规焦点弹窗流程", error);
-                } finally {
-                    this._earlyFocusPromise = null;
-                }
+                // 创建独立的Promise，不阻塞史官（包装为总是resolve的Promise）
+                playerInputPromise = (async () => {
+                    try {
+                        return await this._captureEarlyFocusInput(workingChapter, $btn);
+                    } catch (error) {
+                        this.warn("提前规划输入失败，将回退到常规弹窗", error);
+                        return null; // 返回null表示失败，后续会触发常规弹窗
+                    }
+                })();
             });
 
+            // 史官执行（并行）
             reviewDelta = await this._runStrategicReview(workingChapter, lastAnchorIndex, endIndex, this.currentTaskAbortController.signal);
 
             if (!reviewDelta || (!reviewDelta.creations && !reviewDelta.updates)) {
@@ -2307,27 +2312,55 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             this.USER.saveChat();
             this.info("史官复盘完成，中间结果已暂存（阶段1/3）。");
 
-            // 4. 获取玩家的导演焦点
+            // 4. 【V10.1 同步点】等待玩家输入完成（如果玩家已点击提前规划）或启动常规弹窗
             let isFreeRoamMode = false;
 
-            if (this._earlyFocusPromise) {
-                this.info("使用玩家提前输入的焦点");
-                finalNarrativeFocus = this.LEADER.earlyPlayerInput.focus;
-                isFreeRoamMode = this.LEADER.earlyPlayerInput.freeRoam;
-                this.LEADER.earlyPlayerInput = null; // 清除临时数据
-                loadingToast.find('.toast-message').text("正在应用您的规划...");
+            if (playerInputPromise !== null) {
+                // 玩家已点击提前规划按钮，等待其完成（Promise可能已resolve或仍在pending）
+                this.info("史官已完成，等待玩家完成提前规划输入...");
+                loadingToast.find('.toast-message').text("等待您完成规划输入...");
+
+                // 等待玩家输入Promise完成（无论成功或失败都会resolve）
+                await playerInputPromise;
+
+                if (this.LEADER.earlyPlayerInput) {
+                    // 玩家成功完成了提前规划
+                    this.info("使用玩家提前输入的焦点");
+                    finalNarrativeFocus = this.LEADER.earlyPlayerInput.focus;
+                    isFreeRoamMode = this.LEADER.earlyPlayerInput.freeRoam;
+                    this.LEADER.earlyPlayerInput = null; // 清除临时数据
+                    loadingToast.find('.toast-message').text("正在应用您的规划...");
+                } else {
+                    // 玩家取消或失败，回退到常规弹窗
+                    this.info("提前规划被取消或失败，启动常规焦点弹窗");
+                    loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
+                    if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
+                        this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
+                        const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
+                        if (popupResult.freeRoam) {
+                            isFreeRoamMode = true;
+                            finalNarrativeFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
+                            this.info("🎲 [自由章模式] 已激活：本章将跳过建筑师规划和回合执导，世界观档案将全部发送到前台");
+                        } else if (popupResult.abc) {
+                            const userInput = popupResult.value || "";
+                            finalNarrativeFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
+                        } else if (popupResult.confirmed && popupResult.value) {
+                            finalNarrativeFocus = popupResult.value;
+                        }
+                    }
+                }
             } else {
+                // 玩家没有点击提前规划按钮，史官完成后启动常规弹窗
+                this.info("玩家未使用提前规划，启动常规焦点弹窗");
                 loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
                 if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
                     this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
                     const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
                     if (popupResult.freeRoam) {
-                        // 自由章模式
                         isFreeRoamMode = true;
                         finalNarrativeFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
                         this.info("🎲 [自由章模式] 已激活：本章将跳过建筑师规划和回合执导，世界观档案将全部发送到前台");
                     } else if (popupResult.abc) {
-                        // ABC沉浸流模式：添加[IMMERSION_MODE]标记
                         const userInput = popupResult.value || "";
                         finalNarrativeFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
                     } else if (popupResult.confirmed && popupResult.value) {

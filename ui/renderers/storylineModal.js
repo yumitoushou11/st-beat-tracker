@@ -75,21 +75,53 @@ export function showStorylineDetailModal(lineId, category, categoryName, chapter
 
     // 渲染历史记录
     let historyHtml = '';
-    if (mergedData.history && mergedData.history.length > 0) {
-        historyHtml = '<div class="sbt-storyline-history"><div class="sbt-storyline-history-title"><i class="fa-solid fa-clock-rotate-left"></i> 进展历史</div>';
-        mergedData.history.forEach((entry, idx) => {
-            const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString('zh-CN') : '未知时间';
-            const chapterNum = entry.chapter !== undefined ? `第${entry.chapter}章` : '';
-            historyHtml += `
-                <div class="sbt-history-entry">
-                    <div class="sbt-history-entry-header">
-                        <span class="sbt-history-timestamp">${timestamp} ${chapterNum}</span>
-                        <span class="sbt-history-status">${getStatusBadge(entry.status || 'active')}</span>
-                    </div>
-                    <div class="sbt-history-summary">${entry.summary || '无摘要'}</div>
-                </div>
-            `;
-        });
+    if (isEditMode || (mergedData.history && mergedData.history.length > 0)) {
+        historyHtml = '<div class="sbt-storyline-history"><div class="sbt-storyline-history-title"><i class="fa-solid fa-clock-rotate-left"></i> 进展历史';
+        if (isEditMode) {
+            historyHtml += '<button class="sbt-add-history-entry-btn"><i class="fa-solid fa-plus"></i> 新增条目</button>';
+        }
+        historyHtml += '</div>';
+
+        if (mergedData.history && mergedData.history.length > 0) {
+            mergedData.history.forEach((entry, idx) => {
+                const timestamp = entry.timestamp ? new Date(entry.timestamp).toLocaleString('zh-CN') : '未知时间';
+                const timestampISO = entry.timestamp || new Date().toISOString();
+                const chapterNum = entry.chapter !== undefined ? entry.chapter : '';
+                const status = entry.status || 'active';
+                const summary = entry.summary || '';
+
+                if (isEditMode) {
+                    historyHtml += `
+                        <div class="sbt-history-entry sbt-history-entry-editable" data-index="${idx}">
+                            <div class="sbt-history-entry-header">
+                                <input type="datetime-local" class="sbt-history-timestamp-input" data-index="${idx}" value="${timestampISO.substring(0, 16)}" />
+                                <input type="number" class="sbt-history-chapter-input" data-index="${idx}" placeholder="章节号" value="${chapterNum}" min="0" />
+                                <select class="sbt-history-status-select" data-index="${idx}">
+                                    <option value="active" ${status === 'active' ? 'selected' : ''}>进行中</option>
+                                    <option value="completed" ${status === 'completed' ? 'selected' : ''}>已完成</option>
+                                    <option value="paused" ${status === 'paused' ? 'selected' : ''}>已暂停</option>
+                                    <option value="failed" ${status === 'failed' ? 'selected' : ''}>已失败</option>
+                                </select>
+                                <button class="sbt-delete-history-entry-btn" data-index="${idx}" title="删除此条目"><i class="fa-solid fa-trash"></i></button>
+                            </div>
+                            <textarea class="sbt-history-summary-input" data-index="${idx}" placeholder="请输入进展摘要...">${summary}</textarea>
+                        </div>
+                    `;
+                } else {
+                    historyHtml += `
+                        <div class="sbt-history-entry">
+                            <div class="sbt-history-entry-header">
+                                <span class="sbt-history-timestamp">${timestamp} ${chapterNum ? `第${chapterNum}章` : ''}</span>
+                                <span class="sbt-history-status">${getStatusBadge(status)}</span>
+                            </div>
+                            <div class="sbt-history-summary">${summary || '无摘要'}</div>
+                        </div>
+                    `;
+                }
+            });
+        } else if (isEditMode) {
+            historyHtml += '<div class="sbt-empty-text">暂无历史记录，点击上方按钮新增</div>';
+        }
         historyHtml += '</div>';
     }
 
@@ -248,7 +280,7 @@ export function showStorylineDetailModal(lineId, category, categoryName, chapter
             </div>
         </div>
 
-        ${!isEditMode && historyHtml ? `
+        ${historyHtml ? `
             <div class="sbt-character-detail-section">
                 ${historyHtml}
             </div>

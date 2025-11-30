@@ -3858,3 +3858,318 @@ input:checked + .sbt-slider:before {
     color: var(--sbt-text-medium);
     opacity: 0.5;
 }
+
+/* ============================================
+   V10.1: 故事线历史记录编辑UI样式
+   ============================================ */
+
+/* 历史条目标题栏 - 新增按钮布局 */
+.sbt-storyline-history-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+/* 新增历史条目按钮 */
+.sbt-add-history-entry-btn {
+    background: linear-gradient(135deg, var(--sbt-primary-accent), #667eea);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.85em;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 4px rgba(10, 132, 255, 0.2);
+}
+
+.sbt-add-history-entry-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.3);
+    background: linear-gradient(135deg, #1d8fff, #7891ff);
+}
+
+.sbt-add-history-entry-btn:active {
+    transform: translateY(0);
+}
+
+.sbt-add-history-entry-btn i {
+    font-size: 0.9em;
+}
+
+/* 可编辑的历史条目容器 */
+.sbt-history-entry-editable {
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.08), rgba(102, 126, 234, 0.05));
+    border: 2px solid rgba(10, 132, 255, 0.15);
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 12px;
+    transition: all 0.2s ease;
+}
+
+.sbt-history-entry-editable:hover {
+    border-color: rgba(10, 132, 255, 0.3);
+    box-shadow: 0 4px 12px rgba(10, 132, 255, 0.1);
+}
+
+/* 历史条目头部布局 */
+.sbt-history-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+/* 时间戳输入框 */
+.sbt-history-timestamp-input {
+    flex: 1 1 200px;
+    min-width: 180px;
+    background-color: var(--sbt-bg-medium);
+    border: 1px solid rgba(10, 132, 255, 0.2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85em;
+    color: var(--sbt-text-light);
+    font-family: 'Courier New', monospace;
+    transition: all 0.2s ease;
+}
+
+.sbt-history-timestamp-input:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+    background-color: var(--sbt-bg-darker);
+}
+
+/* 章节号输入框 */
+.sbt-history-chapter-input {
+    flex: 0 0 90px;
+    background-color: var(--sbt-bg-medium);
+    border: 1px solid rgba(10, 132, 255, 0.2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85em;
+    color: var(--sbt-text-light);
+    text-align: center;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+.sbt-history-chapter-input:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+    background-color: var(--sbt-bg-darker);
+}
+
+/* 隐藏数字输入框的上下箭头（Chrome/Safari） */
+.sbt-history-chapter-input::-webkit-outer-spin-button,
+.sbt-history-chapter-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+/* 隐藏数字输入框的上下箭头（Firefox） */
+.sbt-history-chapter-input[type=number] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+/* 状态下拉框 */
+.sbt-history-status-select {
+    flex: 0 0 110px;
+    background-color: var(--sbt-bg-medium);
+    border: 1px solid rgba(10, 132, 255, 0.2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-size: 0.85em;
+    color: var(--sbt-text-light);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-history-status-select:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+    background-color: var(--sbt-bg-darker);
+}
+
+.sbt-history-status-select:hover {
+    border-color: rgba(10, 132, 255, 0.4);
+}
+
+/* 删除历史条目按钮 */
+.sbt-delete-history-entry-btn {
+    flex: 0 0 36px;
+    height: 36px;
+    background: linear-gradient(135deg, #ff3b30, #ff6b6b);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9em;
+    box-shadow: 0 2px 4px rgba(255, 59, 48, 0.2);
+}
+
+.sbt-delete-history-entry-btn:hover {
+    background: linear-gradient(135deg, #ff2d20, #ff5252);
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(255, 59, 48, 0.4);
+}
+
+.sbt-delete-history-entry-btn:active {
+    transform: scale(0.95);
+}
+
+.sbt-delete-history-entry-btn i {
+    pointer-events: none;
+}
+
+/* 历史摘要输入框 */
+.sbt-history-summary-input {
+    width: 100%;
+    min-height: 80px;
+    background-color: var(--sbt-bg-medium);
+    border: 1px solid rgba(10, 132, 255, 0.2);
+    border-radius: 6px;
+    padding: 10px 12px;
+    font-size: 0.9em;
+    color: var(--sbt-text-light);
+    line-height: 1.6;
+    font-family: inherit;
+    resize: vertical;
+    transition: all 0.2s ease;
+}
+
+.sbt-history-summary-input:focus {
+    outline: none;
+    border-color: var(--sbt-primary-accent);
+    box-shadow: 0 0 0 3px rgba(10, 132, 255, 0.15);
+    background-color: var(--sbt-bg-darker);
+}
+
+.sbt-history-summary-input::placeholder {
+    color: var(--sbt-text-medium);
+    opacity: 0.5;
+}
+
+/* 只读模式的历史条目样式增强 */
+.sbt-history-entry:not(.sbt-history-entry-editable) {
+    background: rgba(10, 132, 255, 0.03);
+    border-left: 3px solid var(--sbt-primary-accent);
+    padding: 10px 12px;
+    margin-bottom: 10px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.sbt-history-entry:not(.sbt-history-entry-editable):hover {
+    background: rgba(10, 132, 255, 0.06);
+    border-left-width: 4px;
+}
+
+/* 历史条目头部（只读模式） */
+.sbt-history-entry:not(.sbt-history-entry-editable) .sbt-history-entry-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 10px;
+}
+
+/* 时间戳显示（只读模式） */
+.sbt-history-timestamp {
+    color: var(--sbt-primary-accent);
+    font-weight: 600;
+    font-size: 0.85em;
+    font-family: 'Courier New', monospace;
+}
+
+/* 历史摘要显示（只读模式） */
+.sbt-history-summary {
+    color: var(--sbt-text-medium);
+    font-size: 0.9em;
+    line-height: 1.6;
+    padding-left: 8px;
+}
+
+/* 状态徽章优化 */
+.sbt-status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.sbt-status-badge.status-active {
+    background: linear-gradient(135deg, #30d158, #34c759);
+    color: white;
+    box-shadow: 0 2px 4px rgba(48, 209, 88, 0.2);
+}
+
+.sbt-status-badge.status-completed {
+    background: linear-gradient(135deg, #0a84ff, #0066cc);
+    color: white;
+    box-shadow: 0 2px 4px rgba(10, 132, 255, 0.2);
+}
+
+.sbt-status-badge.status-paused {
+    background: linear-gradient(135deg, #ff9f0a, #ff9500);
+    color: white;
+    box-shadow: 0 2px 4px rgba(255, 159, 10, 0.2);
+}
+
+.sbt-status-badge.status-failed {
+    background: linear-gradient(135deg, #ff453a, #ff3b30);
+    color: white;
+    box-shadow: 0 2px 4px rgba(255, 69, 58, 0.2);
+}
+
+.sbt-status-badge i {
+    font-size: 0.9em;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .sbt-history-entry-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sbt-history-timestamp-input,
+    .sbt-history-chapter-input,
+    .sbt-history-status-select {
+        flex: 1 1 100%;
+    }
+
+    .sbt-delete-history-entry-btn {
+        width: 100%;
+        flex: 1 1 100%;
+    }
+
+    .sbt-storyline-history-title {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sbt-add-history-entry-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}

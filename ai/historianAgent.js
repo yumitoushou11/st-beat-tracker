@@ -110,6 +110,8 @@ export class HistorianAgent extends Agent {
         const staticMatrices = chapter.staticMatrices;
         const dynamicState = chapter.dynamicState;
         const longTermStorySummary = chapter.meta.longTermStorySummary;
+        const currentChapterNumber = chapter.meta.chapterNumber || 1;
+        const currentTimestamp = new Date().toISOString();
 
         // V10.0: 提取叙事节奏环状态（用于节奏评估）
         const narrativeRhythmClock = chapter?.meta?.narrative_control_tower?.narrative_rhythm_clock || {
@@ -167,20 +169,33 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 ---
 **【审计素材】**
 1. **录像**: <chapter_transcript>${chapterTranscript}</chapter_transcript>
-2. **世界档案**: 第${chronology.day_count}天, ${chronology.time_slot}
+2. **当前章节**: 第${currentChapterNumber}章, 时间戳: ${currentTimestamp}
+3. **世界档案**: 第${chronology.day_count}天, ${chronology.time_slot}
    ${existingEntityManifest}
-3. **完整数据**: <static_matrices>${JSON.stringify(staticMatrices, null, 2)}</static_matrices>
+4. **完整数据**: <static_matrices>${JSON.stringify(staticMatrices, null, 2)}</static_matrices>
    <dynamic_state>${JSON.stringify(dynamicState, null, 2)}</dynamic_state>
-4. **长线摘要**: ${longTermStorySummary}
-5. **节奏环**: 当前相位\`${narrativeRhythmClock.current_phase}\`, 已持续${narrativeRhythmClock.current_phase_duration}章, 周期${narrativeRhythmClock.cycle_count}
+5. **长线摘要**: ${longTermStorySummary}
+6. **节奏环**: 当前相位\`${narrativeRhythmClock.current_phase}\`, 已持续${narrativeRhythmClock.current_phase_duration}章, 周期${narrativeRhythmClock.cycle_count}
 
 ---
 **【核心方法论】**
 
 ### **M1: 实体对账与创生**
 对比清单，识别新实体。为新实体分配ECI ID，创建档案：
-- 角色: {core, appearance, personality{性格特质[], 价值观[], 说话风格}, background, goals{长期目标[], 短期目标[], 恐惧[], 欲望[]}, capabilities{战斗技能{}, 社交技能{}, 特殊能力[], 弱点[]}, social{relationships{}}}
-- 次要角色仅需core和social.relationships。
+- **角色**: {core, appearance, personality{性格特质[], 价值观[], 说话风格}, background, goals{长期目标[], 短期目标[], 恐惧[], 欲望[]}, capabilities{战斗技能{}, 社交技能{}, 特殊能力[], 弱点[]}, social{relationships{}}}
+  - 次要角色仅需core和social.relationships
+- **世界观**: 识别录像中出现的新地点/物品/势力/概念/历史事件/种族
+  - locations: {name, description, type, atmosphere}
+  - items: {name, description, properties, owner}
+  - factions: {name, description, ideology, influence}
+  - concepts: {name, description, significance}
+  - events: {name, description, timeframe, participants}
+  - races: {name, description, traits}
+- **故事线**: 识别新触发的故事线（主线/支线/关系弧/个人成长）
+  - {title, type, summary, trigger, involved_chars, initial_summary}
+  - 分类: main_quests/side_quests/relationship_arcs/personal_arcs
+- **关系边**: 发现两个角色首次建立联系时，创建新的relationship_graph.edges
+  - {id, participants:[char1, char2], type, relationship_label, timeline{meeting_status, separation_state}, narrative_status{first_scene_together}}
 
 ### **M2: 关系裁决**
 **铁律**: 只更新NPC对主角或NPC对NPC的好感度，禁止量化主角情感。
@@ -189,9 +204,10 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 **输出**: \`updates.characters.<NPC_ID>.social.relationships.<target_ID>\` → {current_affinity, history_entry{change, reasoning}}
 
 ### **M3: 故事线逻辑链审计 (V10.0核心)**
-❌ "进度+10%" → ✅ "因A导致从X到Y"
+**创建新故事线**: 录像中触发了新任务/关系/成长线 → 加入\`creations.staticMatrices.storylines.<cat>.<id>\`
+**更新已有故事线**: ❌ "进度+10%" → ✅ "因A导致从X到Y"
 **逻辑节点**: [突破]道具/情报打破卡点 | [转折]局势逆转 | [分支]不可逆选择 | [终结]目标达成/失败
-**输出**: \`updates.storylines.<cat>.<id>\` → {current_status, current_summary, history_entry{summary_update: "因[事件]，任务进入[新阶段]"}}
+**输出**: \`updates.storylines.<cat>.<id>\` → {current_status, current_summary, history_entry{timestamp: "${currentTimestamp}", status: "active", summary: "因[事件]，任务进入[新阶段]", chapter: ${currentChapterNumber}}}
 
 ### **M4: 角色档案全维度更新**
 可更新: core{identity身份}, 外貌, personality{性格特质, 价值观, 说话风格}, goals, capabilities{战斗技能, 社交技能, 特殊能力, 弱点}, equipment{武器, 护甲, 物品}, experiences{到访地点, 参与事件, 人生里程碑}
@@ -206,7 +222,8 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 **垃圾时间**: 纯生理循环/无意义移动/睡眠过程/等待 → 用jump_cut跳过
 
 ### **M6: 关系图谱状态更新**
-**触发**: 本章有直接对话/身体接触 → 更新\`relationship_updates\`数组
+**新关系创建**: 两个角色首次建立联系 → 加入\`creations.staticMatrices.relationship_graph.edges\`
+**已有关系更新**: 本章有直接对话/身体接触 → 更新\`relationship_updates\`数组
 **更新字段**: timeline.last_interaction, timeline.separation_duration: "none", timeline.reunion_pending: false, narrative_status.major_events (完整数组), narrative_status.unresolved_tension
 
 ### **M7: 叙事节奏环评估**
@@ -230,10 +247,31 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 **【最终输出格式】**
 \`\`\`json
 {
-  "creations": {"staticMatrices": {"characters": {"char_id": {core{name, identity, age, gender}, personality{性格特质[], 说话风格}, social{relationships{}}}}}},
+  "creations": {
+    "staticMatrices": {
+      "characters": {"char_id": {core{name, identity, age, gender}, personality{性格特质[], 说话风格}, social{relationships{}}}},
+      "worldview": {
+        "locations": {"loc_id": {name, description, type, atmosphere}},
+        "items": {"item_id": {name, description, properties, owner}},
+        "factions": {"faction_id": {name, description, ideology, influence}},
+        "concepts": {"concept_id": {name, description, significance}},
+        "events": {"event_id": {name, description, timeframe, participants}},
+        "races": {"race_id": {name, description, traits}}
+      },
+      "storylines": {
+        "main_quests": {"quest_id": {title, type, summary, trigger, involved_chars, initial_summary}},
+        "side_quests": {},
+        "relationship_arcs": {},
+        "personal_arcs": {}
+      },
+      "relationship_graph": {
+        "edges": [{"id": "rel_id", "participants": ["char1", "char2"], "type": "stranger_with_history", "relationship_label": "初次相遇", "timeline": {"meeting_status": "陌生人"}, "narrative_status": {"first_scene_together": true}}]
+      }
+    }
+  },
   "updates": {
     "characters": {"char_npc": {core{identity}, personality{性格特质[]}, social{relationships{"target": {current_affinity, history_entry{change, reasoning}}}}}},
-    "storylines": {"main_quests": {"quest_id": {current_status, current_summary, history_entry{summary_update: "因A，任务进入B"}}}}
+    "storylines": {"main_quests": {"quest_id": {current_status, current_summary, history_entry{timestamp: "2025-01-15T10:30:00", status: "active", summary: "因A，任务进入B", chapter: 5}}}}
   },
   "relationship_updates": [{"relationship_id": "rel_id", "updates": {"timeline.last_interaction": "{{current_chapter_uid}}", "timeline.separation_duration": "none"}}],
   "new_long_term_summary": "...",
@@ -245,7 +283,7 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 \`\`\`
 
 **【检查清单】**
-✅ 基于录像非想象? ✅ 全部简体中文? ✅ 故事线体现逻辑链? ✅ 关系捕捉位阶变化? ✅ 只更新真实变化?
+✅ 基于录像非想象? ✅ 全部简体中文? ✅ 识别了所有新实体(角色/地点/物品/故事线/关系)? ✅ 故事线体现逻辑链? ✅ 关系捕捉位阶变化? ✅ 只更新真实变化?
 
 现在，开始因果律审计。
 `;
