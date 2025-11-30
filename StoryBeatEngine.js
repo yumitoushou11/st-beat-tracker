@@ -187,14 +187,20 @@ export class StoryBeatEngine {
             throw error;
         }
 
-        // 玩家取消：恢复按钮并提前返回
+        // 玩家取消：恢复按钮并设置默认焦点，避免史官结束后再次弹窗
         if (!popupResult.confirmed && !popupResult.freeRoam && !popupResult.abc) {
             $button.prop('disabled', false)
                 .html('<i class="fa-solid fa-pen-ruler"></i> 规划')
                 .css('background-color', '');
             this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
-            this.info("玩家取消了提前输入");
-            return null;
+            this.info("玩家取消了提前输入，使用默认AI自主创新模式");
+
+            // 即使取消，也设置默认值，避免史官结束后再次弹出焦点询问
+            this.LEADER.earlyPlayerInput = {
+                focus: "由AI自主创新。",
+                freeRoam: false
+            };
+            return this.LEADER.earlyPlayerInput;
         }
 
         let earlyFocus = "由AI自主创新。";
@@ -1861,10 +1867,17 @@ _applyBlueprintMask(blueprint, currentBeat) {
         this._setStatus(ENGINE_STATUS.BUSY_GENESIS);
         this.info(`--- 创世纪流程启动 (ECI模型 V3.1) ---`);
         this.debugGroup(`BRIDGE-PROBE [GENESIS-FLOW-ECI]`);
+
+        // 初始化中止控制器
+        this._transitionStopRequested = false;
+        this._activeTransitionToast = null;
+        this.currentTaskAbortController = new AbortController();
+
         const loadingToast = this.toastr.info(
             "正在初始化...", "创世纪...",
             { timeOut: 0, extendedTimeOut: 0, closeButton: false, progressBar: true, tapToDismiss: false }
         );
+        this._activeTransitionToast = loadingToast;
 
         try {
             const context = this.deps.applicationFunctionManager.getContext();
@@ -1872,58 +1885,63 @@ _applyBlueprintMask(blueprint, currentBeat) {
             if (!activeCharId) throw new Error("无法获取 activeCharId，创世纪中止。");
 
             // ========================= [修复逻辑：三级数据源探查] =========================
-            // 优先级 1: 内存中的当前状态 (保留用户在前端对预览数据的修改)
-            // 优先级 2: 本地静态数据库缓存 (StaticDataManager)
+            // 【修复】优先级调整：静态数据库优先，确保用户在预编辑模式的修改能被使用
+            // 优先级 1: 本地静态数据库缓存 (StaticDataManager) - 用户预编辑的最新数据
+            // 优先级 2: 内存中的当前状态 (fallback)
             // 优先级 3: 实时AI分析 (IntelligenceAgent)
 
             let finalStaticMatrices = null;
             let sourceLabel = "未知";
 
-            // --- 阶段一：检查内存 (前端修改优先) ---
-            if (this.currentChapter && 
-                this.currentChapter.characterId === activeCharId && 
-                this.currentChapter.staticMatrices && 
-                Object.keys(this.currentChapter.staticMatrices.characters || {}).length > 0) {
-                
-                this.info("GENESIS: 检测到内存中存在有效的章节数据（包含前端预览/修改），准备复用。");
-                // 复用内存数据，不重新实例化，从而保留用户的修改
-                finalStaticMatrices = this.currentChapter.staticMatrices;
-                sourceLabel = "内存复用 (用户修改)";
-            } 
-            // --- 阶段二：降级检查缓存 (静态数据库) ---
-            else {
-                this.info("GENESIS: 内存中无有效数据，尝试读取静态数据库缓存...");
-                
-                // 此时才创建新的实例，防止污染可能存在的有效旧引用
+            // 创建新的章节实例（或复用现有实例）
+            if (!this.currentChapter || this.currentChapter.characterId !== activeCharId) {
                 this.currentChapter = new Chapter({ characterId: activeCharId });
-                
-                loadingToast.find('.toast-message').text("读取世界观设定...");
-                const cachedDb = staticDataManager.loadStaticData(activeCharId);
+            }
 
-                if (cachedDb && Object.keys(cachedDb.characters || {}).length > 0) {
-                    this.info("GENESIS: 已从缓存加载静态数据。");
-                    finalStaticMatrices = cachedDb;
-                    sourceLabel = "静态数据库缓存";
-                } 
-                // --- 阶段三：降级执行AI分析 (实时生成) ---
-                else {
-                    this.info("GENESIS: 未找到有效缓存，正在实时分析世界书...");
-                    loadingToast.find('.toast-message').text("正在分析世界观与角色设定...");
-                    
-                    const persona = window.personas?.[window.main_persona];
-                    const worldInfoEntries = await this.deps.getCharacterBoundWorldbookEntries(context);
-                    const agentOutput = await this.intelligenceAgent.execute({ worldInfoEntries, persona });
+            // --- 阶段一：优先检查静态数据库 (用户预编辑的最新数据) ---
+            loadingToast.find('.toast-message').text("读取世界观设定...");
+            const cachedDb = staticDataManager.loadStaticData(activeCharId);
 
-                    if (agentOutput && agentOutput.staticMatrices) {
-                        this.info("GENESIS: AI分析成功，生成了新的数据。");
-                        finalStaticMatrices = agentOutput.staticMatrices;
-                        sourceLabel = "AI实时分析";
-                        
-                        // 顺手存入缓存
-                        staticDataManager.saveStaticData(activeCharId, finalStaticMatrices);
-                    } else {
-                        throw new Error("IntelligenceAgent未能返回有效数据，且无可用缓存或内存状态。");
-                    }
+            if (cachedDb && Object.keys(cachedDb.characters || {}).length > 0) {
+                this.info("GENESIS: 已从静态数据库加载最新数据（优先级最高）。");
+                finalStaticMatrices = cachedDb;
+                sourceLabel = "静态数据库";
+            }
+            // --- 阶段二：降级检查内存 (如果静态数据库为空) ---
+            else if (this.currentChapter &&
+                this.currentChapter.staticMatrices &&
+                Object.keys(this.currentChapter.staticMatrices.characters || {}).length > 0) {
+
+                this.info("GENESIS: 静态数据库为空，使用内存中的数据作为fallback。");
+                finalStaticMatrices = this.currentChapter.staticMatrices;
+                sourceLabel = "内存fallback";
+            }
+            // --- 阶段三：降级执行AI分析 (实时生成) ---
+            else {
+                this.info("GENESIS: 未找到有效缓存，正在实时分析世界书...");
+                loadingToast.find('.toast-message').html(`
+                    正在分析世界观与角色设定...<br>
+                    <div class="sbt-compact-toast-actions">
+                        <button id="sbt-stop-transition-btn" class="sbt-compact-focus-btn sbt-stop-transition-btn" title="立即停止创世纪">
+                            <i class="fa-solid fa-octagon-exclamation"></i> 停止
+                        </button>
+                    </div>
+                `);
+                this._bindStopButton('创世纪-智能分析阶段');
+
+                const persona = window.personas?.[window.main_persona];
+                const worldInfoEntries = await this.deps.getCharacterBoundWorldbookEntries(context);
+                const agentOutput = await this.intelligenceAgent.execute({ worldInfoEntries, persona }, this.currentTaskAbortController.signal);
+
+                if (agentOutput && agentOutput.staticMatrices) {
+                    this.info("GENESIS: AI分析成功，生成了新的数据。");
+                    finalStaticMatrices = agentOutput.staticMatrices;
+                    sourceLabel = "AI实时分析";
+
+                    // 顺手存入缓存
+                    staticDataManager.saveStaticData(activeCharId, finalStaticMatrices);
+                } else {
+                    throw new Error("IntelligenceAgent未能返回有效数据，且无可用缓存或内存状态。");
                 }
             }
 
@@ -1977,8 +1995,16 @@ _applyBlueprintMask(blueprint, currentBeat) {
             } else {
                 // 6. 规划开篇剧本
                 this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-                loadingToast.find('.toast-message').text("建筑师正在构思开篇剧本...");
-                const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent);
+                loadingToast.find('.toast-message').html(`
+                    建筑师正在构思开篇剧本...<br>
+                    <div class="sbt-compact-toast-actions">
+                        <button id="sbt-stop-transition-btn" class="sbt-compact-focus-btn sbt-stop-transition-btn" title="立即停止创世纪">
+                            <i class="fa-solid fa-octagon-exclamation"></i> 停止
+                        </button>
+                    </div>
+                `);
+                this._bindStopButton('创世纪-建筑师阶段');
+                const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent, this.currentTaskAbortController.signal);
                 if (architectResult && architectResult.new_chapter_script) {
                     // 处理 ★ 星标节拍
                     this._processStarMarkedBeats(architectResult.new_chapter_script);
@@ -2009,11 +2035,18 @@ _applyBlueprintMask(blueprint, currentBeat) {
             }
 
         } catch (error) {
-            this.diagnose("创世纪流程中发生严重错误:", error);
-            this.toastr.error(`创世纪失败: ${error.message}`, "引擎严重错误");
-            this.currentChapter = null; 
+            if (error.name === 'AbortError' || error.code === 'SBT_TRANSITION_STOP') {
+                this.warn('创世纪流程被强制中止。');
+                this._cleanupAfterTransitionStop();
+                this.toastr.info("创世纪已由用户成功中止。", "操作已取消");
+            } else {
+                this.diagnose("创世纪流程中发生严重错误:", error);
+                this.toastr.error(`创世纪失败: ${error.message}`, "引擎严重错误");
+            }
+            this.currentChapter = null;
         } finally {
             this._setStatus(ENGINE_STATUS.IDLE);
+            this.currentTaskAbortController = null;
             this.debugGroupEnd();
             if (loadingToast) this.toastr.clear(loadingToast);
         }
@@ -2298,7 +2331,14 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             updatedNewChapter.activeChapterDesignNotes = null;
         } else {
             this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-            loadingToast.find('.toast-message').text("建筑师正在规划新章节...");
+            loadingToast.find('.toast-message').html(`
+                建筑师正在规划新章节...<br>
+                <div class="sbt-compact-toast-actions">
+                    <button id="sbt-stop-transition-btn" class="sbt-compact-focus-btn sbt-stop-transition-btn" title="立即停止章节转换">
+                        <i class="fa-solid fa-octagon-exclamation"></i> 停止
+                    </button>
+                </div>
+            `);
             this._bindStopButton('建筑师阶段');
             const architectResult = await this._planNextChapter(false, updatedNewChapter, null, this.currentTaskAbortController.signal);    
             if (!architectResult || !architectResult.new_chapter_script) {
@@ -2539,9 +2579,16 @@ async reanalyzeWorldbook() {
     if (!confirm("【高级操作】\n\n您确定要重新分析世界书吗？\n\n- 这会清除此角色的【静态设定缓存】。\n- 只有在您【更新了世界书文件】后，此操作才有意义。\n- 分析完成后，新的设定将【立即应用】到当前的游戏状态中。\n\n此操作不可逆，请谨慎操作。")) {
         return;
     }
+
+    // 初始化中止控制器
+    this._transitionStopRequested = false;
+    this._activeTransitionToast = null;
+    this.currentTaskAbortController = new AbortController();
+
     this._setStatus(ENGINE_STATUS.BUSY_ANALYZING);
     this.toastr.info("正在加载当前状态并分析世界书...", "引擎工作中");
     const loadingToast = this.toastr.info("正在加载状态...", "引擎后台分析中...", { timeOut: 0, extendedTimeOut: 0 });
+    this._activeTransitionToast = loadingToast;
 
     try {
         const { piece: lastStatePiece } = this.USER.findLastMessageWithLeader();
@@ -2554,17 +2601,25 @@ async reanalyzeWorldbook() {
         } else {
             throw new Error("在聊天记录中未找到有效的故事状态。请先开始对话。");
         }
-        
-        loadingToast.find('.toast-message').text('正在重新分析世界书...');
 
-        const activeCharId = this.currentChapter.characterId; 
+        loadingToast.find('.toast-message').html(`
+            正在重新分析世界书...<br>
+            <div class="sbt-compact-toast-actions">
+                <button id="sbt-stop-transition-btn" class="sbt-compact-focus-btn sbt-stop-transition-btn" title="立即停止分析">
+                    <i class="fa-solid fa-octagon-exclamation"></i> 停止
+                </button>
+            </div>
+        `);
+        this._bindStopButton('热重载-智能分析阶段');
+
+        const activeCharId = this.currentChapter.characterId;
         this.info(`--- 启动对角色 ${activeCharId} 的世界书热重载 ---`);
 
         const persona = window.personas?.[window.main_persona];
         const worldInfoEntries = await this.deps.getCharacterBoundWorldbookEntries(this.USER.getContext());
-        
+
         this.diagnose("热重载: 调用 IntelligenceAgent...");
-        const analysisResult = await this.intelligenceAgent.execute({ worldInfoEntries, persona });
+        const analysisResult = await this.intelligenceAgent.execute({ worldInfoEntries, persona }, this.currentTaskAbortController.signal);
 
         if (!analysisResult || !analysisResult.staticMatrices) {
             throw new Error("IntelligenceAgent未能返回有效的分析结果（缺少staticMatrices）。");
@@ -2606,12 +2661,19 @@ async reanalyzeWorldbook() {
         this.toastr.success("世界书已重新分析，并已应用到当前游戏状态！", "热重载成功");
 
     } catch (error) {
-        this.diagnose("世界书热重载失败:", error);
-        this.toastr.error(`操作失败: ${error.message.substring(0, 100)}...`, "内部错误");
+        if (error.name === 'AbortError' || error.code === 'SBT_TRANSITION_STOP') {
+            this.warn('热重载流程被强制中止。');
+            this._cleanupAfterTransitionStop();
+            this.toastr.info("热重载已由用户成功中止。", "操作已取消");
+        } else {
+            this.diagnose("世界书热重载失败:", error);
+            this.toastr.error(`操作失败: ${error.message.substring(0, 100)}...`, "内部错误");
+        }
     } finally {
         if (loadingToast) this.toastr.clear(loadingToast);
         this._setStatus(ENGINE_STATUS.IDLE);
-        this.currentChapter = null; 
+        this.currentTaskAbortController = null;
+        this.currentChapter = null;
     }
 }
 

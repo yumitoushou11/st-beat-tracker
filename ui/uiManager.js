@@ -109,10 +109,17 @@ $('#extensions-settings-button').after(html);
         }
     // -- 维护当前章节状态的全局引用 --
     let currentChapterState = null;
+    let isLockedInStaticMode = false; // 标记是否锁定在静态数据库模式
 
-    // 辅助函数：在交互时获取“最真实”的章节状态
-    // 优先尝试从聊天记录中捞取 Leader，以防 UI 停留在静态预览模式
+    // 辅助函数：在交互时获取"最真实"的章节状态
+    // 如果锁定在静态模式，则不再尝试切换到leader状态
     const getEffectiveChapterState = () => {
+        // 如果已锁定在静态模式，直接返回当前状态，不再尝试切换
+        if (isLockedInStaticMode) {
+            return currentChapterState;
+        }
+
+        // 否则尝试获取最新的leader状态
         const resolvedState = resolveRenderableChapterState(currentChapterState);
         if (resolvedState && resolvedState !== currentChapterState) {
             currentChapterState = resolvedState;
@@ -120,12 +127,12 @@ $('#extensions-settings-button').after(html);
         return currentChapterState;
     };
 
-    let hasRenderedLiveChapter = false;
     const refreshStaticModeBanner = () => {
         const $banner = $('#sbt-static-mode-banner');
         if ($banner.length === 0) return;
-        const liveFlag = hasRenderedLiveChapter || (typeof window !== 'undefined' && window.__sbtLiveLeaderAvailable === true);
-        if (!liveFlag && isStaticArchiveState(currentChapterState)) {
+
+        // 只要锁定在静态模式，就显示横幅
+        if (isLockedInStaticMode) {
             $banner.show();
         } else {
             $banner.hide();
@@ -138,8 +145,9 @@ $('#extensions-settings-button').after(html);
             const resolvedState = resolveRenderableChapterState(chapterState);
             if (resolvedState) {
                 currentChapterState = resolvedState;
+                // 如果收到的是真实章节状态（非静态缓存），解除静态模式锁定
                 if (!isStaticArchiveState(resolvedState)) {
-                    hasRenderedLiveChapter = true;
+                    isLockedInStaticMode = false;
                     if (typeof window !== 'undefined') {
                         window.__sbtLiveLeaderAvailable = true;
                     }
@@ -171,7 +179,7 @@ $('#extensions-settings-button').after(html);
 
             if (liveState) {
                 currentChapterState = liveState;
-                hasRenderedLiveChapter = true;
+                isLockedInStaticMode = false; // 找到了真实章节，不锁定静态模式
                 if (typeof window !== 'undefined') {
                     window.__sbtLiveLeaderAvailable = true;
                 }
@@ -180,7 +188,7 @@ $('#extensions-settings-button').after(html);
                 refreshStaticModeBanner();
                 return;
             }
-            
+
             // 如果轮询失败，则降级到静态缓存
             deps.info('[UIManager] 降级到静态缓存预览模式。');
             const db = staticDataManager.getFullDatabase();
@@ -224,8 +232,9 @@ $('#extensions-settings-button').after(html);
 
             if (!currentChapterState || isStaticArchiveState(currentChapterState)) {
                 currentChapterState = tempChapterState;
+                isLockedInStaticMode = true; // 锁定在静态数据库模式
                 updateDashboard(tempChapterState);
-                deps.info('[UIManager] 已显示缓存数据预览');
+                deps.info('[UIManager] 已显示缓存数据预览，锁定在静态数据库模式');
             } else {
                 deps.info('[UIManager] 检测到真实章节状态，跳过缓存数据加载（避免覆盖）');
             }
@@ -1435,101 +1444,112 @@ $('#extensions-settings-button').after(html);
     });
 
     // -- V8.0: 故事线追踪 - 保存故事线 --
-    $wrapper.on('click', '.sbt-save-storyline-btn', function() {
-        const lineId = $(this).data('line-id');
-        const category = $(this).data('category');
-        const isNew = $(this).data('is-new');
+    $wrapper.on('click', '.sbt-save-storyline-btn', async function() {
+        const $btn = $(this);
+        const lineId = $btn.data('line-id');
+        const category = $btn.data('category');
+        const isNew = $btn.data('is-new');
         const $panel = $('#sbt-storyline-detail-panel');
         const effectiveState = getEffectiveChapterState();
 
         if (!effectiveState) return;
 
-        // 确保结构存在
-        if (!effectiveState.staticMatrices.storylines) {
-            effectiveState.staticMatrices.storylines = {
-                main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+        try {
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin fa-fw"></i> 保存中...');
+
+            // 确保结构存在
+            if (!effectiveState.staticMatrices.storylines) {
+                effectiveState.staticMatrices.storylines = {
+                    main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+                };
+            }
+            if (!effectiveState.dynamicState.storylines) {
+                effectiveState.dynamicState.storylines = {
+                    main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
+                };
+            }
+            if (!effectiveState.staticMatrices.storylines[category]) {
+                effectiveState.staticMatrices.storylines[category] = {};
+            }
+            if (!effectiveState.dynamicState.storylines[category]) {
+                effectiveState.dynamicState.storylines[category] = {};
+            }
+
+            // 收集表单数据
+            const title = $panel.find('.sbt-storyline-name-input').val()?.trim();
+            const summary = $panel.find('textarea[data-path="summary"]').val()?.trim();
+            const currentSummary = $panel.find('textarea[data-path="current_summary"]').val()?.trim();
+            const trigger = $panel.find('.sbt-storyline-trigger-input').val()?.trim();
+            const currentStatus = $panel.find('.sbt-storyline-status-select').val();
+            const playerSupplement = $panel.find('textarea[data-path="player_supplement"]').val()?.trim();
+
+            // 验证必填字段
+            if (!title) {
+                deps.toastr.error('请输入故事线标题', '验证失败');
+                $btn.prop('disabled', false).html(`<i class="fa-solid fa-save fa-fw"></i> ${isNew ? '创建故事线' : '保存修改'}`);
+                return;
+            }
+
+            // 收集涉及角色
+            const involvedChars = [];
+            $panel.find('.sbt-involved-chars .sbt-tag-editable').each(function() {
+                const charId = $(this).data('char-id');
+                if (charId) involvedChars.push(charId);
+            });
+
+            // 生成最终ID（如果是新建）
+            let finalLineId = lineId;
+            if (isNew) {
+                const timestamp = Date.now().toString(36);
+                const titlePart = title.replace(/\s+/g, '_').toLowerCase();
+                finalLineId = `line_${titlePart}_${timestamp}`;
+            }
+
+            // 保存静态数据
+            const safeSummary = summary || '';
+            effectiveState.staticMatrices.storylines[category][finalLineId] = {
+                title: title,
+                summary: safeSummary,
+                initial_summary: safeSummary,
+                trigger: trigger || '玩家主动触发',
+                type: category,
+                involved_chars: involvedChars
             };
+
+            // 保存动态数据
+            if (!effectiveState.dynamicState.storylines[category][finalLineId]) {
+                effectiveState.dynamicState.storylines[category][finalLineId] = {
+                    current_status: currentStatus || 'active',
+                    current_summary: currentSummary || safeSummary || '故事线刚刚创建',
+                    history: [],
+                    player_supplement: playerSupplement || ''
+                };
+            } else {
+                effectiveState.dynamicState.storylines[category][finalLineId].current_status = currentStatus || 'active';
+                effectiveState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || safeSummary || '';
+                effectiveState.dynamicState.storylines[category][finalLineId].player_supplement = playerSupplement || '';
+            }
+
+            // 保存（添加await确保保存完成）
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                await deps.onSaveCharacterEdit(isNew ? 'storyline_added' : 'storyline_updated', effectiveState);
+            }
+
+            deps.toastr.success(`故事线"${title}"已${isNew ? '创建' : '保存'}！`, isNew ? '创建成功' : '保存成功');
+
+            // 触发更新
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
+            }
+
+            // 隐藏面板
+            $panel.hide();
+
+        } catch (error) {
+            deps.diagnose('[UIManager] 保存故事线修改时发生错误:', error);
+            deps.toastr.error(`保存失败: ${error.message}`, '错误');
+            $btn.prop('disabled', false).html(`<i class="fa-solid fa-save fa-fw"></i> ${isNew ? '创建故事线' : '保存修改'}`);
         }
-        if (!effectiveState.dynamicState.storylines) {
-            effectiveState.dynamicState.storylines = {
-                main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
-            };
-        }
-        if (!effectiveState.staticMatrices.storylines[category]) {
-            effectiveState.staticMatrices.storylines[category] = {};
-        }
-        if (!effectiveState.dynamicState.storylines[category]) {
-            effectiveState.dynamicState.storylines[category] = {};
-        }
-
-        // 收集表单数据
-        const title = $panel.find('.sbt-storyline-name-input').val()?.trim();
-        const summary = $panel.find('textarea[data-path="summary"]').val()?.trim();
-        const currentSummary = $panel.find('textarea[data-path="current_summary"]').val()?.trim();
-        const trigger = $panel.find('.sbt-storyline-trigger-input').val()?.trim();
-        const currentStatus = $panel.find('.sbt-storyline-status-select').val();
-        const playerSupplement = $panel.find('textarea[data-path="player_supplement"]').val()?.trim();
-
-        // 验证必填字段
-        if (!title) {
-            deps.toastr.error('请输入故事线标题', '验证失败');
-            return;
-        }
-
-        // 收集涉及角色
-        const involvedChars = [];
-        $panel.find('.sbt-involved-chars .sbt-tag-editable').each(function() {
-            const charId = $(this).data('char-id');
-            if (charId) involvedChars.push(charId);
-        });
-
-        // 生成最终ID（如果是新建）
-        let finalLineId = lineId;
-        if (isNew) {
-            const timestamp = Date.now().toString(36);
-            const titlePart = title.replace(/\s+/g, '_').toLowerCase();
-            finalLineId = `line_${titlePart}_${timestamp}`;
-        }
-
-        // 保存静态数据
-        const safeSummary = summary || '';
-        effectiveState.staticMatrices.storylines[category][finalLineId] = {
-            title: title,
-            summary: safeSummary,
-            initial_summary: safeSummary,
-            trigger: trigger || '玩家主动触发',
-            type: category,
-            involved_chars: involvedChars
-        };
-
-        // 保存动态数据
-        if (!effectiveState.dynamicState.storylines[category][finalLineId]) {
-            effectiveState.dynamicState.storylines[category][finalLineId] = {
-                current_status: currentStatus || 'active',
-                current_summary: currentSummary || safeSummary || '故事线刚刚创建',
-                history: [],
-                player_supplement: playerSupplement || ''
-            };
-        } else {
-            effectiveState.dynamicState.storylines[category][finalLineId].current_status = currentStatus || 'active';
-            effectiveState.dynamicState.storylines[category][finalLineId].current_summary = currentSummary || safeSummary || '';
-            effectiveState.dynamicState.storylines[category][finalLineId].player_supplement = playerSupplement || '';
-        }
-
-        // 保存
-        if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit(isNew ? 'storyline_added' : 'storyline_updated', effectiveState);
-        }
-
-        // 触发更新
-        if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
-        }
-
-        // 隐藏面板
-        $panel.hide();
-
-        deps.toastr.success(`故事线"${title}"已${isNew ? '创建' : '保存'}！`, isNew ? '创建成功' : '保存成功');
     });
 
     // -- V8.0: 故事线追踪 - 取消编辑 --

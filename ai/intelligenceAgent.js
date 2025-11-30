@@ -349,7 +349,7 @@ ${formattedWorldInfo}
        ` ;
     }
 
-     async execute(context) {
+     async execute(context, abortSignal = null) {
         const { worldInfoEntries, persona } = context;
         this.diagnose("--- 智能情报官AI 启动 --- 正在对世界书进行全维度解析...");
 
@@ -358,12 +358,12 @@ ${formattedWorldInfo}
         console.groupCollapsed('[SBT-DIAGNOSE] Full IntelligenceAgent AI System Prompt');
         console.log(prompt);
         console.groupEnd();
-        
+
         let responseText = null; // 1. 在try块外部声明，确保在catch中可访问
 
         try {
             // 2. 在try块内部赋值
-            responseText = await this.deps.mainLlmService.callLLM([{ role: 'user', content: prompt }]);
+            responseText = await this.deps.mainLlmService.callLLM([{ role: 'user', content: prompt }], null, abortSignal);
              let potentialJsonString;
         const codeBlockMatch = responseText.match(/```json\s*([\sS]*?)\s*```/);
         if (codeBlockMatch && codeBlockMatch[1]) {
