@@ -298,7 +298,7 @@ $('#extensions-settings-button').after(html);
 
     // -- [V3.5] 章节剧本: 编辑功能 --
     // 处理概览字段编辑（title, emotional_arc, core_conflict）
-    $wrapper.on('blur', '.sbt-blueprint-field-value[contenteditable="true"]', function() {
+    $wrapper.on('blur', '.sbt-blueprint-field-value[contenteditable="true"]', async function() {
         const $field = $(this);
         const fieldPath = $field.data('field');
         const newValue = $field.text().trim();
@@ -327,7 +327,7 @@ $('#extensions-settings-button').after(html);
 
             // 保存并触发更新
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
+                await deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
             }
 
             if (deps.eventBus) {
@@ -339,7 +339,7 @@ $('#extensions-settings-button').after(html);
     });
 
     // 处理节拍描述编辑
-    $wrapper.on('blur', '.sbt-beat-description[contenteditable="true"]', function() {
+    $wrapper.on('blur', '.sbt-beat-description[contenteditable="true"]', async function() {
         const $field = $(this);
         const beatIndex = parseInt($field.data('beat-index'), 10);
         const newValue = $field.text().trim();
@@ -353,7 +353,7 @@ $('#extensions-settings-button').after(html);
 
             // 保存并触发更新
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
+                await deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
             }
 
             if (deps.eventBus) {
@@ -364,8 +364,44 @@ $('#extensions-settings-button').after(html);
         }
     });
 
+    // 处理节拍详细字段编辑（物理事件、环境状态、状态变更、退出条件等）
+    $wrapper.on('blur', '.sbt-beat-field-value[contenteditable="true"]', async function() {
+        const $field = $(this);
+        const beatIndex = parseInt($field.data('beat-index'), 10);
+        const fieldName = $field.data('field');
+        const newValue = $field.text().trim();
+        const effectiveState = getEffectiveChapterState();
+
+        if (!effectiveState || isNaN(beatIndex) || !fieldName) return;
+
+        const beat = effectiveState.chapter_blueprint?.plot_beats?.[beatIndex];
+        if (beat && beat[fieldName] !== newValue) {
+            beat[fieldName] = newValue;
+
+            // 保存并触发更新
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                await deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
+            }
+
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
+            }
+
+            // 字段名映射为中文
+            const fieldNameMap = {
+                'physical_event': '物理事件',
+                'environment_state': '环境状态',
+                'state_change': '状态变更',
+                'exit_condition': '退出条件'
+            };
+            const fieldChinese = fieldNameMap[fieldName] || fieldName;
+
+            deps.toastr.success(`已更新节拍 ${beatIndex + 1} 的${fieldChinese}`, '保存成功');
+        }
+    });
+
     // 处理节拍退出条件编辑
-    $wrapper.on('blur', '.sbt-beat-exit-condition span[contenteditable="true"]', function() {
+    $wrapper.on('blur', '.sbt-beat-exit-condition span[contenteditable="true"]', async function() {
         const $field = $(this);
         const beatIndex = parseInt($field.data('beat-index'), 10);
         const newValue = $field.text().trim();
@@ -379,7 +415,7 @@ $('#extensions-settings-button').after(html);
 
             // 保存并触发更新
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
+                await deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
             }
 
             if (deps.eventBus) {
@@ -391,7 +427,7 @@ $('#extensions-settings-button').after(html);
     });
 
     // 处理终章信标编辑
-    $wrapper.on('blur', '.sbt-beacon-item span[contenteditable="true"]', function() {
+    $wrapper.on('blur', '.sbt-beacon-item span[contenteditable="true"]', async function() {
         const $field = $(this);
         const beaconIndex = parseInt($field.data('beacon-index'), 10);
         const newValue = $field.text().trim();
@@ -418,7 +454,7 @@ $('#extensions-settings-button').after(html);
 
             // 保存并触发更新
             if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
+                await deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
             }
 
             if (deps.eventBus) {
