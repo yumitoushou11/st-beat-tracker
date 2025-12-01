@@ -11,6 +11,7 @@ export class ConsoleManager {
         this.isInitialized = false;
         this.uiInitialized = false; // UI事件是否已绑定
         this.filterEnabled = true; // 是否启用过滤
+        this.consoleEnabled = false; // 🔧 控制台总开关，默认关闭
         this.originalConsole = {
             log: console.log,
             info: console.info,
@@ -96,6 +97,11 @@ export class ConsoleManager {
      * 添加日志
      */
     addLog(type, ...args) {
+        // 🔧 控制台总开关检查 - 如果未启用，直接返回
+        if (!this.consoleEnabled) {
+            return;
+        }
+
         const timestamp = new Date();
         let message = args.map(arg => {
             if (typeof arg === 'object') {
@@ -223,16 +229,15 @@ export class ConsoleManager {
             }
         });
 
+        // 🔧 控制台总开关事件监听
         document.addEventListener('change', (e) => {
-            if (e.target.id === 'sbt-console-autoscroll') {
-                this.autoScroll = e.target.checked;
-            }
-            if (e.target.id === 'sbt-console-disable-filter') {
-                this.filterEnabled = !e.target.checked;
-                if (!this.filterEnabled) {
-                    this.addLog('warn', '⚠️ 过滤已禁用，将显示所有日志');
+            if (e.target.id === 'sbt-console-enable-toggle') {
+                this.consoleEnabled = e.target.checked;
+                if (this.consoleEnabled) {
+                    // 开启时，原始console方法中会调用 addLog，此时才会显示
+                    this.originalConsole.info.call(console, '✅ 控制台已启用');
                 } else {
-                    this.addLog('info', '✅ 过滤已启用');
+                    this.clearLogs();
                 }
             }
         });

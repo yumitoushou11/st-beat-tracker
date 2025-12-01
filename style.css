@@ -4312,7 +4312,7 @@ input:checked + .sbt-slider:before {
     gap: 10px;
 }
 
-.sbt-console-autoscroll-label {
+.sbt-console-enable-label {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -4322,11 +4322,11 @@ input:checked + .sbt-slider:before {
     user-select: none;
 }
 
-.sbt-console-autoscroll-label input[type="checkbox"] {
+.sbt-console-enable-label input[type="checkbox"] {
     cursor: pointer;
 }
 
-.sbt-console-autoscroll-label:hover {
+.sbt-console-enable-label:hover {
     color: var(--sbt-text-light);
 }
 
@@ -4463,7 +4463,7 @@ input:checked + .sbt-slider:before {
         align-items: stretch;
     }
 
-    .sbt-console-autoscroll-label {
+    .sbt-console-enable-label {
         justify-content: center;
     }
 

@@ -38,6 +38,7 @@ export class StoryBeatEngine {
         this.syncDebounceTimer = null;
         this.uiSyncRetryTimer = null; // 用于重试的计时器ID
         this.uiSyncRetryCount = 0; // 记录重试次数
+        this._hasCleanedChat = false; // 🔧 标记是否已清理过chat消息
 
         this._earlyFocusPromise = null; // 追踪“提前规划”弹窗状态，避免并发弹出
         this._transitionStopRequested = false; // 标记当前章节转换是否被手动停止
@@ -287,6 +288,95 @@ export class StoryBeatEngine {
         this.USER.saveChat?.();
     }
 
+    /**
+     * 🔧 清理chat消息中的污染leader数据
+     * 【修复V2】分别处理两种污染情况：
+     * 1. 真实章节被污染了静态缓存标记（__source: "static_cache"）
+     * 2. 纯静态缓存leader包含运行时字段
+     * @returns {object} 清理报告 { cleanedCount, pollutedMessages }
+     */
+    _cleanPollutedLeadersInChat() {
+        const chat = this.USER.getContext()?.chat;
+        if (!chat || !Array.isArray(chat)) {
+            this.diagnose('[清理器] Chat未加载或为空');
+            return { cleanedCount: 0, pollutedMessages: [] };
+        }
+
+        let cleanedCount = 0;
+        const pollutedMessages = [];
+
+        this.diagnose(`[清理器] 开始扫描 ${chat.length} 条消息中的leader数据`);
+
+        for (let i = 0; i < chat.length; i++) {
+            const message = chat[i];
+            if (!message || !message.leader) continue;
+
+            const leader = message.leader;
+            const uid = leader.uid || 'unknown';
+            const removedFields = [];
+
+            // 判断这是真实章节还是静态缓存
+            const isRealChapter = uid.startsWith('chapter_') || uid.match(/^[a-zA-Z0-9_-]+$/);
+            const isStaticCache = uid.startsWith('static_cache_');
+
+            this.diagnose(`[清理器] 检查消息 #${i}: uid=${uid}, isRealChapter=${isRealChapter}, isStaticCache=${isStaticCache}`);
+
+            // 🔧 情况1: 真实章节被污染了静态缓存标记
+            if (isRealChapter && !isStaticCache) {
+                // 真实章节不应该有 __source: "static_cache"
+                // 但 cachedChapterStaticContext 和 lastUpdated 是合法字段，不应删除
+                if (leader.__source === 'static_cache') {
+                    delete leader.__source;
+                    removedFields.push('__source');
+                    this.diagnose(`[清理器] 移除真实章节的 __source 污染标记`);
+                }
+            }
+
+            // 🔧 情况2: 静态缓存leader包含不应有的字段
+            if (isStaticCache) {
+                // 静态缓存不应该有这些运行时字段（它们属于真实章节）
+                const STATIC_CACHE_FORBIDDEN_FIELDS = [
+                    'chapter_blueprint',
+                    'activeChapterDesignNotes',
+                    'cachedChapterStaticContext',
+                    'lastUpdated'
+                ];
+
+                for (const field of STATIC_CACHE_FORBIDDEN_FIELDS) {
+                    if (leader.hasOwnProperty(field)) {
+                        delete leader[field];
+                        removedFields.push(field);
+                        this.diagnose(`[清理器] 移除静态缓存的运行时字段: ${field}`);
+                    }
+                }
+            }
+
+            if (removedFields.length > 0) {
+                cleanedCount++;
+                pollutedMessages.push({
+                    messageIndex: i,
+                    uid: uid,
+                    removedFields: removedFields
+                });
+
+                this.info(`[清理器] 清理消息 #${i} (uid: ${uid})，移除字段: ${removedFields.join(', ')}`);
+            }
+        }
+
+        // 如果有清理，保存chat
+        if (cleanedCount > 0) {
+            this.info(`[清理器] 共清理了 ${cleanedCount} 条消息，正在保存...`);
+            this.USER.saveChat?.();
+        } else {
+            this.diagnose('[清理器] 未发现需要清理的数据');
+        }
+
+        return {
+            cleanedCount,
+            pollutedMessages
+        };
+    }
+
     async start() {
         this.info("叙事流引擎 ( State Refactored) 正在启动...");
         this._initializeCoreServices();
@@ -319,7 +409,19 @@ export class StoryBeatEngine {
         eventSource.on(event_types.MESSAGE_SWIPED, this.onStateChange);
         
         $(document).on('sbt-api-settings-saved', () => this._initializeCoreServices());
-        
+
+        // 🔧 自动清理污染数据：为所有玩家修复静态数据库
+        try {
+            this.info("正在检查静态数据库完整性...");
+            const cleanReport = staticDataManager.autoCleanStaticDatabase();
+            if (cleanReport.cleanedCharacters > 0) {
+                this.info(`✅ 数据库修复完成：清理了 ${cleanReport.cleanedCharacters} 个角色的污染数据`);
+                this.diagnose("清理详情:", cleanReport.removedFields);
+            }
+        } catch (error) {
+            this.diagnose("自动清理失败（不影响使用）:", error);
+        }
+
         this.onStateChange();
 
         this.info("叙事流引擎已准备就绪。");
@@ -1898,12 +2000,54 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         clearTimeout(this.syncDebounceTimer);
         this.syncDebounceTimer = setTimeout(() => {
         this.info("[SBE Engine] 状态变更事件触发，启动智能UI同步流程...");
+
+          // 🔧 自动清理chat消息中的污染leader数据（首次运行）
+          if (!this._hasCleanedChat) {
+              try {
+                  this.info("正在检查聊天消息中的leader数据完整性...");
+                  const chatCleanReport = this._cleanPollutedLeadersInChat();
+                  if (chatCleanReport.cleanedCount > 0) {
+                      this.info(`✅ 聊天消息修复完成：清理了 ${chatCleanReport.cleanedCount} 条消息中的污染leader数据`);
+                      this.diagnose("清理详情:", chatCleanReport);
+                  }
+                  this._hasCleanedChat = true;
+              } catch (error) {
+                  this.diagnose("清理聊天消息失败（不影响使用）:", error);
+                  this._hasCleanedChat = true; // 即使失败也标记为已尝试，避免重复
+              }
+          }
+
           const { piece, deep } = this.USER.findLastMessageWithLeader();
         const $anchorIndex = $('#sbt-chapter-anchor-index');
 
         if (piece && Chapter.isValidStructure(piece.leader)) {
             const startIndex = deep;
             $anchorIndex.text(`#${startIndex}`);
+
+            // 🔍 诊断日志：打印锚定楼层的详细信息（完整版，不省略）
+            this.info("════════════════════════════════════════════════════");
+            this.info(`📍 [锚定楼层诊断] 找到 Leader 消息`);
+            this.info(`   → 消息索引: ${deep}`);
+            this.info(`   → 消息发送者: ${piece.is_user ? '用户' : 'AI'}`);
+            this.info(`   → 消息完整内容: ${piece.mes || '(空)'}`);
+            this.info(`   → Leader UID: ${piece.leader?.uid || '未知'}`);
+            this.info(`   → 章节标题: ${piece.leader?.meta?.chapter_title || '未设置'}`);
+            this.info(`   → 聊天总消息数: ${this.USER.getContext().chat.length}`);
+            this.info(`   → Leader 完整数据（JSON格式，不省略）:`);
+            try {
+                const leaderJson = JSON.stringify(piece.leader, null, 2);
+                // 分段输出，每400字符一段
+                const chunkSize = 400;
+                for (let i = 0; i < leaderJson.length; i += chunkSize) {
+                    const chunk = leaderJson.substring(i, i + chunkSize);
+                    const partNum = Math.floor(i / chunkSize) + 1;
+                    const totalParts = Math.ceil(leaderJson.length / chunkSize);
+                    this.info(`[Part ${partNum}/${totalParts}] ${chunk}`);
+                }
+            } catch (err) {
+                this.info(`JSON序列化失败: ${err.message}`);
+            }
+            this.info("════════════════════════════════════════════════════");
         } else {
             $anchorIndex.text(`--`);
         }

@@ -7,8 +7,8 @@ export class NarrativeControlTowerManager {
 
     update(workingChapter, delta) {
         const { debugGroup, info, debugLog, debugGroupEnd } = this.engine;
-        debugGroup('[ENGINE-V4] ���¿�������������');
-        info(" -> ��ʼ�������¿�����...");
+        debugGroup('[ENGINE-V4] 更新空间控制塔流程');
+        info(" -> 开始更新空间档案...");
 
         if (!workingChapter.meta.narrative_control_tower) {
             workingChapter.meta.narrative_control_tower = {
@@ -17,7 +17,7 @@ export class NarrativeControlTowerManager {
                 storyline_progress: {},
                 global_story_phase: {
                     phase: "setup",
-                    phase_description: "���¸ոտ�ʼ�����ڽ����׶�",
+                    phase_description: "故事刚刚开始，处于建立阶段",
                     overall_progress: 0,
                     distance_to_climax: "far"
                 },
@@ -43,10 +43,62 @@ export class NarrativeControlTowerManager {
                     generated_at: null
                 }
             };
-            info(" -> �ѳ�ʼ�� narrative_control_tower");
+            info(" -> 已初始化 narrative_control_tower");
         }
 
         const tower = workingChapter.meta.narrative_control_tower;
+
+        // 🔧 防御性修复：确保关键字段存在，防止静态缓存数据导致崩溃
+        if (!tower.recent_chapters_intensity) tower.recent_chapters_intensity = [];
+        if (!tower.device_cooldowns) {
+            tower.device_cooldowns = {
+                spotlight_protocol: {
+                    last_usage_chapter_uid: null,
+                    recent_usage_count: 0,
+                    usage_history: []
+                },
+                time_dilation: {
+                    last_usage_chapter_uid: null,
+                    recent_usage_count: 0,
+                    usage_history: []
+                }
+            };
+        }
+        if (!tower.device_cooldowns.spotlight_protocol) {
+            tower.device_cooldowns.spotlight_protocol = {
+                last_usage_chapter_uid: null,
+                recent_usage_count: 0,
+                usage_history: []
+            };
+        }
+        if (!tower.device_cooldowns.spotlight_protocol.usage_history) {
+            tower.device_cooldowns.spotlight_protocol.usage_history = [];
+        }
+        if (!tower.device_cooldowns.time_dilation) {
+            tower.device_cooldowns.time_dilation = {
+                last_usage_chapter_uid: null,
+                recent_usage_count: 0,
+                usage_history: []
+            };
+        }
+        if (!tower.device_cooldowns.time_dilation.usage_history) {
+            tower.device_cooldowns.time_dilation.usage_history = [];
+        }
+        if (!tower.rhythm_directive) {
+            tower.rhythm_directive = {
+                mandatory_constraints: [],
+                suggested_chapter_type: "Scene",
+                intensity_range: { min: 1, max: 10 },
+                impending_thresholds: [],
+                rhythm_dissonance_opportunities: [],
+                generated_at: null
+            };
+        }
+        if (!tower.rhythm_directive.mandatory_constraints) tower.rhythm_directive.mandatory_constraints = [];
+        if (!tower.rhythm_directive.impending_thresholds) tower.rhythm_directive.impending_thresholds = [];
+        if (!tower.rhythm_directive.rhythm_dissonance_opportunities) tower.rhythm_directive.rhythm_dissonance_opportunities = [];
+        if (!tower.storyline_progress) tower.storyline_progress = {};
+
         const rhythmData = delta.rhythm_assessment;
 
         if (rhythmData) {
@@ -56,7 +108,7 @@ export class NarrativeControlTowerManager {
                 chapter_type: rhythmData.chapter_type || "Scene"
             };
             tower.recent_chapters_intensity.push(intensityRecord);
-            info(`  ? [΢��] �����½ڼ�¼: intensity=${intensityRecord.emotional_intensity}, type=${intensityRecord.chapter_type}`);
+            info(`  ✓ [微调] 新增章节记录: intensity=${intensityRecord.emotional_intensity}, type=${intensityRecord.chapter_type}`);
 
             if (tower.recent_chapters_intensity.length > 5) {
                 tower.recent_chapters_intensity = tower.recent_chapters_intensity.slice(-5);
@@ -72,7 +124,7 @@ export class NarrativeControlTowerManager {
                 narrative_devices_used: rhythmData.narrative_devices_used || {},
                 device_usage_details: rhythmData.device_usage_details || ""
             };
-            info(`  ? [΢��] ���� last_chapter_rhythm`);
+            info(`  ✓ [微调] 更新 last_chapter_rhythm`);
 
             if (rhythmData.recommended_next_phase || rhythmData.phase_transition_triggered) {
                 if (!tower.narrative_rhythm_clock) {
@@ -97,13 +149,13 @@ export class NarrativeControlTowerManager {
                 if (rhythmData.phase_transition_triggered && newPhase !== oldPhase) {
                     if (oldPhase === 'pause' && newPhase === 'inhale') {
                         clock.cycle_count = (clock.cycle_count || 0) + 1;
-                        info(`  ? [���໷] ��ɵ� ${clock.cycle_count} �κ�������`);
+                        info(`  ✓ [呼吸钟] 完成第 ${clock.cycle_count} 次呼吸循环`);
                     }
 
                     clock.phase_history.push({
                         phase: newPhase,
                         chapter_uid: workingChapter.uid,
-                        reason: rhythmData.phase_transition_reasoning || 'ʷ������',
+                        reason: rhythmData.phase_transition_reasoning || '史官触发',
                         narrative_mode: currentMode
                     });
                     if (clock.phase_history.length > 5) {
@@ -113,10 +165,10 @@ export class NarrativeControlTowerManager {
                     clock.current_phase = newPhase;
                     clock.last_phase_change_chapter = workingChapter.uid;
                     clock.current_phase_duration = 1;
-                    info(`  ? [���໷] ��λת��: ${oldPhase} �� ${newPhase} [${currentMode === 'web_novel' ? '??����ģʽ' : '??����ģʽ'}]`);
+                    info(`  ✓ [呼吸钟] 相位转换: ${oldPhase} → ${newPhase} [${currentMode === 'web_novel' ? '网文模式' : '经典模式'}]`);
                 } else {
                     clock.current_phase_duration = (clock.current_phase_duration || 0) + 1;
-                    info(`  ? [���໷] ά����λ: ${oldPhase} (���� ${clock.current_phase_duration} ��)`);
+                    info(`  ✓ [呼吸钟] 维持相位: ${oldPhase} (持续 ${clock.current_phase_duration} 章)`);
 
                     if (modeConfig?.phase_duration_modifiers && clock.current_phase_duration > 0) {
                         const modifier = modeConfig.phase_duration_modifiers[clock.current_phase] || 1.0;
@@ -130,7 +182,7 @@ export class NarrativeControlTowerManager {
                         const adjustedLimit = Math.ceil(baseLimit * modifier);
 
                         if (clock.current_phase_duration >= adjustedLimit) {
-                            info(`  ?? [���໷] ${currentMode}ģʽ��,${clock.current_phase}��λ�ѳ���${clock.current_phase_duration}��,��������Ϊ${adjustedLimit}��`);
+                            info(`  ⚠️ [呼吸钟] ${currentMode}模式下,${clock.current_phase}相位已持续${clock.current_phase_duration}章,建议上限为${adjustedLimit}章`);
                         }
                     }
                 }
@@ -154,7 +206,7 @@ export class NarrativeControlTowerManager {
                     if (cooldowns.spotlight_protocol.usage_history.length > 10) {
                         cooldowns.spotlight_protocol.usage_history = cooldowns.spotlight_protocol.usage_history.slice(-10);
                     }
-                    info(`  ? [��ȴ] ���� spotlight_protocol (recent_count=${cooldowns.spotlight_protocol.recent_usage_count})`);
+                    info(`  ✓ [冷却] 更新 spotlight_protocol (recent_count=${cooldowns.spotlight_protocol.recent_usage_count})`);
                 }
 
                 if (rhythmData.narrative_devices_used.time_dilation) {
@@ -170,14 +222,14 @@ export class NarrativeControlTowerManager {
                     if (cooldowns.time_dilation.usage_history.length > 10) {
                         cooldowns.time_dilation.usage_history = cooldowns.time_dilation.usage_history.slice(-10);
                     }
-                    info(`  ? [��ȴ] ���� time_dilation (recent_count=${cooldowns.time_dilation.recent_usage_count})`);
+                    info(`  ✓ [冷却] 更新 time_dilation (recent_count=${cooldowns.time_dilation.recent_usage_count})`);
                 }
             }
         }
 
         if (delta.storyline_progress_deltas && Array.isArray(delta.storyline_progress_deltas)) {
             const progressDeltas = delta.storyline_progress_deltas;
-            info(`  -> [�й�] ���� ${progressDeltas.length} �������߽��ȸ���`);
+            info(`  -> [中枢] 接收 ${progressDeltas.length} 条故事线进度更新`);
 
             for (const pd of progressDeltas) {
                 const { storyline_id, previous_progress, progress_delta, new_progress,
@@ -225,9 +277,9 @@ export class NarrativeControlTowerManager {
                 }
 
                 if (threshold_crossed) {
-                    info(`  ? [�й�] ${storyline_id}: ��Խ��ֵ \"${threshold_crossed}\" (${previous_progress}% -> ${new_progress}%)`);
+                    info(`  ✓ [中枢] ${storyline_id}: 跨越阈值 "${threshold_crossed}" (${previous_progress}% -> ${new_progress}%)`);
                 } else {
-                    info(`  ? [�й�] ${storyline_id}: ���� +${progress_delta}% (${new_progress}%)`);
+                    info(`  ✓ [中枢] ${storyline_id}: 增长 +${progress_delta}% (${new_progress}%)`);
                 }
 
                 this.materializeStorylineProgressEntry(
@@ -242,7 +294,7 @@ export class NarrativeControlTowerManager {
         this.syncStorylineProgressWithStorylines(workingChapter);
         this.calculateRhythmDirective(workingChapter);
 
-        debugLog('[V4] ������״̬:', {
+        debugLog('[V4] 控制塔状态:', {
             recent_intensity: tower.recent_chapters_intensity,
             storyline_progress: tower.storyline_progress,
             rhythm_directive: tower.rhythm_directive
@@ -298,7 +350,7 @@ export class NarrativeControlTowerManager {
                     patched = true;
                 }
                 if (patched) {
-                    debugLog(`[StorylineNormalize] ${category}/${lineId} ժҪ�ֶ���У׼`);
+                    debugLog(`[StorylineNormalize] ${category}/${lineId} 摘要字段已校准`);
                 }
             });
         });
@@ -351,7 +403,7 @@ export class NarrativeControlTowerManager {
         });
 
         if (!resolvedCategory) {
-            warn(`[StorylineNetwork] �޷�ʶ������� ${storylineId} �ķ��࣬����ʵ�廯��`);
+            warn(`[StorylineNetwork] 无法识别故事线 ${storylineId} 的分类，跳过实体化。`);
             return;
         }
 
@@ -366,9 +418,9 @@ export class NarrativeControlTowerManager {
         const dynamicBucket = dynamicStorylines[resolvedCategory];
 
         const safeTitle = title || storylineId;
-        const safeSummary = summary || '����δ׫дժҪ��';
+        const safeSummary = summary || '建筑师未撰写摘要。';
         const safeType = typeHint || resolvedCategory;
-        const safeTrigger = trigger || '�����ƽ�����';
+        const safeTrigger = trigger || '剧情触发器';
         const safeInvolved = Array.isArray(involvedChars) ? involvedChars : [];
 
         let createdPlaceholder = false;
@@ -412,7 +464,7 @@ export class NarrativeControlTowerManager {
             if (!dynamicEntry.current_status && currentStatus) {
                 dynamicEntry.current_status = currentStatus;
             }
-            if ((!dynamicEntry.current_summary || dynamicEntry.current_summary === '��δ��¼��չ') && (currentSummary || safeSummary)) {
+            if ((!dynamicEntry.current_summary || dynamicEntry.current_summary === '尚未记录进展') && (currentSummary || safeSummary)) {
                 dynamicEntry.current_summary = currentSummary || safeSummary;
             }
             if (!dynamicEntry.player_supplement && playerSupplement) {
@@ -436,7 +488,7 @@ export class NarrativeControlTowerManager {
         }
 
         if (createdPlaceholder) {
-            info(`[StorylineNetwork] ��Ϊ ${storylineId} ���ɿɱ༭ռλ��${resolvedCategory}����`);
+            info(`[StorylineNetwork] 为 ${storylineId} 生成可编辑占位符（${resolvedCategory}类）`);
         }
     }
 
@@ -447,10 +499,10 @@ export class NarrativeControlTowerManager {
         };
 
         const categorySynonyms = {
-            main_quests: ['mainquests', 'mainquest', 'main', '����', '����', 'campaign', 'saga', 'primary'],
-            side_quests: ['sidequests', 'sidequest', 'side', '֧��', '֧��', 'branch', 'optional'],
-            relationship_arcs: ['relationshiparcs', 'relationship', 'romance', '����', '�', '�b�O', 'bond'],
-            personal_arcs: ['personalarcs', 'personal', 'characterarc', 'character', '��ɫ', '�ɳ�', '���L', 'arc']
+            main_quests: ['mainquests', 'mainquest', 'main', '主线', '主幹', 'campaign', 'saga', 'primary'],
+            side_quests: ['sidequests', 'sidequest', 'side', '支线', '支幹', 'branch', 'optional'],
+            relationship_arcs: ['relationshiparcs', 'relationship', 'romance', '关系', '羁', '羁绊', 'bond'],
+            personal_arcs: ['personalarcs', 'personal', 'characterarc', 'character', '角色', '成长', '历程', 'arc']
         };
 
         const matchCategory = (value, allowPartial = false) => {
@@ -497,7 +549,7 @@ export class NarrativeControlTowerManager {
             directive.mandatory_constraints.push("cooldown_required");
             directive.intensity_range = { min: 1, max: 5 };
             directive.suggested_chapter_type = "Sequel";
-            info(`  ? [ָ��] ǿ����ȴ: ��һ����Ҫ��ȴ`);
+            info(`  ✓ [指令] 强制冷却: 下一章需要冷却`);
         } else {
             directive.intensity_range = { min: 1, max: 10 };
             directive.suggested_chapter_type = "Scene";
@@ -506,7 +558,7 @@ export class NarrativeControlTowerManager {
         const spotlightCooldown = tower.device_cooldowns.spotlight_protocol;
         if (spotlightCooldown.recent_usage_count >= 2) {
             directive.mandatory_constraints.push("spotlight_forbidden");
-            info(`  ? [ָ��] �۹�ƽ���: ���5����ʹ�� ${spotlightCooldown.recent_usage_count} ��`);
+            info(`  ✓ [指令] 聚光灯禁用: 最近5章使用 ${spotlightCooldown.recent_usage_count} 次`);
         }
 
         for (const [storylineId, progress] of Object.entries(tower.storyline_progress)) {
@@ -548,14 +600,13 @@ export class NarrativeControlTowerManager {
             const gap = maxProgress.value - minProgress.value;
             if (gap >= 40) {
                 directive.rhythm_dissonance_opportunities.push({
-                    description: `${maxProgress.id}(${maxProgress.value}%)�������ȣ�${minProgress.id}(${minProgress.value}%)�ͺ�${gap}%������������ѹ���߻��ͺ���`
+                    description: `${maxProgress.id}(${maxProgress.value}%)进度领先，${minProgress.id}(${minProgress.value}%)落后${gap}%，可利用制造张力或回顾。`
                 });
-                info(`  ? [ָ��] ��⵽�����λ����: ${gap}% ���`);
+                info(`  ✓ [指令] 检测到故事线失衡: ${gap}% 差距`);
             }
         }
 
         directive.generated_at = new Date().toISOString();
-        info(`  ? [ָ��] rhythm_directive ������`);
+        info(`  ✓ [指令] rhythm_directive 生成完毕`);
     }
 }
-

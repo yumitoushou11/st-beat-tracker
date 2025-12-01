@@ -126,7 +126,28 @@ function getLeaderStateFromChat() {
             const piece = chat[i];
             if (piece && !piece.is_user && piece.leader && piece.leader.staticMatrices) {
                 const leaderState = piece.leader;
+                const uid = leaderState.uid || '';
+
+                // 🔧 修复：拒绝静态缓存leader（它们的UID以static_cache_开头）
+                if (uid.startsWith('static_cache_')) {
+                    debugWarn(`[Renderers] 跳过静态缓存leader: ${uid}`);
+                    continue;
+                }
+
+                // 🔧 修复：如果真实章节被污染了静态缓存标记，立即清理（防御性修复）
+                if (leaderState.__source === STATIC_CACHE_SOURCE && !uid.startsWith('static_cache_')) {
+                    debugWarn(`[Renderers] 检测到真实章节被污染: ${uid}, 正在即时清理...`);
+
+                    // ⚠️ 只移除错误的 __source 污染标记
+                    // cachedChapterStaticContext 和 lastUpdated 是真实章节的合法字段，不应删除
+                    delete leaderState.__source;
+
+                    debugLog(`[Renderers] 已清理 __source 污染标记，继续使用该leader: ${uid}`);
+                }
+
+                // 设置正确的__source标记
                 leaderState.__source = leaderState.__source || 'leader_chat';
+
                 if (typeof window !== 'undefined') {
                     window.__sbtLiveLeaderAvailable = true;
                 }

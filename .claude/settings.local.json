@@ -8,7 +8,11 @@
       "Bash(dir /B /S \"D:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\")",
       "Bash(findstr:*)",
       "Bash(\"D:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\\style.css\")",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(chcp)",
+      "Bash(dir /B *.txt)",
+      "Bash(dir /B /O-D d:a1SillyTavernpublicscriptsextensionsthird-partyst-beat-trackersbt-console-*.txt)",
+      "Bash(cmd /c \"dir /B /O-D sbt-console-*.txt\")"
     ],
     "deny": [],
     "ask": []
