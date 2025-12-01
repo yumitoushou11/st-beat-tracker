@@ -4,6 +4,7 @@
 import { getApiSettings, saveApiSettings, getNarrativeModeSettings, saveNarrativeModeToCharacter } from '../../stateManager.js';
 import { promptManager } from '../../promptManager.js';
 import { USER } from '../../src/engine-adapter.js';
+import { fetchModels, cacheModels, getCachedModels } from '../../modelManager.js';
 
 /**
  * 填充设置面板UI
@@ -17,13 +18,17 @@ export function populateSettingsUI(deps) {
             $('#sbt-api-provider-select').val(settings.main.apiProvider || 'direct_openai');
             $('#sbt-api-url-input').val(settings.main.apiUrl);
             $('#sbt-api-key-input').val(settings.main.apiKey);
-            $('#sbt-model-name-input').val(settings.main.modelName);
+
+            // 填充模型名称（如果有缓存则填充下拉，否则显示输入框）
+            populateModelDropdown('main', settings.main.modelName);
 
             // 填充回合裁判API设置
             $('#sbt-conductor-api-provider-select').val(settings.conductor.apiProvider || 'direct_openai');
             $('#sbt-conductor-api-url-input').val(settings.conductor.apiUrl);
             $('#sbt-conductor-api-key-input').val(settings.conductor.apiKey);
-            $('#sbt-conductor-model-name-input').val(settings.conductor.modelName);
+
+            // 填充回合裁判模型名称
+            populateModelDropdown('conductor', settings.conductor.modelName);
 
             // 根据提供商显示/隐藏预设选择器
             const mainProvider = settings.main.apiProvider || 'direct_openai';
@@ -160,19 +165,28 @@ export function bindNarrativeModeSwitchHandler($wrapper, deps, getCurrentChapter
  */
 export function bindSettingsSaveHandler($wrapper, deps) {
     $wrapper.on('click', '#sbt-save-settings-btn', () => {
+        // 辅助函数：读取模型名称（优先从下拉选择器，如果是手动输入则从输入框）
+        const getModelName = (selectId, inputId) => {
+            const selectValue = String($(`#${selectId}`).val() || '').trim();
+            if (selectValue && selectValue !== '__manual__') {
+                return selectValue;
+            }
+            return String($(`#${inputId}`).val()).trim();
+        };
+
         let newSettings = {
             main: {
                 apiProvider: String($('#sbt-api-provider-select').val()).trim(),
                 apiUrl: String($('#sbt-api-url-input').val()).trim(),
                 apiKey: String($('#sbt-api-key-input').val()).trim(),
-                modelName: String($('#sbt-model-name-input').val()).trim(),
+                modelName: getModelName('sbt-model-name-select', 'sbt-model-name-input'),
                 tavernProfile: String($('#sbt-preset-select').val() || '').trim(), // 新增：预设 ID
             },
             conductor: {
                 apiProvider: String($('#sbt-conductor-api-provider-select').val()).trim(),
                 apiUrl: String($('#sbt-conductor-api-url-input').val()).trim(),
                 apiKey: String($('#sbt-conductor-api-key-input').val()).trim(),
-                modelName: String($('#sbt-conductor-model-name-input').val()).trim(),
+                modelName: getModelName('sbt-conductor-model-name-select', 'sbt-conductor-model-name-input'),
                 tavernProfile: String($('#sbt-conductor-preset-select').val() || '').trim(), // 新增：预设 ID
             }
         };
@@ -591,6 +605,185 @@ export function bindPromptManagerHandlers($wrapper, deps) {
                 }
                 deps.diagnose("[UIManager] 重置回合执导提示词时发生错误:", error);
             }
+        }
+    });
+}
+
+/**
+ * 填充模型下拉选择器
+ * @param {string} type - 'main' 或 'conductor'
+ * @param {string} currentModel - 当前选中的模型名称
+ */
+function populateModelDropdown(type, currentModel = '') {
+    const prefix = type === 'main' ? 'sbt' : 'sbt-conductor';
+    const $select = $(`#${prefix}-model-name-select`);
+    const $input = $(`#${prefix}-model-name-input`);
+    const cacheKey = `sbt_cached_models_${type}`;
+
+    // 尝试从缓存加载模型列表
+    const cachedModels = getCachedModels(cacheKey);
+
+    if (cachedModels && cachedModels.length > 0) {
+        // 有缓存：填充下拉选择器
+        $select.empty();
+        $select.append(new Option('-- 请选择模型 --', ''));
+
+        cachedModels.forEach(model => {
+            $select.append(new Option(model, model));
+        });
+
+        $select.append(new Option('手动输入...', '__manual__'));
+
+        // 设置当前选中的模型
+        if (currentModel && cachedModels.includes(currentModel)) {
+            $select.val(currentModel);
+            $select.show();
+            $input.hide();
+        } else if (currentModel) {
+            // 模型不在列表中，切换到手动输入
+            $select.val('__manual__');
+            $input.val(currentModel).show();
+            $select.show();
+        } else {
+            $select.show();
+            $input.hide();
+        }
+    } else {
+        // 无缓存：显示手动输入框
+        $select.val('__manual__');
+        $input.val(currentModel).show();
+    }
+}
+
+/**
+ * 绑定模型刷新按钮的事件处理器
+ * @param {jQuery} $wrapper - 容器元素
+ * @param {Object} deps - 依赖注入对象
+ */
+export function bindModelRefreshHandlers($wrapper, deps) {
+    // 主 LLM 刷新模型按钮
+    $wrapper.on('click', '#sbt-refresh-models-btn', async function() {
+        const $btn = $(this);
+        const originalHtml = $btn.html();
+
+        try {
+            // 禁用按钮并显示加载动画
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin fa-fw"></i>');
+
+            // 读取当前配置
+            const apiProvider = String($('#sbt-api-provider-select').val()).trim();
+            const apiUrl = String($('#sbt-api-url-input').val()).trim();
+            const apiKey = String($('#sbt-api-key-input').val()).trim();
+            const tavernProfile = String($('#sbt-preset-select').val() || '').trim();
+
+            console.log('[模型刷新] 主LLM - 提供商:', apiProvider);
+
+            // 调用 modelManager 获取模型列表
+            const models = await fetchModels(apiProvider, apiUrl, apiKey, tavernProfile);
+
+            if (models.length === 0) {
+                deps.toastr.warning('未获取到模型列表，请手动输入模型名称', '提示');
+                return;
+            }
+
+            // 缓存模型列表
+            cacheModels('sbt_cached_models_main', models);
+
+            // 填充下拉选择器
+            const $select = $('#sbt-model-name-select');
+            $select.empty();
+            $select.append(new Option('-- 请选择模型 --', ''));
+
+            models.forEach(model => {
+                $select.append(new Option(model, model));
+            });
+
+            $select.append(new Option('手动输入...', '__manual__'));
+
+            // 显示下拉选择器，隐藏输入框
+            $select.show();
+            $('#sbt-model-name-input').hide();
+
+            deps.toastr.success(`成功获取 ${models.length} 个模型`, '刷新成功');
+
+        } catch (error) {
+            console.error('[模型刷新] 失败:', error);
+            deps.toastr.error(error.message, '刷新失败', { timeOut: 8000 });
+        } finally {
+            $btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+
+    // 回合裁判 LLM 刷新模型按钮
+    $wrapper.on('click', '#sbt-refresh-conductor-models-btn', async function() {
+        const $btn = $(this);
+        const originalHtml = $btn.html();
+
+        try {
+            $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin fa-fw"></i>');
+
+            const apiProvider = String($('#sbt-conductor-api-provider-select').val()).trim();
+            const apiUrl = String($('#sbt-conductor-api-url-input').val()).trim();
+            const apiKey = String($('#sbt-conductor-api-key-input').val()).trim();
+            const tavernProfile = String($('#sbt-conductor-preset-select').val() || '').trim();
+
+            console.log('[模型刷新] 回合裁判 - 提供商:', apiProvider);
+
+            const models = await fetchModels(apiProvider, apiUrl, apiKey, tavernProfile);
+
+            if (models.length === 0) {
+                deps.toastr.warning('未获取到模型列表，请手动输入模型名称', '提示');
+                return;
+            }
+
+            cacheModels('sbt_cached_models_conductor', models);
+
+            const $select = $('#sbt-conductor-model-name-select');
+            $select.empty();
+            $select.append(new Option('-- 请选择模型 --', ''));
+
+            models.forEach(model => {
+                $select.append(new Option(model, model));
+            });
+
+            $select.append(new Option('手动输入...', '__manual__'));
+
+            $select.show();
+            $('#sbt-conductor-model-name-input').hide();
+
+            deps.toastr.success(`成功获取 ${models.length} 个模型`, '刷新成功');
+
+        } catch (error) {
+            console.error('[模型刷新] 失败:', error);
+            deps.toastr.error(error.message, '刷新失败', { timeOut: 8000 });
+        } finally {
+            $btn.prop('disabled', false).html(originalHtml);
+        }
+    });
+
+    // 主 LLM 模型选择器变化
+    $wrapper.on('change', '#sbt-model-name-select', function() {
+        const value = $(this).val();
+        const $input = $('#sbt-model-name-input');
+
+        if (value === '__manual__') {
+            // 切换到手动输入模式
+            $input.show().focus();
+        } else {
+            // 选中了某个模型
+            $input.hide();
+        }
+    });
+
+    // 回合裁判 LLM 模型选择器变化
+    $wrapper.on('change', '#sbt-conductor-model-name-select', function() {
+        const value = $(this).val();
+        const $input = $('#sbt-conductor-model-name-input');
+
+        if (value === '__manual__') {
+            $input.show().focus();
+        } else {
+            $input.hide();
         }
     });
 }

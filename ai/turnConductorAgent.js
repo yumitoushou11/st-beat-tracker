@@ -146,11 +146,15 @@ _createPrompt(context) {
 **任务:** 分析最新对话，判断剧情进展到了剧本的哪一步。
 **原则:** 仅仅定位，不要创作。
 
-## 1. 剧本进度表
+## 1. 当前章节剧本流程（你需要严格遵循的剧情节拍）
+**重要说明:** 以下是本章节的完整剧本流程，前台AI必须按照这些节拍推进剧情。每个节拍的 \`physical_event\` 描述了该阶段应该发生的事件，\`exit_condition\` 描述了完成该节拍的条件。
+
 \`\`\`json
 ${JSON.stringify(beats.map((b, i) => ({ index: i, event: b.physical_event || b.description, exit_condition: b.exit_condition })), null, 2)}
 \`\`\`
+
 **终章信标:** ${endgameBeacon}
+**注意:** 前台AI在生成回复时，应该遵循当前剧本节拍的指引，确保剧情按照规划的流程推进。
 
 ## 2. 最新对话
 ${lastExchange}

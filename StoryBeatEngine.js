@@ -294,6 +294,7 @@ export class StoryBeatEngine {
         onReanalyzeWorldbook: this.reanalyzeWorldbook.bind(this),
         onForceChapterTransition: this.forceChapterTransition.bind(this),
         onStartGenesis: this.startGenesisProcess.bind(this),
+        onRerollChapterBlueprint: this.rerollChapterBlueprint.bind(this),
             mainLlmService: this.mainLlmService,
             conductorLlmService: this.conductorLlmService,
         onSetNarrativeFocus: this.setNarrativeFocus.bind(this),
@@ -643,8 +644,13 @@ if (this.currentChapter.chapter_blueprint) {
     const blueprintAsString = JSON.stringify(maskedBlueprint, null, 2);
 
     let scriptContent = [
-        `# **【第3层：本章创作蓝图】**`,
-        `## (Chapter Blueprint)`,
+        `# **【第3层：本章创作蓝图 - 你当前需要遵循的剧本流程】**`,
+        `## (Chapter Blueprint - Script Flow You Must Follow)`,
+        ``,
+        `**📜 重要说明：**`,
+        `这是本章节的剧本流程，你需要在创作时遵循这些剧情节拍的规划。`,
+        `每个节拍定义了剧情的推进方向和关键事件，请确保你的回复与当前节拍内容没有过大偏移。`,
+        `首要仍是服务玩家的意见，需要在合适的时机合理自然的拉回剧本内容。`,
         ``
     ];
 
@@ -669,10 +675,16 @@ if (this.currentChapter.chapter_blueprint) {
     }
 
     // 剧本蓝图主体
+    scriptContent.push(`## 📖 剧本执行规则`);
+    scriptContent.push(``);
     scriptContent.push(`⚠️ **【信息迷雾协议】** 剧本已根据当前进度进行动态掩码处理`);
-    scriptContent.push(`- 已完成的节拍：完整内容可见，标记为【已完成】（AI需要知道已发生的事情）`);
-    scriptContent.push(`- 当前执行节拍：完整内容可见，高亮标记为【⚠️ 当前执行目标 ⚠️】`);
-    scriptContent.push(`- 未来节拍：内容已屏蔽，状态为【待解锁】（防止剧透）`);
+    scriptContent.push(`- 已完成的节拍：完整内容可见，标记为【已完成】（你需要知道已发生的事情）`);
+    scriptContent.push(`- 当前执行节拍：完整内容可见，高亮标记为【⚠️ 当前执行目标 ⚠️】（**这是你现在应该推进的剧情**）`);
+    scriptContent.push(`- 未来节拍：内容已屏蔽，状态为【待解锁】（防止剧透，不要提前透露）`);
+    scriptContent.push(``);
+    scriptContent.push(`**💡 创作指引：**`);
+    scriptContent.push(`- 请根据【当前执行目标】的节拍内容来构思你的回复`);
+    scriptContent.push(`- 避免你的叙述推动剧情违背了当前节拍的方向发展`);
     scriptContent.push(``);
     scriptContent.push(`\`\`\`json`);
     scriptContent.push(blueprintAsString);
@@ -2747,6 +2759,114 @@ async reanalyzeWorldbook() {
     }
 }
 
+
+async rerollChapterBlueprint() {
+    // 【总开关保护】检查引擎是否已启用
+    const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
+    if (!isEngineEnabled) {
+        this.toastr.warning('叙事流引擎已关闭，请先在设置中启用总开关', '功能已禁用');
+        this.info('[Guard-MasterSwitch] 重roll中止：引擎总开关已关闭。');
+        return;
+    }
+
+    // 检查是否有当前章节
+    if (!this.currentChapter) {
+        this.toastr.warning('当前没有活跃的章节，无法进行重roll。', '操作中止');
+        return;
+    }
+
+    const userConfirmed = confirm("确定要重新分析当前章节的剧本吗？\n\n建筑师AI将使用相同的输入条件重新生成章节蓝图。\n\n注意：这不会影响已完成的对话，只会更新剧本计划。");
+
+    if (!userConfirmed) {
+        this.info("用户取消了重roll操作");
+        return;
+    }
+
+    try {
+        this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
+        this.info("--- 开始重新分析章节剧本 ---");
+
+        // 显示进度提示
+        const toastId = this.toastr.info('建筑师正在重新分析章节...', '剧本重roll中', {
+            timeOut: 0,
+            extendedTimeOut: 0,
+            closeButton: true
+        });
+
+        // 创建中止控制器
+        this.currentTaskAbortController = new AbortController();
+        const abortSignal = this.currentTaskAbortController.signal;
+
+        // 保存当前章节的上下文
+        const contextForArchitect = {
+            system_confidence: 0.5,
+            player_profile: { description: "暂无画像。" },
+            chapter: this.currentChapter,
+            firstMessageContent: null // 重roll时不使用开场白
+        };
+
+        this.info("准备传递给建筑师的上下文:");
+        this.debugGroupCollapsed("建筑师上下文（重roll）");
+        console.dir(JSON.parse(JSON.stringify(contextForArchitect)));
+        this.debugGroupEnd();
+
+        // 调用建筑师AI重新生成
+        const architectResult = await this.architectAgent.execute(contextForArchitect, abortSignal);
+
+        if (architectResult && architectResult.new_chapter_script && architectResult.design_notes) {
+            this.info("✓ 建筑师成功生成新的剧本");
+
+            // 更新当前章节的蓝图和设计笔记
+            this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
+            this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
+
+            // 保存到最后一条带有 leader 的消息中
+            const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
+            if (lastStatePiece && lastStateIndex !== -1) {
+                const chat = this.USER.getContext().chat;
+                const targetMessage = chat[lastStateIndex];
+                if (targetMessage) {
+                    targetMessage.leader = this.currentChapter.toJSON();
+                    this.USER.saveChat();
+                    this.info("剧本已更新到聊天记录中的章节状态");
+                } else {
+                    this.warn("找不到目标消息，无法保存章节状态");
+                }
+            } else {
+                this.warn("找不到带有 leader 的消息，无法保存章节状态");
+            }
+
+            // 触发UI刷新
+            this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+
+            // 关闭进度提示
+            if (toastId) {
+                toastr.clear(toastId);
+            }
+
+            this.toastr.success('章节剧本已重新生成！请在剧本区域查看。', '重roll成功');
+            this.info("剧本重roll完成，UI已刷新");
+        } else {
+            this.warn("建筑师未能返回有效的剧本");
+            if (toastId) {
+                toastr.clear(toastId);
+            }
+            this.toastr.error('建筑师未能生成有效的剧本，请重试。', '重roll失败');
+        }
+
+    } catch (error) {
+        if (error.name === 'AbortError') {
+            this.info('重roll操作被用户中止');
+            this.toastr.info('剧本重roll已取消', '操作中止');
+        } else {
+            this.diagnose("重roll剧本时发生错误:", error);
+            this.toastr.error(`重roll失败: ${error.message}`, '内部错误');
+        }
+    } finally {
+        this._setStatus(ENGINE_STATUS.IDLE);
+        this.currentTaskAbortController = null;
+    }
+}
 
 async forceChapterTransition() {
     // 【总开关保护】检查引擎是否已启用

@@ -1216,6 +1216,14 @@ export function updateDashboard(chapterState) {
     if(scriptContainer.length > 0) {
         const blueprintHtml = renderChapterBlueprint(chapterState.chapter_blueprint);
         scriptContainer.html(blueprintHtml);
+
+        // 控制重roll按钮的显示：当有有效剧本时显示按钮
+        const $rerollBtn = $('#sbt-reroll-blueprint-btn');
+        if (chapterState.chapter_blueprint && Object.keys(chapterState.chapter_blueprint).length > 0) {
+            $rerollBtn.show();
+        } else {
+            $rerollBtn.hide();
+        }
     }
 
     // --- 3. 【革新】渲染全新的"自省式"设计笔记 ---

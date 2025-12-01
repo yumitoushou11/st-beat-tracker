@@ -71,6 +71,9 @@
                 <div class="sbt-library-category">
                     <h5 class="sbt-category-header collapsed">
                         <i class="fa-solid fa-file-contract fa-fw"></i> 当前小章剧本
+                        <button id="sbt-reroll-blueprint-btn" class="sbt-reroll-btn" title="重新分析剧本" style="display: none;">
+                            <i class="fa-solid fa-dice fa-fw"></i> 重roll
+                        </button>
                     </h5>
                     <div id="sbt-active-script-content" class="sbt-library-items collapsed"></div>
                 </div>
@@ -504,9 +507,22 @@
                                     <i id="sbt-toggle-api-key" class="fa-solid fa-eye fa-fw"></i>
                                 </div>
                             </div>
-                            <div class="sbt-form-group">
-                                <label for="sbt-model-name-input">模型名称</label>
-                                <input type="text" id="sbt-model-name-input" placeholder="例如: gemini-pro">
+                            <div class="sbt-form-group" id="sbt-model-selector-wrapper">
+                                <label for="sbt-model-name-select">
+                                    模型名称
+                                    <button id="sbt-refresh-models-btn" class="sbt-inline-refresh-btn" type="button" title="刷新模型列表">
+                                        <i class="fa-solid fa-sync fa-fw"></i>
+                                    </button>
+                                </label>
+                                <select id="sbt-model-name-select" class="sbt-select">
+                                    <option value="">-- 请先刷新模型列表 --</option>
+                                    <option value="__manual__">手动输入...</option>
+                                </select>
+                                <input
+                                    type="text"
+                                    id="sbt-model-name-input"
+                                    placeholder="例如: gemini-pro"
+                                    style="display: none; margin-top: 8px;">
                             </div>
                         </div>
                         <button id="sbt-test-api-btn" class="sbt-secondary-btn" style="margin-top: 15px;">
@@ -557,9 +573,22 @@
                                     <i id="sbt-toggle-conductor-api-key" class="fa-solid fa-eye fa-fw"></i>
                                 </div>
                             </div>
-                            <div class="sbt-form-group">
-                                <label for="sbt-conductor-model-name-input">模型名称</label>
-                                <input type="text" id="sbt-conductor-model-name-input" placeholder="例如: gemini-1.5-flash">
+                            <div class="sbt-form-group" id="sbt-conductor-model-selector-wrapper">
+                                <label for="sbt-conductor-model-name-select">
+                                    模型名称
+                                    <button id="sbt-refresh-conductor-models-btn" class="sbt-inline-refresh-btn" type="button" title="刷新模型列表">
+                                        <i class="fa-solid fa-sync fa-fw"></i>
+                                    </button>
+                                </label>
+                                <select id="sbt-conductor-model-name-select" class="sbt-select">
+                                    <option value="">-- 请先刷新模型列表 --</option>
+                                    <option value="__manual__">手动输入...</option>
+                                </select>
+                                <input
+                                    type="text"
+                                    id="sbt-conductor-model-name-input"
+                                    placeholder="例如: gemini-1.5-flash"
+                                    style="display: none; margin-top: 8px;">
                             </div>
                         </div>
                         <button id="sbt-test-conductor-api-btn" class="sbt-secondary-btn" style="margin-top: 15px;">

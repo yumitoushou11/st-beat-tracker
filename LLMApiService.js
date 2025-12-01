@@ -329,7 +329,6 @@ async testConnection() {
      * @private
      * 策略一：通过 SillyTavern 后端进行代理请求
      * 此策略可绕过浏览器CORS限制，适用于需要代理的场景
-     * 注意：此方法通过 HTTP 端点调用，与 Amily2 的实现方式一致
      */
     async #callViaSillyTavernProxy(messages, streamCallback, abortSignal) {
         try {

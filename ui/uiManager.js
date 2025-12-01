@@ -1,18 +1,20 @@
 // ui/uiManager.js
 import { SbtPopupConfirm } from './SbtPopupConfirm.js';
+import { simpleConfirm } from './simpleConfirm.js';
 import { updateDashboard, resolveRenderableChapterState, showCharacterDetailModal, showWorldviewDetailModal, showStorylineDetailModal, showRelationshipDetailModal } from './renderers.js';
 import applicationFunctionManager from '../manager.js';
 import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { clampAffinityValue } from '../utils/affinityUtils.js';
 import { showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
-import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets, populatePromptManagerUI, bindPromptManagerHandlers } from './settings/settingsUI.js';
+import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets, populatePromptManagerUI, bindPromptManagerHandlers, bindModelRefreshHandlers } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
 
 const deps = {
     onReanalyzeWorldbook: () => console.warn("onReanalyzeWorldbook not injected"),
     onForceChapterTransition: () => console.warn("onForceChapterTransition not injected"),
     onStartGenesis: () => console.warn("onStartGenesis not injected"),
+    onRerollChapterBlueprint: () => console.warn("onRerollChapterBlueprint not injected"),
     onForceEndSceneClick: () => console.warn("onForceEndSceneClick not injected"),
     onSetNarrativeFocus: () => console.warn("onSetNarrativeFocus not injected"),
     onSaveCharacterEdit: () => console.warn("onSaveCharacterEdit not injected"),
@@ -1407,6 +1409,15 @@ $('#extensions-settings-button').after(html);
     // -- 叙事罗盘: 高级控制按钮 --
     $wrapper.on('click', '#sbt-reanalyze-worldbook-btn', () => deps.onReanalyzeWorldbook());
     $wrapper.on('click', '#sbt-force-transition-btn', () => deps.onForceChapterTransition());
+
+    // -- 创作工坊: 剧本重roll按钮 --
+    $wrapper.on('click', '#sbt-reroll-blueprint-btn', function() {
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin fa-fw"></i> 重roll中...');
+        deps.onRerollChapterBlueprint().finally(() => {
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-dice fa-fw"></i> 重roll');
+        });
+    });
     
     // -- 叙事罗盘: 功能开关 --
       const $masterToggle = $('#sbt-master-enable-toggle');
@@ -2088,6 +2099,7 @@ $('#extensions-settings-button').after(html);
     bindSettingsSaveHandler($wrapper, deps);
     bindAPITestHandlers($wrapper, deps);
     bindPresetSelectorHandlers($wrapper, deps);
+    bindModelRefreshHandlers($wrapper, deps); // 模型列表刷新处理器
     // V7.0: 叙事模式切换 - 传入获取当前章节的函数
     bindNarrativeModeSwitchHandler($wrapper, deps, () => getEffectiveChapterState());
     // 提示词管理处理器
@@ -2285,19 +2297,29 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
 
     // 清空全部按钮
     $wrapper.find('#sbt-clear-all-db-btn').on('click', async () => {
-        const confirm = new SbtPopupConfirm();
-        const result = await confirm.show({
-            title: '确认清空',
-            message: '确定要清空所有角色的静态数据吗？\n\n此操作不可撤销，所有角色的世界观数据都将被删除。下次启动章节时将重新分析世界书。',
-            confirmText: '清空全部',
-            cancelText: '取消',
-            isDangerous: true
-        });
+        const confirmed = await simpleConfirm(
+            '确认清空',
+            '确定要清空所有角色的静态数据吗？\n\n此操作不可撤销，所有角色的世界观数据都将被删除。\n下次启动章节时将重新分析世界书。',
+            '清空全部',
+            '取消'
+        );
 
-        if (result) {
-            staticDataManager.clearAllStaticData();
+        console.log('[SBT-DB] 清空全部确认结果:', confirmed);
+
+        if (confirmed) {
+            console.log('[SBT-DB] 执行清空全部静态数据...');
+            const success = staticDataManager.clearAllStaticData();
+            console.log('[SBT-DB] 清空结果:', success);
+
+            // 验证清空是否成功
+            const db = staticDataManager.getFullDatabase();
+            console.log('[SBT-DB] 清空后的数据库:', db);
+            console.log('[SBT-DB] 数据库是否为空?', Object.keys(db).length === 0);
+
             refreshDatabaseList();
             deps.toastr.success('所有静态数据已清空', '清空成功');
+        } else {
+            console.log('[SBT-DB] 用户取消了清空操作');
         }
     });
 
@@ -2306,19 +2328,31 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
         const $item = $(this).closest('.sbt-db-item');
         const charId = $item.data('char-id');
 
-        const confirm = new SbtPopupConfirm();
-        const result = await confirm.show({
-            title: '确认删除',
-            message: `确定要删除角色 "${charId}" 的静态数据吗？\n\n下次启动该角色的章节时将重新分析其世界书。`,
-            confirmText: '删除',
-            cancelText: '取消',
-            isDangerous: true
-        });
+        console.log('[SBT-DB] 准备删除角色:', charId);
 
-        if (result) {
-            staticDataManager.deleteStaticData(charId);
+        const confirmed = await simpleConfirm(
+            '确认删除',
+            `确定要删除角色 "${charId}" 的静态数据吗？\n\n下次启动该角色的章节时将重新分析其世界书。`,
+            '删除',
+            '取消'
+        );
+
+        console.log('[SBT-DB] 删除确认结果:', confirmed);
+
+        if (confirmed) {
+            console.log('[SBT-DB] 执行删除角色数据:', charId);
+            const success = staticDataManager.deleteStaticData(charId);
+            console.log('[SBT-DB] 删除结果:', success);
+
+            // 验证删除是否成功
+            const db = staticDataManager.getFullDatabase();
+            console.log('[SBT-DB] 删除后的数据库内容:', db);
+            console.log('[SBT-DB] 角色是否还存在?', charId in db);
+
             refreshDatabaseList();
             deps.toastr.success(`角色 "${charId}" 的数据已删除`, '删除成功');
+        } else {
+            console.log('[SBT-DB] 用户取消了删除操作');
         }
     });
 }

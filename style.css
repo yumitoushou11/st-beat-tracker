@@ -277,7 +277,65 @@ html {
 
 .sbt-danger-btn { padding: 8px 16px; font-size: 0.95em; background-color: var(--sbt-danger-accent); border: none; border-radius: 4px; color: var(--sbt-text-light); font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; }
 .sbt-danger-btn:hover { background-color: var(--sbt-danger-hover); }
+
+.sbt-reroll-btn {
+    margin-left: 10px;
+    padding: 4px 10px;
+    font-size: 0.85em;
+    background-color: var(--sbt-warning-color);
+    border: none;
+    border-radius: 4px;
+    color: var(--sbt-bg-darker);
+    font-weight: bold;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.2s ease;
+}
+.sbt-reroll-btn:hover {
+    opacity: 0.85;
+    transform: scale(1.05);
+}
+.sbt-reroll-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
 .sbt-danger-btn i { margin-right: 4px; }
+
+/* 刷新模型列表按钮 - 内联样式 */
+.sbt-inline-refresh-btn {
+    margin-left: 8px;
+    padding: 4px 8px;
+    font-size: 0.85em;
+    background-color: var(--sbt-bg-medium);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    color: var(--sbt-text-medium);
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    vertical-align: middle;
+}
+.sbt-inline-refresh-btn:hover {
+    background-color: var(--sbt-primary-accent);
+    color: var(--sbt-bg-darker);
+    border-color: var(--sbt-primary-accent);
+    transform: rotate(90deg);
+}
+.sbt-inline-refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+.sbt-inline-refresh-btn i {
+    transition: transform 0.3s ease;
+}
+.sbt-inline-refresh-btn:hover i {
+    transform: rotate(180deg);
+}
+
 .sbt-instructions-small { font-size: 0.8em; color: var(--sbt-text-medium); margin-top: 8px; }
 .sbt-instructions-small strong { color: var(--sbt-warning-color); }
 
