@@ -1,7 +1,6 @@
 // modelManager.js
 // 模型列表管理模块 - 负责从不同API提供商获取可用模型列表
 
-import { getRequestHeaders } from '/script.js';
 import { USER } from './src/engine-adapter.js';
 
 /**
@@ -139,13 +138,28 @@ async function fetchModelsDirect(apiUrl, apiKey, fromProxy = false) {
 
     console.log(`${mode} 请求URL:`, modelsUrl);
 
-    const response = await fetch(modelsUrl, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Bearer ${apiKey}`,
-            'Content-Type': 'application/json'
+    let response;
+    try {
+        response = await fetch(modelsUrl, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+            }
+        });
+    } catch (fetchError) {
+        // 捕获网络错误（包括CORS错误）
+        console.error(`${mode} 网络请求失败:`, fetchError);
+
+        const errorMsg = fetchError.message || fetchError.toString();
+
+        // 判断是否是CORS错误
+        if (errorMsg.includes('Failed to fetch') || errorMsg.includes('NetworkError') || errorMsg.includes('CORS')) {
+            throw new Error('⚠️\n\n该API的模型列表端点不允许浏览器直接访问。\n\n手动输入您知道的模型名称\n3. 保存设置后即可正常使用');
         }
-    });
+
+        throw new Error(`网络请求失败: ${errorMsg}`);
+    }
 
     if (!response.ok) {
         const errorText = await response.text();
@@ -153,14 +167,9 @@ async function fetchModelsDirect(apiUrl, apiKey, fromProxy = false) {
 
         // 针对常见错误提供友好提示
         if (response.status === 404) {
-            throw new Error('模型列表端点未找到 (404)。该API可能不支持列出模型，请手动输入模型名称。');
+            throw new Error('⚠️ 端点未找到 (404)\n\n该API可能不支持列出模型。\n\n💡 解决方案：请手动输入模型名称。');
         } else if (response.status === 401) {
-            throw new Error('认证失败 (401)。请检查您的 API Key 是否正确。');
-        } else if (response.status === 0 || errorText.includes('CORS')) {
-            const corsHint = fromProxy
-                ? '跨域请求被阻止。该API的模型列表端点可能有CORS限制，建议手动输入模型名称。'
-                : '跨域请求被阻止。建议切换到 "SillyTavern 代理" 模式或手动输入模型名称。';
-            throw new Error(corsHint);
+            throw new Error('❌ 认证失败 (401)\n\n请检查您的 API Key 是否正确。');
         }
 
         throw new Error(`API请求失败 (${response.status}): ${errorText}`);

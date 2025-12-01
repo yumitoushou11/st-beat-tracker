@@ -2711,10 +2711,120 @@ async reanalyzeWorldbook() {
         staticDataManager.saveStaticData(activeCharId, analysisResult.staticMatrices);
         this.info("热重载: 新的静态数据已分析并存入缓存。");
 
-        // 完全替换当前Chapter的静态数据（不合并，以清除旧数据）
+        // 【关键保护逻辑】提取所有用户手动创建的内容
+        const userCreatedContent = {
+            characters: {},
+            worldview: {},
+            storylines: {},
+            relationship_graph: { edges: [] }
+        };
+
+        // 提取用户创建的角色
+        if (this.currentChapter.staticMatrices.characters) {
+            for (const [charId, charData] of Object.entries(this.currentChapter.staticMatrices.characters)) {
+                if (charData.isUserCreated === true) {
+                    userCreatedContent.characters[charId] = charData;
+                    this.info(`热重载保护: 保留用户创建的角色 "${charData.core?.name || charId}"`);
+                }
+            }
+        }
+
+        // 提取用户创建的世界观词条
+        if (this.currentChapter.staticMatrices.worldview) {
+            for (const [category, items] of Object.entries(this.currentChapter.staticMatrices.worldview)) {
+                userCreatedContent.worldview[category] = {};
+                if (items && typeof items === 'object') {
+                    for (const [itemId, itemData] of Object.entries(items)) {
+                        if (itemData.isUserCreated === true) {
+                            userCreatedContent.worldview[category][itemId] = itemData;
+                            this.info(`热重载保护: 保留用户创建的世界观词条 "${itemData.name || itemId}" (${category})`);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 提取用户创建的故事线
+        if (this.currentChapter.staticMatrices.storylines) {
+            for (const [category, lines] of Object.entries(this.currentChapter.staticMatrices.storylines)) {
+                userCreatedContent.storylines[category] = {};
+                if (lines && typeof lines === 'object') {
+                    for (const [lineId, lineData] of Object.entries(lines)) {
+                        if (lineData.isUserCreated === true) {
+                            userCreatedContent.storylines[category][lineId] = lineData;
+                            this.info(`热重载保护: 保留用户创建的故事线 "${lineData.title || lineId}" (${category})`);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 提取用户创建的关系
+        if (this.currentChapter.staticMatrices.relationship_graph?.edges) {
+            for (const edge of this.currentChapter.staticMatrices.relationship_graph.edges) {
+                if (edge.isUserCreated === true) {
+                    userCreatedContent.relationship_graph.edges.push(edge);
+                    this.info(`热重载保护: 保留用户创建的关系 "${edge.relationship_label || edge.id}"`);
+                }
+            }
+        }
+
+        // 替换静态数据
         if (analysisResult.staticMatrices) {
             this.currentChapter.staticMatrices = analysisResult.staticMatrices;
-            this.info("热重载: 新的 staticMatrices (characters, worldview, storylines) 已完全替换旧数据。");
+            this.info("热重载: 新的 staticMatrices 已从世界书重新分析。");
+
+            // 【关键合并逻辑】将用户创建的内容合并回来
+            // 合并角色
+            for (const [charId, charData] of Object.entries(userCreatedContent.characters)) {
+                this.currentChapter.staticMatrices.characters[charId] = charData;
+            }
+
+            // 合并世界观词条
+            for (const [category, items] of Object.entries(userCreatedContent.worldview)) {
+                if (!this.currentChapter.staticMatrices.worldview[category]) {
+                    this.currentChapter.staticMatrices.worldview[category] = {};
+                }
+                for (const [itemId, itemData] of Object.entries(items)) {
+                    this.currentChapter.staticMatrices.worldview[category][itemId] = itemData;
+                }
+            }
+
+            // 合并故事线
+            for (const [category, lines] of Object.entries(userCreatedContent.storylines)) {
+                if (!this.currentChapter.staticMatrices.storylines) {
+                    this.currentChapter.staticMatrices.storylines = {};
+                }
+                if (!this.currentChapter.staticMatrices.storylines[category]) {
+                    this.currentChapter.staticMatrices.storylines[category] = {};
+                }
+                for (const [lineId, lineData] of Object.entries(lines)) {
+                    this.currentChapter.staticMatrices.storylines[category][lineId] = lineData;
+                }
+            }
+
+            // 合并关系
+            if (!this.currentChapter.staticMatrices.relationship_graph) {
+                this.currentChapter.staticMatrices.relationship_graph = { edges: [] };
+            }
+            if (!this.currentChapter.staticMatrices.relationship_graph.edges) {
+                this.currentChapter.staticMatrices.relationship_graph.edges = [];
+            }
+            for (const edge of userCreatedContent.relationship_graph.edges) {
+                this.currentChapter.staticMatrices.relationship_graph.edges.push(edge);
+            }
+
+            const protectedCount =
+                Object.keys(userCreatedContent.characters).length +
+                Object.values(userCreatedContent.worldview).reduce((sum, cat) => sum + Object.keys(cat).length, 0) +
+                Object.values(userCreatedContent.storylines).reduce((sum, cat) => sum + Object.keys(cat).length, 0) +
+                userCreatedContent.relationship_graph.edges.length;
+
+            if (protectedCount > 0) {
+                this.info(`热重载: 已保护并合并 ${protectedCount} 项用户手动创建的内容。`);
+            }
+
+            this.info("热重载: 新的 staticMatrices (AI生成 + 用户创建) 已完成合并。");
         } else {
             this.warn("热重载警告: IntelligenceAgent未能返回完整的 staticMatrices，静态设定未更新。");
         }

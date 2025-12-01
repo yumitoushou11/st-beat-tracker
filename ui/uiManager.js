@@ -734,6 +734,7 @@ $('#extensions-settings-button').after(html);
 
                 // 创建新角色对象
                 effectiveState.staticMatrices.characters[newCharId] = {
+                    isUserCreated: true, // 标记为用户手动创建
                     core: {
                         name: '',
                         identity: '',
@@ -1075,6 +1076,7 @@ $('#extensions-settings-button').after(html);
                 // 创建新关系对象
                 edge = {
                     id: newEdgeId,
+                    isUserCreated: true, // 标记为用户手动创建
                     participants: [participant1, participant2],
                     type: '',
                     type_label: '',
@@ -1350,10 +1352,17 @@ $('#extensions-settings-button').after(html);
             }
 
             // 创建或更新词条
-            effectiveState.staticMatrices.worldview[category][newItemId] = {
+            const worldviewItemData = {
                 name: name,
                 description: description || '暂无描述'
             };
+
+            // 如果是新建，添加用户创建标记
+            if (isNew) {
+                worldviewItemData.isUserCreated = true;
+            }
+
+            effectiveState.staticMatrices.worldview[category][newItemId] = worldviewItemData;
 
             // 保存并刷新
             await saveWorldviewChanges();
@@ -1751,7 +1760,7 @@ $('#extensions-settings-button').after(html);
 
             // 保存静态数据
             const safeSummary = summary || '';
-            effectiveState.staticMatrices.storylines[category][finalLineId] = {
+            const storylineData = {
                 title: title,
                 summary: safeSummary,
                 initial_summary: safeSummary,
@@ -1759,6 +1768,13 @@ $('#extensions-settings-button').after(html);
                 type: category,
                 involved_chars: involvedChars
             };
+
+            // 如果是新建，添加用户创建标记
+            if (isNew) {
+                storylineData.isUserCreated = true;
+            }
+
+            effectiveState.staticMatrices.storylines[category][finalLineId] = storylineData;
 
             // 收集历史记录数组
             const history = [];

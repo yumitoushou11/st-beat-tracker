@@ -279,27 +279,44 @@ html {
 .sbt-danger-btn:hover { background-color: var(--sbt-danger-hover); }
 
 .sbt-reroll-btn {
-    margin-left: 10px;
-    padding: 4px 10px;
-    font-size: 0.85em;
-    background-color: var(--sbt-warning-color);
-    border: none;
-    border-radius: 4px;
-    color: var(--sbt-bg-darker);
-    font-weight: bold;
+    padding: 4px 12px;
+    font-size: 0.8em;
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.15), rgba(10, 132, 255, 0.25));
+    border: 1px solid rgba(10, 132, 255, 0.4);
+    border-radius: 6px;
+    color: var(--sbt-primary-accent);
+    font-weight: 500;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    transition: all 0.2s ease;
+    gap: 5px;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    flex-shrink: 0;
+    backdrop-filter: blur(4px);
 }
+
 .sbt-reroll-btn:hover {
-    opacity: 0.85;
-    transform: scale(1.05);
+    background: linear-gradient(135deg, rgba(10, 132, 255, 0.25), rgba(10, 132, 255, 0.35));
+    border-color: rgba(10, 132, 255, 0.6);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(10, 132, 255, 0.3);
 }
+
+.sbt-reroll-btn:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 4px rgba(10, 132, 255, 0.2);
+}
+
 .sbt-reroll-btn:disabled {
-    opacity: 0.5;
+    opacity: 0.4;
     cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.sbt-reroll-btn i {
+    font-size: 0.9em;
 }
 .sbt-danger-btn i { margin-right: 4px; }
 
@@ -664,16 +681,26 @@ input:checked + .sbt-slider:before {
     justify-content: space-between;
     align-items: center;
     user-select: none;
+    gap: 10px;
 }
 
 .sbt-category-header:hover {
     background-color: var(--sbt-bg-medium);
 }
 
+.sbt-category-title {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
 .sbt-category-header::after {
     content: '▼';
     font-size: 0.8em;
     color: var(--sbt-text-medium);
+    flex-shrink: 0;
+    margin-left: auto;
 }
 
 .sbt-category-header.collapsed::after {
