@@ -1902,7 +1902,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         const $anchorIndex = $('#sbt-chapter-anchor-index');
 
         if (piece && Chapter.isValidStructure(piece.leader)) {
-            const startIndex = deep + 1;
+            const startIndex = deep;
             $anchorIndex.text(`#${startIndex}`);
         } else {
             $anchorIndex.text(`--`);
