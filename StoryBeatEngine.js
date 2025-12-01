@@ -100,6 +100,7 @@ export class StoryBeatEngine {
             api_url: apiSettings.main.apiUrl,
             api_key: apiSettings.main.apiKey,
             model_name: apiSettings.main.modelName,
+            tavernProfile: apiSettings.main.tavernProfile || '', // 修复：添加预设ID
         }, { EDITOR: this.EDITOR, USER: this.USER });
         this.info(`核心大脑 LLM 服务已实例化 [模式: ${apiSettings.main.apiProvider || 'direct_openai'}]`);
 
@@ -109,6 +110,7 @@ export class StoryBeatEngine {
             api_url: apiSettings.conductor.apiUrl,
             api_key: apiSettings.conductor.apiKey,
             model_name: apiSettings.conductor.modelName,
+            tavernProfile: apiSettings.conductor.tavernProfile || '', // 修复：添加预设ID
         }, { EDITOR: this.EDITOR, USER: this.USER });
         this.info(`回合裁判 LLM 服务已实例化 [模式: ${apiSettings.conductor.apiProvider || 'direct_openai'}]`);
 

@@ -10,6 +10,7 @@ import { getCharacterBoundWorldbookEntries } from './worldbookManager.js';
 import { ExecutionContext } from './src/ExecutionContext.js';
 import { ENGINE_STATUS } from './src/constants.js';
 import { setupUI, initializeUIManager, populateSettingsUI } from './ui/uiManager.js';
+import { debugApiConfig } from './debug-api-config.js'; // API配置调试工具
 const { eventSource, event_types} = applicationFunctionManager;
 applicationFunctionManager.eventSource.on(applicationFunctionManager.event_types.APP_READY, async () => {
     console.log(`[剧情节拍器] 正在启动... (SillyTavern应用已就绪)`);

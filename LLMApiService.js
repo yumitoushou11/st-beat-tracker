@@ -138,19 +138,19 @@ async testConnection() {
                 console.warn(`[LLMApiService] 第 ${attempt} 次API调用失败:`, error);
 
                  if (retryToast) this.EDITOR.clear(retryToast);
-                
+
                 if (attempt < MAX_RETRIES && this.#isRetryableError(error)) {
-                    const delay = attempt * 1000; 
-                    
+                    const delay = attempt * 1000;
+
                     retryToast = this.EDITOR.warning(
                         `将在 ${delay / 1000} 秒后进行第 ${attempt + 1} 次尝试...<br><small>原因: ${error.message}</small>`,
                         "API连接不稳定，正在自动重试",
-                        { 
-                            timeOut: delay, 
-                            extendedTimeOut: delay, 
+                        {
+                            timeOut: delay,
+                            extendedTimeOut: delay,
                             closeButton: true,
-                            escapeHtml: false 
-                        }   
+                            escapeHtml: false
+                        }
                          );
                     await new Promise(resolve => setTimeout(resolve, delay));
 
@@ -159,10 +159,10 @@ async testConnection() {
                 }
             }
         }
-        
+
         this.EDITOR.error(
-            `已尝试 ${MAX_RETRIES} 次，但仍无法连接。<br><small>最终错误: ${lastError.message}</small>`, 
-            "API 调用彻底失败", 
+            `已尝试 ${MAX_RETRIES} 次，但仍无法连接。<br><small>最终错误: ${lastError.message}</small>`,
+            "API 调用彻底失败",
             { timeOut: 10000 }
         );
         throw lastError;

@@ -235,12 +235,14 @@ export function bindSettingsSaveHandler($wrapper, deps) {
         console.log('[SBT-设置保存] 主LLM配置:', {
             provider: newSettings.main.apiProvider,
             tavernProfile: newSettings.main.tavernProfile,
+            modelName: newSettings.main.modelName || '(空)',
             hasUrl: !!newSettings.main.apiUrl,
             hasKey: !!newSettings.main.apiKey
         });
         console.log('[SBT-设置保存] 回合裁判配置:', {
             provider: newSettings.conductor.apiProvider,
             tavernProfile: newSettings.conductor.tavernProfile,
+            modelName: newSettings.conductor.modelName || '(空)',
             hasUrl: !!newSettings.conductor.apiUrl,
             hasKey: !!newSettings.conductor.apiKey
         });
@@ -256,6 +258,15 @@ export function bindSettingsSaveHandler($wrapper, deps) {
  * @param {Object} deps - 依赖注入对象
  */
 export function bindAPITestHandlers($wrapper, deps) {
+    // 辅助函数：读取模型名称（优先从下拉选择器，如果是手动输入则从输入框）
+    const getModelName = (selectId, inputId) => {
+        const selectValue = String($(`#${selectId}`).val() || '').trim();
+        if (selectValue && selectValue !== '__manual__') {
+            return selectValue;
+        }
+        return String($(`#${inputId}`).val()).trim();
+    };
+
     // 测试核心大脑API连接
     $wrapper.on('click', '#sbt-test-api-btn', async function() {
         const $btn = $(this);
@@ -271,8 +282,8 @@ export function bindAPITestHandlers($wrapper, deps) {
                 apiProvider: String($('#sbt-api-provider-select').val()).trim(),
                 apiUrl: String($('#sbt-api-url-input').val()).trim(),
                 apiKey: String($('#sbt-api-key-input').val()).trim(),
-                modelName: String($('#sbt-model-name-input').val()).trim(),
-                tavernProfile: String($('#sbt-preset-select').val() || '').trim(), // 新增：读取预设 ID
+                modelName: getModelName('sbt-model-name-select', 'sbt-model-name-input'), // 修复：使用和保存时相同的逻辑
+                tavernProfile: String($('#sbt-preset-select').val() || '').trim(),
             };
             deps.mainLlmService.updateConfig(tempConfig);
             const successMessage = await deps.mainLlmService.testConnection();
@@ -299,8 +310,8 @@ export function bindAPITestHandlers($wrapper, deps) {
                 apiProvider: String($('#sbt-conductor-api-provider-select').val()).trim(),
                 apiUrl: String($('#sbt-conductor-api-url-input').val()).trim(),
                 apiKey: String($('#sbt-conductor-api-key-input').val()).trim(),
-                modelName: String($('#sbt-conductor-model-name-input').val()).trim(),
-                tavernProfile: String($('#sbt-conductor-preset-select').val() || '').trim(), // 新增：读取预设 ID
+                modelName: getModelName('sbt-conductor-model-name-select', 'sbt-conductor-model-name-input'), // 修复：使用和保存时相同的逻辑
+                tavernProfile: String($('#sbt-conductor-preset-select').val() || '').trim(),
             };
             deps.conductorLlmService.updateConfig(tempConfig);
             const successMessage = await deps.conductorLlmService.testConnection();
@@ -651,6 +662,7 @@ function populateModelDropdown(type, currentModel = '') {
     } else {
         // 无缓存：显示手动输入框
         $select.val('__manual__');
+        $select.show(); // 修复：确保select也显示出来
         $input.val(currentModel).show();
     }
 }
@@ -689,6 +701,9 @@ export function bindModelRefreshHandlers($wrapper, deps) {
             // 缓存模型列表
             cacheModels('sbt_cached_models_main', models);
 
+            // 获取当前的模型名称（可能在输入框中，或之前选择的）
+            const currentModel = String($('#sbt-model-name-input').val() || $('#sbt-model-name-select').val()).trim();
+
             // 填充下拉选择器
             const $select = $('#sbt-model-name-select');
             $select.empty();
@@ -700,9 +715,21 @@ export function bindModelRefreshHandlers($wrapper, deps) {
 
             $select.append(new Option('手动输入...', '__manual__'));
 
-            // 显示下拉选择器，隐藏输入框
-            $select.show();
-            $('#sbt-model-name-input').hide();
+            // 如果当前模型在列表中，自动选中
+            if (currentModel && models.includes(currentModel)) {
+                $select.val(currentModel);
+                $select.show();
+                $('#sbt-model-name-input').hide();
+            } else if (currentModel) {
+                // 如果当前模型不在列表中，切换到手动输入模式
+                $select.val('__manual__');
+                $('#sbt-model-name-input').val(currentModel).show();
+                $select.show();
+            } else {
+                // 没有当前模型，显示下拉选择器
+                $select.show();
+                $('#sbt-model-name-input').hide();
+            }
 
             deps.toastr.success(`成功获取 ${models.length} 个模型`, '刷新成功');
 
@@ -738,6 +765,9 @@ export function bindModelRefreshHandlers($wrapper, deps) {
 
             cacheModels('sbt_cached_models_conductor', models);
 
+            // 获取当前的模型名称（可能在输入框中，或之前选择的）
+            const currentModel = String($('#sbt-conductor-model-name-input').val() || $('#sbt-conductor-model-name-select').val()).trim();
+
             const $select = $('#sbt-conductor-model-name-select');
             $select.empty();
             $select.append(new Option('-- 请选择模型 --', ''));
@@ -748,8 +778,21 @@ export function bindModelRefreshHandlers($wrapper, deps) {
 
             $select.append(new Option('手动输入...', '__manual__'));
 
-            $select.show();
-            $('#sbt-conductor-model-name-input').hide();
+            // 如果当前模型在列表中，自动选中
+            if (currentModel && models.includes(currentModel)) {
+                $select.val(currentModel);
+                $select.show();
+                $('#sbt-conductor-model-name-input').hide();
+            } else if (currentModel) {
+                // 如果当前模型不在列表中，切换到手动输入模式
+                $select.val('__manual__');
+                $('#sbt-conductor-model-name-input').val(currentModel).show();
+                $select.show();
+            } else {
+                // 没有当前模型，显示下拉选择器
+                $select.show();
+                $('#sbt-conductor-model-name-input').hide();
+            }
 
             deps.toastr.success(`成功获取 ${models.length} 个模型`, '刷新成功');
 
