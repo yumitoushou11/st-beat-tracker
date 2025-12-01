@@ -9,26 +9,29 @@ import { clampAffinityValue } from '../utils/affinityUtils.js';
 import { showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
 import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets, populatePromptManagerUI, bindPromptManagerHandlers, bindModelRefreshHandlers } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('UIManager');
 
 const deps = {
-    onReanalyzeWorldbook: () => console.warn("onReanalyzeWorldbook not injected"),
-    onForceChapterTransition: () => console.warn("onForceChapterTransition not injected"),
-    onStartGenesis: () => console.warn("onStartGenesis not injected"),
-    onRerollChapterBlueprint: () => console.warn("onRerollChapterBlueprint not injected"),
-    onForceEndSceneClick: () => console.warn("onForceEndSceneClick not injected"),
-    onSetNarrativeFocus: () => console.warn("onSetNarrativeFocus not injected"),
-    onSaveCharacterEdit: () => console.warn("onSaveCharacterEdit not injected"),
+    onReanalyzeWorldbook: () => logger.warn("onReanalyzeWorldbook not injected"),
+    onForceChapterTransition: () => logger.warn("onForceChapterTransition not injected"),
+    onStartGenesis: () => logger.warn("onStartGenesis not injected"),
+    onRerollChapterBlueprint: () => logger.warn("onRerollChapterBlueprint not injected"),
+    onForceEndSceneClick: () => logger.warn("onForceEndSceneClick not injected"),
+    onSetNarrativeFocus: () => logger.warn("onSetNarrativeFocus not injected"),
+    onSaveCharacterEdit: () => logger.warn("onSaveCharacterEdit not injected"),
     mainLlmService: null,
     conductorLlmService: null,
     eventBus: null,
-    info: console.info,
-    warn: console.warn,
-    diagnose: console.error,
+    info: logger.info.bind(logger),
+    warn: logger.warn.bind(logger),
+    diagnose: logger.error.bind(logger),
     toastr: {
-        info: (msg, title) => console.info(`[Toast-Info: ${title}] ${msg}`),
-        success: (msg, title) => console.log(`[Toast-Success: ${title}] ${msg}`),
-        warning: (msg, title) => console.warn(`[Toast-Warning: ${title}] ${msg}`),
-        error: (msg, title) => console.error(`[Toast-Error: ${title}] ${msg}`)
+        info: (msg, title) => logger.info(`[Toast-Info: ${title}] ${msg}`),
+        success: (msg, title) => logger.debug(`[Toast-Success: ${title}] ${msg}`),
+        warning: (msg, title) => logger.warn(`[Toast-Warning: ${title}] ${msg}`),
+        error: (msg, title) => logger.error(`[Toast-Error: ${title}] ${msg}`)
     }
 };
 
@@ -655,14 +658,14 @@ $('#extensions-settings-button').after(html);
                 const tags = [];
                 let listPath = null;
 
-                console.log(`[标签收集] 第 ${listIndex} 个标签列表:`);
+                logger.debug(`[标签收集] 第 ${listIndex} 个标签列表:`);
 
                 $tagList.find('.sbt-tag-editable').each(function(tagIndex) {
                     const $tag = $(this);
                     const tag = $tag.text().trim();
                     const path = $tag.data('path');
 
-                    console.log(`  标签 ${tagIndex}: text="${tag}", path="${path}"`);
+                    logger.debug(`  标签 ${tagIndex}: text="${tag}", path="${path}"`);
 
                     // 记录路径
                     if (!listPath && path) {
@@ -675,7 +678,7 @@ $('#extensions-settings-button').after(html);
                     }
                 });
 
-                console.log(`  最终路径: "${listPath}", 标签数组:`, tags);
+                logger.debug(`  最终路径: "${listPath}", 标签数组:`, tags);
 
                 // 如果找到路径，保存这个标签列表
                 if (listPath) {
@@ -697,7 +700,7 @@ $('#extensions-settings-button').after(html);
 
                 const normalizedAffinity = clampAffinityValue(rawValue, null);
                 if (normalizedAffinity === null || normalizedAffinity === undefined) {
-                    console.warn(`[UIManager] 无效的好感度输入 (${rawValue})，来源 ${fromCharId} -> ${toCharId}`);
+                    logger.warn(`[UIManager] 无效的好感度输入 (${rawValue})，来源 ${fromCharId} -> ${toCharId}`);
                     return;
                 }
 
@@ -709,10 +712,10 @@ $('#extensions-settings-button').after(html);
             });
 
             // 调试日志
-            console.group('[编辑保存] 数据收集分析');
-            console.log('收集到的更新数据:', JSON.parse(JSON.stringify(updatedData)));
-            console.log('收集到的好感度更新:', affinityUpdates);
-            console.log('是否新建:', isNew);
+            logger.debug('[编辑保存] 数据收集分析');
+            logger.debug('收集到的更新数据:', JSON.parse(JSON.stringify(updatedData)));
+            logger.debug('收集到的好感度更新:', affinityUpdates);
+            logger.debug('是否新建:', isNew);
 
             // 如果是新建，需要验证必填字段并生成新ID
             let newCharId = oldCharId;
@@ -721,7 +724,7 @@ $('#extensions-settings-button').after(html);
                 if (!charName) {
                     deps.toastr.error('角色名称不能为空', '保存失败');
                     $btn.prop('disabled', false).html(`<i class="fa-solid fa-save fa-fw"></i> 创建角色`);
-                    console.groupEnd();
+                    logger.debug();
                     return;
                 }
 
@@ -730,7 +733,7 @@ $('#extensions-settings-button').after(html);
                 const namePart = charName.replace(/\s+/g, '_').toLowerCase();
                 newCharId = `char_${namePart}_${timestamp}`;
 
-                console.log(`新建角色，生成ID: ${newCharId}`);
+                logger.debug(`新建角色，生成ID: ${newCharId}`);
 
                 // 创建新角色对象
                 effectiveState.staticMatrices.characters[newCharId] = {
@@ -760,7 +763,7 @@ $('#extensions-settings-button').after(html);
                 throw new Error('角色数据未找到');
             }
 
-            console.log('修改前的角色数据:', JSON.parse(JSON.stringify(char)));
+            logger.debug('修改前的角色数据:', JSON.parse(JSON.stringify(char)));
 
             // 应用更新 - 支持嵌套路径
             for (const [path, value] of Object.entries(updatedData)) {
@@ -782,10 +785,10 @@ $('#extensions-settings-button').after(html);
                 const oldValue = target[lastPart];
                 target[lastPart] = value;
 
-                console.log(`路径 "${path}": "${oldValue}" -> "${value}"`);
+                logger.debug(`路径 "${path}": "${oldValue}" -> "${value}"`);
             }
 
-            console.log('修改后的角色数据:', JSON.parse(JSON.stringify(char)));
+            logger.debug('修改后的角色数据:', JSON.parse(JSON.stringify(char)));
 
             // 更新好感度
             for (const update of affinityUpdates) {
@@ -816,10 +819,10 @@ $('#extensions-settings-button').after(html);
                 // 更新好感度值
                 effectiveState.dynamicState.characters[fromCharId].relationships[toCharId].current_affinity = normalizedAffinity;
 
-                console.log(`好感度已更新: ${fromCharId} 对 ${toCharId} = ${normalizedAffinity}`);
+                logger.debug(`好感度已更新: ${fromCharId} 对 ${toCharId} = ${normalizedAffinity}`);
             }
 
-            console.groupEnd();
+            logger.debug();
 
             // 如果有保存回调函数，调用它
             if (typeof deps.onSaveCharacterEdit === 'function') {
@@ -1071,7 +1074,7 @@ $('#extensions-settings-button').after(html);
                 const timestamp = Date.now().toString(36);
                 newEdgeId = `edge_${participant1}_${participant2}_${timestamp}`;
 
-                console.log(`新建关系，生成ID: ${newEdgeId}`);
+                logger.debug(`新建关系，生成ID: ${newEdgeId}`);
 
                 // 创建新关系对象
                 edge = {
@@ -1109,9 +1112,9 @@ $('#extensions-settings-button').after(html);
                 return;
             }
 
-            console.group('[关系编辑保存] 数据收集分析');
-            console.log('是否新建:', isNew);
-            console.log('修改前的关系数据:', JSON.parse(JSON.stringify(edge)));
+            logger.debug('[关系编辑保存] 数据收集分析');
+            logger.debug('是否新建:', isNew);
+            logger.debug('修改前的关系数据:', JSON.parse(JSON.stringify(edge)));
 
             // 如果不是新建，更新参与者（编辑模式下可能修改了参与者）
             if (!isNew) {
@@ -1144,8 +1147,8 @@ $('#extensions-settings-button').after(html);
             if (!edge.narrative_status) edge.narrative_status = {};
             edge.narrative_status.unresolved_tension = newTensions;
 
-            console.log('修改后的关系数据:', JSON.parse(JSON.stringify(edge)));
-            console.groupEnd();
+            logger.debug('修改后的关系数据:', JSON.parse(JSON.stringify(edge)));
+            logger.debug();
 
             // 保存
             if (typeof deps.onSaveCharacterEdit === 'function') {
@@ -1508,9 +1511,9 @@ $('#extensions-settings-button').after(html);
             isChecked ? "控制台将输出详细日志" : "控制台将保持简洁"
         );
         if (isChecked) {
-            console.log('[SBT-INFO] 调试模式已开启，详细日志将在控制台显示。');
+            logger.info('[SBT-INFO] 调试模式已开启，详细日志将在控制台显示。');
         } else {
-            console.log('[SBT-INFO] 调试模式已关闭，仅显示错误诊断信息。');
+            logger.info('[SBT-INFO] 调试模式已关闭，仅显示错误诊断信息。');
         }
     });
 
@@ -2320,22 +2323,22 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
             '取消'
         );
 
-        console.log('[SBT-DB] 清空全部确认结果:', confirmed);
+        logger.debug('[SBT-DB] 清空全部确认结果:', confirmed);
 
         if (confirmed) {
-            console.log('[SBT-DB] 执行清空全部静态数据...');
+            logger.debug('[SBT-DB] 执行清空全部静态数据...');
             const success = staticDataManager.clearAllStaticData();
-            console.log('[SBT-DB] 清空结果:', success);
+            logger.debug('[SBT-DB] 清空结果:', success);
 
             // 验证清空是否成功
             const db = staticDataManager.getFullDatabase();
-            console.log('[SBT-DB] 清空后的数据库:', db);
-            console.log('[SBT-DB] 数据库是否为空?', Object.keys(db).length === 0);
+            logger.debug('[SBT-DB] 清空后的数据库:', db);
+            logger.debug('[SBT-DB] 数据库是否为空?', Object.keys(db).length === 0);
 
             refreshDatabaseList();
             deps.toastr.success('所有静态数据已清空', '清空成功');
         } else {
-            console.log('[SBT-DB] 用户取消了清空操作');
+            logger.debug('[SBT-DB] 用户取消了清空操作');
         }
     });
 
@@ -2344,7 +2347,7 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
         const $item = $(this).closest('.sbt-db-item');
         const charId = $item.data('char-id');
 
-        console.log('[SBT-DB] 准备删除角色:', charId);
+        logger.debug('[SBT-DB] 准备删除角色:', charId);
 
         const confirmed = await simpleConfirm(
             '确认删除',
@@ -2353,22 +2356,22 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
             '取消'
         );
 
-        console.log('[SBT-DB] 删除确认结果:', confirmed);
+        logger.debug('[SBT-DB] 删除确认结果:', confirmed);
 
         if (confirmed) {
-            console.log('[SBT-DB] 执行删除角色数据:', charId);
+            logger.debug('[SBT-DB] 执行删除角色数据:', charId);
             const success = staticDataManager.deleteStaticData(charId);
-            console.log('[SBT-DB] 删除结果:', success);
+            logger.debug('[SBT-DB] 删除结果:', success);
 
             // 验证删除是否成功
             const db = staticDataManager.getFullDatabase();
-            console.log('[SBT-DB] 删除后的数据库内容:', db);
-            console.log('[SBT-DB] 角色是否还存在?', charId in db);
+            logger.debug('[SBT-DB] 删除后的数据库内容:', db);
+            logger.debug('[SBT-DB] 角色是否还存在?', charId in db);
 
             refreshDatabaseList();
             deps.toastr.success(`角色 "${charId}" 的数据已删除`, '删除成功');
         } else {
-            console.log('[SBT-DB] 用户取消了删除操作');
+            logger.debug('[SBT-DB] 用户取消了删除操作');
         }
     });
 }

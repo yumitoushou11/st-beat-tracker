@@ -1,7 +1,10 @@
-// ai/turnConductorAgent.js 
+// ai/turnConductorAgent.js
 
 import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
+import { createLogger } from '../utils/logger.js';
+
+const logger = createLogger('回合裁判');
 
 export class TurnConductorAgent extends Agent {
 
@@ -68,7 +71,7 @@ export class TurnConductorAgent extends Agent {
         });
 
         console.groupCollapsed('[SBT-DIAGNOSE] TurnConductor Prompt V9.0 (极简GPS)');
-        console.log(prompt);
+        logger.debug(prompt);
         console.groupEnd();
 
         try {
@@ -79,10 +82,10 @@ export class TurnConductorAgent extends Agent {
             const decision = this.extractJsonFromString(responseText);
 
             console.group('[CONDUCTOR-V9-OUTPUT] 极简输出结构');
-            console.log('✓ status:', decision.status);
-            console.log('✓ current_beat_idx:', decision.current_beat_idx);
-            console.log('✓ narrative_hold:', decision.narrative_hold?.substring(0, 60) + '...');
-            console.log('✓ realtime_context_ids:', decision.realtime_context_ids);
+            logger.debug('✓ status:', decision.status);
+            logger.debug('✓ current_beat_idx:', decision.current_beat_idx);
+            logger.debug('✓ narrative_hold:', decision.narrative_hold?.substring(0, 60) + '...');
+            logger.debug('✓ realtime_context_ids:', decision.realtime_context_ids);
             console.groupEnd();
 
             // 确保必要字段存在
@@ -119,7 +122,7 @@ _createPrompt(context) {
     // 如果有自定义提示词，直接使用
     if (this.promptManager && this.promptManager.hasCustomConductorPrompt()) {
         const customPrompt = this.promptManager.getConductorPrompt();
-        console.log("[回合裁判] 使用自定义提示词");
+        logger.info("[回合裁判] 使用自定义提示词");
         return BACKEND_SAFE_PASS_PROMPT + customPrompt;
     }
 
@@ -234,7 +237,7 @@ _generateEntityManifest(staticMatrices) {
             manifestLines.push(`  - ${name} (ID: ${id})`);
             count++;
         });
-        console.log(`✓ 角色数量: ${Object.keys(staticMatrices.characters).length}`);
+        logger.debug(`✓ 角色数量: ${Object.keys(staticMatrices.characters).length}`);
     }
 
     // 地点清单
@@ -245,7 +248,7 @@ _generateEntityManifest(staticMatrices) {
             manifestLines.push(`  - ${name} (ID: ${id})`);
             count++;
         });
-        console.log(`✓ 地点数量: ${Object.keys(staticMatrices.worldview.locations).length}`);
+        logger.debug(`✓ 地点数量: ${Object.keys(staticMatrices.worldview.locations).length}`);
     }
 
     // 物品清单
@@ -256,7 +259,7 @@ _generateEntityManifest(staticMatrices) {
             manifestLines.push(`  - ${name} (ID: ${id})`);
             count++;
         });
-        console.log(`✓ 物品数量: ${Object.keys(staticMatrices.worldview.items).length}`);
+        logger.debug(`✓ 物品数量: ${Object.keys(staticMatrices.worldview.items).length}`);
     }
 
     // 故事线清单
@@ -271,14 +274,14 @@ _generateEntityManifest(staticMatrices) {
                 });
             }
         });
-        console.log(`✓ 故事线数量: ${count - manifestLines.filter(l => l.startsWith('**')).length + 1}`);
+        logger.debug(`✓ 故事线数量: ${count - manifestLines.filter(l => l.startsWith('**')).length + 1}`);
     }
 
     const content = manifestLines.length > 0
         ? manifestLines.join('\n')
         : '（当前世界无已注册实体）';
 
-    console.log(`✓ 清单生成完成，共 ${count} 条实体`);
+    logger.debug(`✓ 清单生成完成，共 ${count} 条实体`);
     console.groupEnd();
 
     return { content, totalCount: count };
@@ -307,7 +310,7 @@ _extractStylisticSummary(stylisticArchive) {
 
     if (overusedAdj.length > 0) {
         summary.push(`**高频形容词（建议避免）：** ${overusedAdj.join(', ')}`);
-        console.log(`✓ 高频形容词: ${overusedAdj.length} 个`);
+        logger.debug(`✓ 高频形容词: ${overusedAdj.length} 个`);
     }
 
     // 高频副词
@@ -317,18 +320,18 @@ _extractStylisticSummary(stylisticArchive) {
 
     if (overusedAdv.length > 0) {
         summary.push(`**高频副词（建议避免）：** ${overusedAdv.join(', ')}`);
-        console.log(`✓ 高频副词: ${overusedAdv.length} 个`);
+        logger.debug(`✓ 高频副词: ${overusedAdv.length} 个`);
     }
 
     // 常用意象
     const recentImagery = stylisticArchive?.imagery_and_metaphors?.slice(-5) || [];
     if (recentImagery.length > 0) {
         summary.push(`**近期意象：** ${recentImagery.join(', ')}`);
-        console.log(`✓ 近期意象: ${recentImagery.length} 个`);
+        logger.debug(`✓ 近期意象: ${recentImagery.length} 个`);
     }
 
     const result = summary.length > 0 ? summary.join('\n') : '（暂无显著的文体模式）';
-    console.log(`✓ 摘要生成完成`);
+    logger.debug(`✓ 摘要生成完成`);
     console.groupEnd();
 
     return result;
@@ -358,7 +361,7 @@ _generateFullEntityData(staticMatrices) {
             sections.push(JSON.stringify(data, null, 2));
             sections.push('```\n');
         });
-        console.log(`✓ 角色数量: ${Object.keys(staticMatrices.characters).length}`);
+        logger.debug(`✓ 角色数量: ${Object.keys(staticMatrices.characters).length}`);
     }
 
     // 地点数据
@@ -370,7 +373,7 @@ _generateFullEntityData(staticMatrices) {
             sections.push(JSON.stringify(data, null, 2));
             sections.push('```\n');
         });
-        console.log(`✓ 地点数量: ${Object.keys(staticMatrices.worldview.locations).length}`);
+        logger.debug(`✓ 地点数量: ${Object.keys(staticMatrices.worldview.locations).length}`);
     }
 
     // 物品数据
@@ -382,7 +385,7 @@ _generateFullEntityData(staticMatrices) {
             sections.push(JSON.stringify(data, null, 2));
             sections.push('```\n');
         });
-        console.log(`✓ 物品数量: ${Object.keys(staticMatrices.worldview.items).length}`);
+        logger.debug(`✓ 物品数量: ${Object.keys(staticMatrices.worldview.items).length}`);
     }
 
     // 故事线数据
@@ -408,12 +411,12 @@ _generateFullEntityData(staticMatrices) {
                     });
                 }
             }
-            console.log(`✓ 故事线数据已注入`);
+            logger.debug(`✓ 故事线数据已注入`);
         }
     }
 
     const result = sections.length > 0 ? sections.join('\n') : '（当前世界无实体数据）';
-    console.log(`✓ 完整实体数据注入完成`);
+    logger.debug(`✓ 完整实体数据注入完成`);
     console.groupEnd();
 
     return result;

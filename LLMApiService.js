@@ -1,5 +1,8 @@
 import {EDITOR, USER} from './src/engine-adapter.js';
 import { getRequestHeaders } from '/script.js';
+import { createLogger } from './utils/logger.js';
+
+const logger = createLogger('LLMApiService');
 let ChatCompletionService = undefined;
 try {
     // 动态导入，兼容模块不存在的情况
@@ -130,7 +133,7 @@ async testConnection() {
             } catch (error) {
                 // 如果是中止错误，则不再重试，立即向上抛出
                 if (error.name === 'AbortError') {
-                    console.log('[LLMApiService] API 调用被用户中止。');
+                    logger.info('API 调用被用户中止。');
                     throw error;
                 }
                 
@@ -205,16 +208,16 @@ async testConnection() {
         // ================== 策略分发器 ==================
         switch (this.config.api_provider) {
             case 'sillytavern_preset':
-                console.log("策略: SillyTavern 预设模式");
+                logger.debug("策略: SillyTavern 预设模式");
                 return this.#callViaSillyTavernPreset(messages, streamCallback, abortSignal);
 
             case 'sillytavern_proxy_openai':
-                console.log("策略: SillyTavern 代理模式");
+                logger.debug("策略: SillyTavern 代理模式");
                 return this.#callViaSillyTavernProxy(messages, streamCallback, abortSignal);
 
             case 'direct_openai':
             default:
-                console.log("策略: 直接 Fetch 模式");
+                logger.debug("策略: 直接 Fetch 模式");
                 return this.#callViaDirectFetch(messages, streamCallback, abortSignal);
         }
     }
@@ -228,7 +231,7 @@ async testConnection() {
      * @param {AbortSignal|null} abortSignal - 中止信号 (此模式下不支持)
      */
     async #callViaSillyTavernPreset(messages, streamCallback, abortSignal) {
-        console.log('[SBT-预设模式] 使用 SillyTavern 预设调用');
+        logger.debug('[预设模式] 使用 SillyTavern 预设调用');
 
         if (abortSignal) {
             console.warn('[LLMApiService] SillyTavern 预设模式不支持中止操作。');
@@ -262,7 +265,7 @@ async testConnection() {
         try {
             // 3.1 保存当前用户的活动配置文件名
             originalProfile = await window.TavernHelper.triggerSlash('/profile');
-            console.log(`[SBT-预设模式] 当前配置文件: ${originalProfile}`);
+            logger.debug(`[预设模式] 当前配置文件: ${originalProfile}`);
 
             // 3.2 找到目标配置文件的完整信息
             const targetProfile = context.extensionSettings?.connectionManager?.profiles?.find(p => p.id === profileId);
@@ -273,7 +276,7 @@ async testConnection() {
 
             // 3.3 如果当前配置不是目标配置，则执行切换
             if (originalProfile !== targetProfileName) {
-                console.log(`[SBT-预设模式] 切换配置文件: ${originalProfile} -> ${targetProfileName}`);
+                logger.debug(`[预设模式] 切换配置文件: ${originalProfile} -> ${targetProfileName}`);
                 await window.TavernHelper.triggerSlash(`/profile await=true "${targetProfileName.replace(/"/g, '\\"')}"`);
             }
 
@@ -281,7 +284,7 @@ async testConnection() {
             if (!context.ConnectionManagerRequestService) {
                 throw new Error('ConnectionManagerRequestService 不可用');
             }
-            console.log(`[SBT-预设模式] 通过配置文件 ${targetProfileName} 发送请求`);
+            logger.debug(`[预设模式] 通过配置文件 ${targetProfileName} 发送请求`);
             responsePromise = context.ConnectionManagerRequestService.sendRequest(
                 targetProfile.id,
                 messages,
@@ -293,7 +296,7 @@ async testConnection() {
             try {
                 const currentProfileAfterCall = await window.TavernHelper.triggerSlash('/profile');
                 if (originalProfile && originalProfile !== currentProfileAfterCall) {
-                    console.log(`[SBT-预设模式] 恢复原始配置文件: ${currentProfileAfterCall} -> ${originalProfile}`);
+                    logger.debug(`[预设模式] 恢复原始配置文件: ${currentProfileAfterCall} -> ${originalProfile}`);
                     await window.TavernHelper.triggerSlash(`/profile await=true "${originalProfile.replace(/"/g, '\\"')}"`);
                 }
             } catch (restoreError) {
@@ -343,7 +346,7 @@ async testConnection() {
                 proxy_password: this.config.api_key || '',
             };
 
-            console.log('[代理模式调试] 发送到 SillyTavern 后端的参数:', {
+            logger.debug('[代理-调试] 发送到 SillyTavern 后端的参数:', {
                 ...requestData,
                 proxy_password: requestData.proxy_password ? '***已设置***' : '(空)',
                 messages: `${messages.length} 条消息`
@@ -373,13 +376,13 @@ async testConnection() {
 
             // 检查是否是流式响应
             if (this.config.stream && streamCallback) {
-                console.log('[代理模式] 处理流式响应...');
+                logger.debug('[代理模式] 处理流式响应...');
                 return await this.#handleProxyStreamResponse(response, streamCallback);
             }
 
             // 非流式响应
             const responseData = await response.json();
-            console.log('[代理模式调试] SillyTavern 后端响应:', responseData);
+            logger.debug('[代理-调试] SillyTavern 后端响应:', responseData);
 
             // 处理响应
             if (responseData.error) {
@@ -415,19 +418,19 @@ async testConnection() {
         let chunkIndex = 0;
 
         try {
-            console.log('[代理流式] 开始处理流式响应...');
+            logger.debug('[代理流式] 开始处理流式响应...');
 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) {
-                    console.log('[代理流式] 流式响应完成 (done=true)');
+                    logger.debug('[代理流式] 流式响应完成 (done=true)');
                     break;
                 }
 
                 const decodedChunk = decoder.decode(value, { stream: true });
                 buffer += decodedChunk;
                 chunkIndex++;
-                console.log(`[代理流式] 收到第 ${chunkIndex} 块，缓冲区长度: ${buffer.length}`);
+                logger.debug(`[代理流式] 收到第 ${chunkIndex} 块，缓冲区长度: ${buffer.length}`);
 
                 const lines = buffer.split('\n');
                 buffer = lines.pop() || '';
@@ -440,7 +443,7 @@ async testConnection() {
                         if (trimmedLine.startsWith('data: ')) {
                             const dataStr = trimmedLine.substring(6).trim();
                             if (dataStr === '[DONE]') {
-                                console.log('[代理流式] 收到 [DONE] 标记');
+                                logger.debug('[代理流式] 收到 [DONE] 标记');
                                 continue;
                             }
 
@@ -461,7 +464,7 @@ async testConnection() {
             // 处理最后的缓冲区
             const finalBufferTrimmed = buffer.trim();
             if (finalBufferTrimmed) {
-                console.log(`[代理流式] 处理最终缓冲区: "${finalBufferTrimmed}"`);
+                logger.debug(`[代理流式] 处理最终缓冲区: "${finalBufferTrimmed}"`);
                 try {
                     if (finalBufferTrimmed.startsWith('data: ')) {
                         const dataStr = finalBufferTrimmed.substring(6).trim();
@@ -479,13 +482,13 @@ async testConnection() {
                 }
             }
 
-            console.log('[代理流式] 流式处理完成。总响应长度:', fullResponse.length);
+            logger.debug('[代理流式] 流式处理完成。总响应长度:', fullResponse.length);
             return this.#cleanResponse(fullResponse);
         } catch (streamError) {
             console.error('[代理流式] 流式读取错误:', streamError);
             throw streamError;
         } finally {
-            console.log('[代理流式] 释放流锁');
+            logger.debug('[代理流式] 释放流锁');
             reader.releaseLock();
         }
     }
@@ -577,18 +580,18 @@ async testConnection() {
         let chunkIndex = 0; 
 
         try {
-            console.log('[Stream] Starting stream processing for custom API...'); 
+            logger.debug('[Stream] Starting stream processing for custom API...'); 
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) {
-                    console.log('[Stream] Custom API stream finished (done=true).'); 
+                    logger.debug('[Stream] Custom API stream finished (done=true).'); 
                     break;
                 }
 
                 const decodedChunk = decoder.decode(value, { stream: true });
                 buffer += decodedChunk;
                 chunkIndex++;
-                console.log(`[Stream] Custom API received chunk ${chunkIndex}. Buffer length: ${buffer.length}`); 
+                logger.debug(`[Stream] Custom API received chunk ${chunkIndex}. Buffer length: ${buffer.length}`); 
 
                 const lines = buffer.split('\n');
                 buffer = lines.pop() || ''; 
@@ -596,13 +599,13 @@ async testConnection() {
                 for (const line of lines) {
                     const trimmedLine = line.trim();
                     if (trimmedLine === '') continue;
-                    console.log(`[Stream] Custom API processing line: "${trimmedLine}"`); 
+                    logger.debug(`[Stream] Custom API processing line: "${trimmedLine}"`); 
 
                     try {
                         if (trimmedLine.startsWith('data: ')) {
                             const dataStr = trimmedLine.substring(6).trim();
                             if (dataStr === '[DONE]') {
-                                console.log('[Stream] Custom API received [DONE] marker.'); 
+                                logger.debug('[Stream] Custom API received [DONE] marker.'); 
                                 continue; 
                             }
 
@@ -615,7 +618,7 @@ async testConnection() {
                             } else {
                             }
                         } else {
-                             console.log('[Stream] Custom API line does not start with "data: ". Skipping.');
+                             logger.debug('[Stream] Custom API line does not start with "data: ". Skipping.');
                         }
                     } catch (e) {
                         console.warn("[Stream] Custom API error parsing line JSON:", e, "Line:", trimmedLine); 
@@ -625,7 +628,7 @@ async testConnection() {
 
             const finalBufferTrimmed = buffer.trim();
             if (finalBufferTrimmed) {
-                console.log(`[Stream] Custom API processing final buffer content: "${finalBufferTrimmed}"`); 
+                logger.debug(`[Stream] Custom API processing final buffer content: "${finalBufferTrimmed}"`); 
                 try {
                     if (finalBufferTrimmed.startsWith('data: ')) {
                          const dataStr = finalBufferTrimmed.substring(6).trim();
@@ -643,13 +646,13 @@ async testConnection() {
                 }
             }
 
-            console.log('[Stream] Custom API stream processing complete. Full response length:', fullResponse.length); 
+            logger.debug('[Stream] Custom API stream processing complete. Full response length:', fullResponse.length); 
             return this.#cleanResponse(fullResponse);
         } catch (streamError) {
             console.error('[Stream] Custom API error during stream reading:', streamError); 
             throw streamError; 
         } finally {
-            console.log('[Stream] Custom API releasing stream lock.'); 
+            logger.debug('[Stream] Custom API releasing stream lock.'); 
             reader.releaseLock();
         }
     }

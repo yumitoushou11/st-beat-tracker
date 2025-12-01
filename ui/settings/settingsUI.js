@@ -5,6 +5,9 @@ import { getApiSettings, saveApiSettings, getNarrativeModeSettings, saveNarrativ
 import { promptManager } from '../../promptManager.js';
 import { USER } from '../../src/engine-adapter.js';
 import { fetchModels, cacheModels, getCachedModels } from '../../modelManager.js';
+import { createLogger } from '../../utils/logger.js';
+
+const logger = createLogger('设置UI');
 
 /**
  * 填充设置面板UI
@@ -232,14 +235,14 @@ export function bindSettingsSaveHandler($wrapper, deps) {
         saveApiSettings(newSettings);
 
         // 调试日志：显示保存的配置
-        console.log('[SBT-设置保存] 主LLM配置:', {
+        logger.debug('[设置保存] 主LLM配置:', {
             provider: newSettings.main.apiProvider,
             tavernProfile: newSettings.main.tavernProfile,
             modelName: newSettings.main.modelName || '(空)',
             hasUrl: !!newSettings.main.apiUrl,
             hasKey: !!newSettings.main.apiKey
         });
-        console.log('[SBT-设置保存] 回合裁判配置:', {
+        logger.debug('[设置保存] 回合裁判配置:', {
             provider: newSettings.conductor.apiProvider,
             tavernProfile: newSettings.conductor.tavernProfile,
             modelName: newSettings.conductor.modelName || '(空)',
@@ -329,7 +332,7 @@ export function bindAPITestHandlers($wrapper, deps) {
  * @param {Object} deps - 依赖注入对象（可选，不再需要）
  */
 export function loadSillyTavernPresets(deps) {
-    console.log('[SBT-预设] 正在加载 SillyTavern 预设列表');
+    logger.debug('[预设] 正在加载 SillyTavern 预设列表');
 
     try {
         // 直接使用导入的 USER 对象获取上下文
@@ -337,7 +340,7 @@ export function loadSillyTavernPresets(deps) {
         const tavernProfiles = context.extensionSettings?.connectionManager?.profiles || [];
 
         if (!tavernProfiles || tavernProfiles.length === 0) {
-            console.warn('[SBT-预设] 未找到 SillyTavern 预设');
+            logger.warn('[预设] 未找到 SillyTavern 预设');
             deps?.toastr?.warning('未找到可用的 SillyTavern 预设。请先在连接管理器中配置预设。', '预设加载失败');
             return;
         }
@@ -368,9 +371,9 @@ export function loadSillyTavernPresets(deps) {
             $conductorSelect.val(settings.conductor.tavernProfile);
         }
 
-        console.log(`[SBT-预设] 已加载 ${tavernProfiles.length} 个预设`);
+        logger.info(`[预设] 已加载 ${tavernProfiles.length} 个预设`);
     } catch (error) {
-        console.error('[SBT-预设] 加载预设失败:', error);
+        logger.error('[预设] 加载预设失败:', error);
     }
 }
 
@@ -688,7 +691,7 @@ export function bindModelRefreshHandlers($wrapper, deps) {
             const apiKey = String($('#sbt-api-key-input').val()).trim();
             const tavernProfile = String($('#sbt-preset-select').val() || '').trim();
 
-            console.log('[模型刷新] 主LLM - 提供商:', apiProvider);
+            logger.info('[模型刷新] 主LLM - 提供商:', apiProvider);
 
             // 调用 modelManager 获取模型列表
             const models = await fetchModels(apiProvider, apiUrl, apiKey, tavernProfile);
@@ -734,7 +737,7 @@ export function bindModelRefreshHandlers($wrapper, deps) {
             deps.toastr.success(`成功获取 ${models.length} 个模型`, '刷新成功');
 
         } catch (error) {
-            console.error('[模型刷新] 失败:', error);
+            logger.error('[模型刷新] 失败:', error);
             deps.toastr.error(error.message, '刷新失败', { timeOut: 8000 });
         } finally {
             $btn.prop('disabled', false).html(originalHtml);
@@ -754,7 +757,7 @@ export function bindModelRefreshHandlers($wrapper, deps) {
             const apiKey = String($('#sbt-conductor-api-key-input').val()).trim();
             const tavernProfile = String($('#sbt-conductor-preset-select').val() || '').trim();
 
-            console.log('[模型刷新] 回合裁判 - 提供商:', apiProvider);
+            logger.info('[模型刷新] 回合裁判 - 提供商:', apiProvider);
 
             const models = await fetchModels(apiProvider, apiUrl, apiKey, tavernProfile);
 
@@ -797,7 +800,7 @@ export function bindModelRefreshHandlers($wrapper, deps) {
             deps.toastr.success(`成功获取 ${models.length} 个模型`, '刷新成功');
 
         } catch (error) {
-            console.error('[模型刷新] 失败:', error);
+            logger.error('[模型刷新] 失败:', error);
             deps.toastr.error(error.message, '刷新失败', { timeOut: 8000 });
         } finally {
             $btn.prop('disabled', false).html(originalHtml);

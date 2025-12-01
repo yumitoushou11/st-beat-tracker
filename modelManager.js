@@ -2,6 +2,9 @@
 // 模型列表管理模块 - 负责从不同API提供商获取可用模型列表
 
 import { USER } from './src/engine-adapter.js';
+import { createLogger } from './utils/logger.js';
+
+const logger = createLogger('ModelManager');
 
 /**
  * 主调度函数：根据API提供商类型获取模型列表
@@ -12,7 +15,7 @@ import { USER } from './src/engine-adapter.js';
  * @returns {Promise<Array<string>>} 模型名称数组
  */
 export async function fetchModels(apiProvider, apiUrl = '', apiKey = '', tavernProfile = '') {
-    console.log(`[ModelManager] 正在获取模型列表... 提供商: ${apiProvider}`);
+    logger.info(`正在获取模型列表... 提供商: ${apiProvider}`);
 
     try {
         let models = [];
@@ -33,11 +36,11 @@ export async function fetchModels(apiProvider, apiUrl = '', apiKey = '', tavernP
                 break;
         }
 
-        console.log(`[ModelManager] 成功获取 ${models.length} 个模型`);
+        logger.info(`成功获取 ${models.length} 个模型`);
         return models;
 
     } catch (error) {
-        console.error('[ModelManager] 获取模型列表失败:', error);
+        logger.error('获取模型列表失败:', error);
         throw new Error(`获取模型列表失败: ${error.message}`);
     }
 }
@@ -47,7 +50,7 @@ export async function fetchModels(apiProvider, apiUrl = '', apiKey = '', tavernP
  * 注意：预设模式下，模型列表由连接管理器提供
  */
 async function fetchModelsFromPreset(profileId) {
-    console.log('[ModelManager-预设] 从 SillyTavern 预设获取模型列表');
+    logger.debug('[预设] 从 SillyTavern 预设获取模型列表');
 
     if (!profileId) {
         throw new Error('未选择 SillyTavern 预设');
@@ -64,7 +67,7 @@ async function fetchModelsFromPreset(profileId) {
     // 注意：不同的API类型可能有不同的模型获取方式
     const apiType = profile.api;
 
-    console.log(`[ModelManager-预设] 预设类型: ${apiType}`);
+    logger.debug(`[预设] 预设类型: ${apiType}`);
 
     // 尝试从预设中获取可用模型列表
     // 如果预设提供了模型列表，直接返回
@@ -87,7 +90,7 @@ async function fetchModelsFromPreset(profileId) {
     // 如果无法自动获取，返回预设中配置的单个模型
     const configuredModel = profile.preset?.model || profile.model;
     if (configuredModel) {
-        console.warn('[ModelManager-预设] 无法获取模型列表，返回预设中配置的单个模型');
+        logger.warn('[预设] 无法获取模型列表，返回预设中配置的单个模型');
         return [configuredModel];
     }
 
@@ -100,7 +103,7 @@ async function fetchModelsFromPreset(profileId) {
  * 因为模型列表通常是公开端点，不会有CORS问题
  */
 async function fetchModelsViaProxy(apiUrl, apiKey) {
-    console.log('[ModelManager-代理] 代理模式：尝试直接获取模型列表');
+    logger.debug('[代理] 代理模式：尝试直接获取模型列表');
 
     // 代理模式下，获取模型列表仍然直接调用目标API
     // 因为SillyTavern后端没有专门的模型列表代理端点
@@ -115,8 +118,8 @@ async function fetchModelsViaProxy(apiUrl, apiKey) {
  * @param {boolean} fromProxy - 是否来自代理模式调用
  */
 async function fetchModelsDirect(apiUrl, apiKey, fromProxy = false) {
-    const mode = fromProxy ? '[ModelManager-代理]' : '[ModelManager-直连]';
-    console.log(`${mode} 直接调用API获取模型列表`);
+    const mode = fromProxy ? '[代理]' : '[直连]';
+    logger.debug(`${mode} 直接调用API获取模型列表`);
 
     if (!apiUrl || !apiKey) {
         throw new Error('API URL 和 API Key 不能为空');
@@ -136,7 +139,7 @@ async function fetchModelsDirect(apiUrl, apiKey, fromProxy = false) {
         modelsUrl = modelsUrl.replace(/\/$/, '') + '/models';
     }
 
-    console.log(`${mode} 请求URL:`, modelsUrl);
+    logger.debug(`${mode} 请求URL:`, modelsUrl);
 
     let response;
     try {
@@ -149,7 +152,7 @@ async function fetchModelsDirect(apiUrl, apiKey, fromProxy = false) {
         });
     } catch (fetchError) {
         // 捕获网络错误（包括CORS错误）
-        console.error(`${mode} 网络请求失败:`, fetchError);
+        logger.error(`${mode} 网络请求失败:`, fetchError);
 
         const errorMsg = fetchError.message || fetchError.toString();
 
@@ -163,7 +166,7 @@ async function fetchModelsDirect(apiUrl, apiKey, fromProxy = false) {
 
     if (!response.ok) {
         const errorText = await response.text();
-        console.error(`${mode} API返回错误:`, response.status, errorText);
+        logger.error(`${mode} API返回错误:`, response.status, errorText);
 
         // 针对常见错误提供友好提示
         if (response.status === 404) {
@@ -176,7 +179,7 @@ async function fetchModelsDirect(apiUrl, apiKey, fromProxy = false) {
     }
 
     const data = await response.json();
-    console.log(`${mode} API响应:`, data);
+    logger.debug(`${mode} API响应:`, data);
 
     // 提取模型列表（兼容多种响应格式）
     let models = [];
@@ -205,9 +208,9 @@ async function fetchModelsDirect(apiUrl, apiKey, fromProxy = false) {
 export function cacheModels(cacheKey, models) {
     try {
         localStorage.setItem(cacheKey, JSON.stringify(models));
-        console.log(`[ModelManager] 模型列表已缓存: ${cacheKey}`);
+        logger.debug(`模型列表已缓存: ${cacheKey}`);
     } catch (error) {
-        console.warn('[ModelManager] 缓存模型列表失败:', error);
+        logger.warn('缓存模型列表失败:', error);
     }
 }
 
@@ -221,11 +224,11 @@ export function getCachedModels(cacheKey) {
         const cached = localStorage.getItem(cacheKey);
         if (cached) {
             const models = JSON.parse(cached);
-            console.log(`[ModelManager] 从缓存读取到 ${models.length} 个模型`);
+            logger.info(`从缓存读取到 ${models.length} 个模型`);
             return models;
         }
     } catch (error) {
-        console.warn('[ModelManager] 读取缓存失败:', error);
+        logger.warn('读取缓存失败:', error);
     }
     return null;
 }

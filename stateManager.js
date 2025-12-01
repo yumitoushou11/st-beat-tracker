@@ -1,5 +1,7 @@
 import { USER } from './src/engine-adapter.js';
+import { createLogger } from './utils/logger.js';
 
+const logger = createLogger('StateManager');
 const EXTENSION_NAME = 'st-beat-tracker';
 const API_SETTINGS_KEY = 'sbt-api-settings-v2'; // 本地备份（如果 extension_settings 不可用）
 
@@ -32,21 +34,21 @@ export function saveApiSettings(settings) {
             if (context.saveSettingsDebounced) {
                 context.saveSettingsDebounced();
             }
-            console.info("[SBT-StateManager] API设置已保存到 extension_settings（用户云端）");
+            logger.info("API设置已保存到 extension_settings（用户云端）");
         } else {
             // 降级：保存到 localStorage
-            console.warn("[SBT-StateManager] extension_settings 不可用，降级使用 localStorage");
+            logger.warn("extension_settings 不可用，降级使用 localStorage");
             localStorage.setItem(API_SETTINGS_KEY, JSON.stringify(settings));
         }
 
         apiSettings = settings;
     } catch (e) {
-        console.error("[SBT-StateManager] 保存API设置失败！", e);
+        logger.error("保存API设置失败！", e);
         // 尝试降级保存
         try {
             localStorage.setItem(API_SETTINGS_KEY, JSON.stringify(settings));
         } catch (fallbackError) {
-            console.error("[SBT-StateManager] localStorage 降级保存也失败！", fallbackError);
+            logger.error("localStorage 降级保存也失败！", fallbackError);
         }
     }
 }
@@ -64,7 +66,7 @@ export function loadApiSettings() {
             const parsed = context.extensionSettings[EXTENSION_NAME].apiSettings;
             apiSettings.main = { ...apiSettings.main, ...parsed.main };
             apiSettings.conductor = { ...apiSettings.conductor, ...parsed.conductor };
-            console.info("[SBT-StateManager] 已从 extension_settings 加载API设置（用户云端）");
+            logger.info("已从 extension_settings 加载API设置（用户云端）");
             loaded = true;
         }
 
@@ -75,11 +77,11 @@ export function loadApiSettings() {
                 const parsed = JSON.parse(storedSettings);
                 apiSettings.main = { ...apiSettings.main, ...parsed.main };
                 apiSettings.conductor = { ...apiSettings.conductor, ...parsed.conductor };
-                console.info("[SBT-StateManager] 已从 localStorage 加载API设置（降级）");
+                logger.info("已从 localStorage 加载API设置（降级）");
             }
         }
     } catch (e) {
-        console.error("[SBT-StateManager] 加载API设置失败！", e);
+        logger.error("加载API设置失败！", e);
     }
 }
 
@@ -96,19 +98,19 @@ export async function saveNarrativeModeToCharacter(settings) {
 
         // 获取当前角色
         if (!context.characters || !Array.isArray(context.characters)) {
-            console.warn("[SBT-StateManager] 无法获取角色列表");
+            logger.warn("无法获取角色列表");
             return false;
         }
 
         const currentCharId = context.characterId;
         if (currentCharId === undefined || currentCharId === null) {
-            console.warn("[SBT-StateManager] 没有选中的角色");
+            logger.warn("没有选中的角色");
             return false;
         }
 
         const character = context.characters[currentCharId];
         if (!character) {
-            console.warn("[SBT-StateManager] 无法获取当前角色数据");
+            logger.warn("无法获取当前角色数据");
             return false;
         }
 
@@ -143,10 +145,10 @@ export async function saveNarrativeModeToCharacter(settings) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        console.info("[SBT-StateManager] 叙事模式已保存到角色卡:", character.name, settings.default_mode);
+        logger.info("叙事模式已保存到角色卡:", character.name, settings.default_mode);
         return true;
     } catch (e) {
-        console.error("[SBT-StateManager] 保存叙事模式到角色卡失败！", e);
+        logger.error("保存叙事模式到角色卡失败！", e);
         return false;
     }
 }
@@ -160,33 +162,33 @@ export function loadNarrativeModeFromCharacter() {
         const context = USER.getContext();
 
         if (!context.characters || !Array.isArray(context.characters)) {
-            console.warn("[SBT-StateManager] 无法获取角色列表，使用默认叙事模式");
+            logger.warn("无法获取角色列表，使用默认叙事模式");
             return { ...narrativeModeSettings };
         }
 
         const currentCharId = context.characterId;
         if (currentCharId === undefined || currentCharId === null) {
-            console.warn("[SBT-StateManager] 没有选中的角色，使用默认叙事模式");
+            logger.warn("没有选中的角色，使用默认叙事模式");
             return { ...narrativeModeSettings };
         }
 
         const character = context.characters[currentCharId];
         if (!character) {
-            console.warn("[SBT-StateManager] 无法获取当前角色数据，使用默认叙事模式");
+            logger.warn("无法获取当前角色数据，使用默认叙事模式");
             return { ...narrativeModeSettings };
         }
 
         // 从角色卡读取叙事模式
         const savedMode = character.data?.extensions?.[EXTENSION_NAME]?.narrativeMode;
         if (savedMode) {
-            console.info("[SBT-StateManager] 已从角色卡加载叙事模式:", character.name, savedMode.default_mode);
+            logger.info("已从角色卡加载叙事模式:", character.name, savedMode.default_mode);
             return savedMode;
         } else {
-            console.info("[SBT-StateManager] 角色卡未设置叙事模式，使用默认值:", character.name);
+            logger.info("角色卡未设置叙事模式，使用默认值:", character.name);
             return { ...narrativeModeSettings };
         }
     } catch (e) {
-        console.error("[SBT-StateManager] 从角色卡加载叙事模式失败！", e);
+        logger.error("从角色卡加载叙事模式失败！", e);
         return { ...narrativeModeSettings };
     }
 }
@@ -198,7 +200,7 @@ export function loadNarrativeModeFromCharacter() {
 export function loadNarrativeModeSettings() {
     const settings = loadNarrativeModeFromCharacter();
     narrativeModeSettings = settings;
-    console.info("[SBT-StateManager] 叙事模式设置已初始化:", settings.default_mode);
+    logger.info("叙事模式设置已初始化:", settings.default_mode);
     return settings;
 }
 

@@ -1,4 +1,6 @@
 import { Agent } from './Agent.js';
+import { createLogger } from '../utils/logger.js';
+const logger = createLogger('AI代理');
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js'; 
 export class IntelligenceAgent extends Agent {
@@ -356,7 +358,7 @@ ${formattedWorldInfo}
         const prompt = this._createPrompt(worldInfoEntries, persona);
 
         console.groupCollapsed('[SBT-DIAGNOSE] Full IntelligenceAgent AI System Prompt');
-        console.log(prompt);
+        logger.debug(prompt);
         console.groupEnd();
 
         let responseText = null; // 1. 在try块外部声明，确保在catch中可访问
@@ -394,10 +396,10 @@ ${formattedWorldInfo}
             this.info("智能情报官AI 分析完成，ECI原子化静态数据库已建立。");
             const staticDb = initialData.staticMatrices;
             console.groupCollapsed('[SBT-DIAGNOSE] Intelligence Officer V3 Output');
-           console.log("完整的静态数据库 (staticMatrices):", staticDb);
-            console.log("  -> 角色 (characters):", staticDb.characters);
-            console.log("  -> 世界观 (worldview):", staticDb.worldview);
-            console.log("  -> 故事线 (storylines):", staticDb.storylines);
+           logger.debug("完整的静态数据库 (staticMatrices):", staticDb);
+            logger.debug("  -> 角色 (characters):", staticDb.characters);
+            logger.debug("  -> 世界观 (worldview):", staticDb.worldview);
+            logger.debug("  -> 故事线 (storylines):", staticDb.storylines);
             console.groupEnd();
 
             // 5. 返回经过严格校验的正确数据

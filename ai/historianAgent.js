@@ -1,4 +1,6 @@
 // ai/historianAgent.js (V10.0 - Compressed Edition)
+import { createLogger } from '../utils/logger.js';
+const logger = createLogger('AI代理');
 
 import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
@@ -16,18 +18,18 @@ export class HistorianAgent extends Agent {
         const prompt = this._createPrompt(context);
 
         console.groupCollapsed('[SBT-HISTORIAN] Full Historian AI System Prompt V10.0 (Compressed)');
-        console.log(prompt);
+        logger.debug(prompt);
         console.groupEnd();
 
         // 【探针】检查输入的章节数据中的故事线信息
         console.group('[HISTORIAN-PROBE] 输入章节数据检查');
-        console.log('staticMatrices.storylines 键:', Object.keys(context.chapter.staticMatrices.storylines));
+        logger.debug('staticMatrices.storylines 键:', Object.keys(context.chapter.staticMatrices.storylines));
         Object.entries(context.chapter.staticMatrices.storylines).forEach(([cat, quests]) => {
-            console.log(`  ${cat}: ${Object.keys(quests).length} 条`, Object.keys(quests));
+            logger.debug(`  ${cat}: ${Object.keys(quests).length} 条`, Object.keys(quests));
         });
-        console.log('dynamicState.storylines 键:', Object.keys(context.chapter.dynamicState.storylines));
+        logger.debug('dynamicState.storylines 键:', Object.keys(context.chapter.dynamicState.storylines));
         Object.entries(context.chapter.dynamicState.storylines).forEach(([cat, states]) => {
-            console.log(`  ${cat}: ${Object.keys(states).length} 条`, Object.keys(states));
+            logger.debug(`  ${cat}: ${Object.keys(states).length} 条`, Object.keys(states));
         });
         console.groupEnd();
 
@@ -74,7 +76,7 @@ export class HistorianAgent extends Agent {
                         const update = result.updates.storylines[cat][id];
                         const fields = Object.keys(update);
                         this.info(`    -> ${id}: 包含字段 [${fields.join(', ')}]`);
-                        console.log(`      完整内容:`, JSON.parse(JSON.stringify(update)));
+                        logger.debug(`      完整内容:`, JSON.parse(JSON.stringify(update)));
                     });
                 });
             } else {
@@ -136,16 +138,16 @@ export class HistorianAgent extends Agent {
 
         // 【探针】生成实体清单前先检查数据
         console.group('[HISTORIAN-PROBE] 生成实体清单');
-        console.log('staticMatrices.storylines 结构:', JSON.parse(JSON.stringify(staticMatrices.storylines)));
+        logger.debug('staticMatrices.storylines 结构:', JSON.parse(JSON.stringify(staticMatrices.storylines)));
 
         const storylineList = Object.entries(staticMatrices.storylines).flatMap(([category, quests]) => {
-            console.log(`  -> 分类 ${category}: ${Object.keys(quests).length} 条故事线`);
+            logger.debug(`  -> 分类 ${category}: ${Object.keys(quests).length} 条故事线`);
             return Object.entries(quests).map(([id, data]) => {
-                console.log(`    -> ${id}: ${data.title}`);
+                logger.debug(`    -> ${id}: ${data.title}`);
                 return `- ${data.title} (ID: ${id}, 分类: ${category})`;
             });
         });
-        console.log('生成的故事线列表:', storylineList);
+        logger.debug('生成的故事线列表:', storylineList);
         console.groupEnd();
 
         const existingEntityManifest = `

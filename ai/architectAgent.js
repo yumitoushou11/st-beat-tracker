@@ -1,4 +1,6 @@
 // ai/architectAgent.js
+import { createLogger } from '../utils/logger.js';
+const logger = createLogger('AI代理');
 
 import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
@@ -157,16 +159,16 @@ export class ArchitectAgent extends Agent {
         const prompt = this._createPrompt(context);
         
         console.groupCollapsed('[SBT-DIAGNOSE] Full Architect AI System Prompt V9.2');
-        console.log(prompt);
+        logger.debug(prompt);
         console.groupEnd();
 
         try {
             const responseText = await this.deps.mainLlmService.callLLM([{ role: 'user', content: prompt }], null, abortSignal);
             
             console.group('🕵️‍♂️ [ARCHITECT-BLACKBOX] Received Raw Output from LLM Service');
-            console.log('--- START OF RAW RESPONSE ---');
-            console.log(responseText);
-            console.log('--- END OF RAW RESPONSE ---');
+            logger.debug('--- START OF RAW RESPONSE ---');
+            logger.debug(responseText);
+            logger.debug('--- END OF RAW RESPONSE ---');
             console.groupEnd();
             
             let potentialJsonString;
@@ -447,7 +449,7 @@ _createPrompt(context) {
 
     // 【实体召回开关检测】默认关闭
     const isEntityRecallEnabled = localStorage.getItem('sbt-entity-recall-enabled') === 'true';
-    console.log(`[建筑师] 实体召回模式: ${isEntityRecallEnabled ? '启用' : '关闭（默认）'}`);
+    logger.debug(`[建筑师] 实体召回模式: ${isEntityRecallEnabled ? '启用' : '关闭（默认）'}`);
 
     // 【默认流程】使用系统默认提示词（带动态数据注入）
     const { chapter, firstMessageContent } = context;
