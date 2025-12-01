@@ -38,6 +38,7 @@
             <button id="btn-show-monitor" class="sbt-tab-btn active" data-panel="sbt-monitor-panel"><i class="fa-solid fa-wand-magic-sparkles fa-fw"></i> 创作工坊</button>
             <button id="btn-show-archive" class="sbt-tab-btn" data-panel="sbt-archive-panel"><i class="fa-solid fa-book-atlas fa-fw"></i> 世界档案</button>
             <button id="btn-show-compass" class="sbt-tab-btn" data-panel="sbt-compass-panel"><i class="fa-solid fa-compass-drafting fa-fw"></i> 叙事罗盘</button>
+            <button id="btn-show-console" class="sbt-tab-btn" data-panel="sbt-console-panel"><i class="fa-solid fa-terminal fa-fw"></i> 控制台</button>
             <button id="btn-show-settings" class="sbt-tab-btn" data-panel="sbt-settings-panel"><i class="fa-solid fa-cog fa-fw"></i> 设置</button>
         </nav>
 
@@ -464,7 +465,61 @@
 
             </div> <!-- 叙事罗盘面板结束 -->
 
-            <!-- ======================= 4. 设置面板 ======================= -->
+            <!-- ======================= 4. 控制台面板 ======================= -->
+            <div id="sbt-console-panel" class="sbt-tab-panel">
+
+                <div class="sbt-library-section">
+                    <h4 class="sbt-library-title">
+                        <i class="fa-solid fa-terminal fa-fw"></i> 前端控制台
+                    </h4>
+                    <p class="sbt-instructions">
+                        <strong>错误反馈工具</strong> - 只显示重要的系统信息、警告和错误。<br>
+                        <small style="color: #888;">💡 提示：控制台只拦截 <code>console.info/warn/error</code>，普通的 <code>console.log</code> 调试信息请在浏览器控制台(F12)查看。</small><br>
+                        <small style="color: #30D158;">✅ 启用智能过滤：自动过滤系统内部日志、去重、截断长消息。</small>
+                    </p>
+
+                    <div class="sbt-console-toolbar">
+                        <div class="sbt-console-filters">
+                            <button class="sbt-console-filter-btn active" data-filter="all" title="显示所有类型">
+                                <i class="fa-solid fa-list fa-fw"></i> 全部
+                            </button>
+                            <button class="sbt-console-filter-btn" data-filter="info" title="仅显示信息">
+                                <i class="fa-solid fa-info-circle fa-fw"></i> INFO
+                            </button>
+                            <button class="sbt-console-filter-btn" data-filter="warn" title="仅显示警告">
+                                <i class="fa-solid fa-triangle-exclamation fa-fw"></i> WARN
+                            </button>
+                            <button class="sbt-console-filter-btn" data-filter="error" title="仅显示错误">
+                                <i class="fa-solid fa-circle-exclamation fa-fw"></i> ERROR
+                            </button>
+                        </div>
+
+                        <div class="sbt-console-controls">
+                            <label class="sbt-console-autoscroll-label">
+                                <input type="checkbox" id="sbt-console-autoscroll" checked>
+                                <span>自动滚动</span>
+                            </label>
+                            <label class="sbt-console-autoscroll-label">
+                                <input type="checkbox" id="sbt-console-disable-filter">
+                                <span title="禁用后将显示所有日志，包括被过滤的模板代码">禁用过滤</span>
+                            </label>
+                            <button id="sbt-console-clear-btn" class="sbt-secondary-btn" title="清空控制台">
+                                <i class="fa-solid fa-trash fa-fw"></i> 清空
+                            </button>
+                            <button id="sbt-console-export-btn" class="sbt-secondary-btn" title="导出日志到文件">
+                                <i class="fa-solid fa-download fa-fw"></i> 导出
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="sbt-console-content" class="sbt-console-content">
+                        <!-- 日志将动态添加到这里 -->
+                    </div>
+                </div>
+
+            </div> <!-- 控制台面板结束 -->
+
+            <!-- ======================= 5. 设置面板 ======================= -->
             <div id="sbt-settings-panel" class="sbt-tab-panel">
 
                 <!-- 核心大脑 AI 配置 - 大分区 -->

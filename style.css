@@ -4258,3 +4258,222 @@ input:checked + .sbt-slider:before {
         justify-content: center;
     }
 }
+
+/* ======================= 控制台面板样式 ======================= */
+
+.sbt-console-toolbar {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 15px;
+    padding: 12px;
+    background-color: var(--sbt-bg-dark);
+    border-radius: 6px;
+    border: 1px solid var(--sbt-border-color);
+}
+
+.sbt-console-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sbt-console-filter-btn {
+    flex: 0 0 auto;
+    padding: 6px 12px;
+    border: 1px solid var(--sbt-border-color);
+    background-color: var(--sbt-bg-medium);
+    color: var(--sbt-text-medium);
+    font-size: 0.85em;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.sbt-console-filter-btn:hover {
+    background-color: var(--sbt-bg-dark);
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-console-filter-btn.active {
+    background-color: var(--sbt-primary-accent);
+    color: white;
+    border-color: var(--sbt-primary-accent);
+}
+
+.sbt-console-filter-btn i {
+    margin-right: 4px;
+}
+
+.sbt-console-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.sbt-console-autoscroll-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--sbt-text-medium);
+    font-size: 0.9em;
+    cursor: pointer;
+    user-select: none;
+}
+
+.sbt-console-autoscroll-label input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.sbt-console-autoscroll-label:hover {
+    color: var(--sbt-text-light);
+}
+
+.sbt-console-content {
+    background-color: #0A0A0A;
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 6px;
+    padding: 10px;
+    height: 500px;
+    overflow-y: auto;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    font-size: 0.85em;
+    line-height: 1.5;
+}
+
+.sbt-console-log {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 4px 6px;
+    margin-bottom: 2px;
+    border-radius: 3px;
+    transition: background-color 0.1s ease;
+}
+
+.sbt-console-log:hover {
+    background-color: rgba(255, 255, 255, 0.03);
+}
+
+.sbt-console-time {
+    color: #666;
+    font-size: 0.9em;
+    flex-shrink: 0;
+    width: 90px;
+}
+
+.sbt-console-type-icon {
+    flex-shrink: 0;
+    width: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.sbt-console-message {
+    color: var(--sbt-text-light);
+    word-wrap: break-word;
+    word-break: break-all;
+    white-space: pre-wrap;
+    flex: 1;
+}
+
+/* 不同日志类型的颜色 */
+.sbt-console-log.sbt-console-log .sbt-console-type-icon {
+    color: #0A84FF;
+}
+
+.sbt-console-log.sbt-console-info .sbt-console-type-icon {
+    color: #30D158;
+}
+
+.sbt-console-log.sbt-console-warn {
+    background-color: rgba(255, 159, 10, 0.05);
+}
+
+.sbt-console-log.sbt-console-warn .sbt-console-type-icon {
+    color: #FF9F0A;
+}
+
+.sbt-console-log.sbt-console-warn .sbt-console-message {
+    color: #FFB340;
+}
+
+.sbt-console-log.sbt-console-error {
+    background-color: rgba(255, 69, 58, 0.08);
+}
+
+.sbt-console-log.sbt-console-error .sbt-console-type-icon {
+    color: #FF453A;
+}
+
+.sbt-console-log.sbt-console-error .sbt-console-message {
+    color: #FF6B64;
+}
+
+.sbt-console-log.sbt-console-debug .sbt-console-type-icon {
+    color: #BF5AF2;
+}
+
+/* 截断标记 */
+.sbt-console-truncated-badge {
+    margin-left: 8px;
+    font-size: 0.9em;
+    opacity: 0.6;
+    cursor: help;
+}
+
+/* 滚动条样式 */
+.sbt-console-content::-webkit-scrollbar {
+    width: 10px;
+}
+
+.sbt-console-content::-webkit-scrollbar-track {
+    background-color: #1A1A1A;
+    border-radius: 5px;
+}
+
+.sbt-console-content::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 5px;
+}
+
+.sbt-console-content::-webkit-scrollbar-thumb:hover {
+    background-color: #666;
+}
+
+/* 响应式设计 */
+@media (max-width: 768px) {
+    .sbt-console-toolbar {
+        padding: 10px;
+    }
+
+    .sbt-console-filters {
+        gap: 6px;
+    }
+
+    .sbt-console-filter-btn {
+        padding: 5px 10px;
+        font-size: 0.8em;
+    }
+
+    .sbt-console-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .sbt-console-autoscroll-label {
+        justify-content: center;
+    }
+
+    .sbt-console-content {
+        height: 400px;
+        font-size: 0.8em;
+    }
+
+    .sbt-console-time {
+        width: 80px;
+        font-size: 0.85em;
+    }
+}
