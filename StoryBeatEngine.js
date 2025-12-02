@@ -1116,7 +1116,12 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
     const maskedBlueprint = JSON.parse(JSON.stringify(blueprint));
 
     // 【V9.0 简化】直接使用数字索引，不再解析字符串
-    const currentBeatIndex = currentBeatIdx || 0;
+    // 【修复】默认减一回合，避免AI多看一个节拍
+    const currentBeatIndex = Math.max(0, (currentBeatIdx || 0) - 1);
+
+    console.group('[信息迷雾] 剧本动态掩码处理');
+    console.log('原始节拍索引:', currentBeatIdx);
+    console.log('调整后索引（减1）:', currentBeatIndex);
 
     // 遍历节拍并应用掩码
     maskedBlueprint.plot_beats = maskedBlueprint.plot_beats.map((beat, index) => {
@@ -1186,6 +1191,11 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             };
         }
     }
+
+    // 【新增】在控制台打印掩码后的完整蓝图
+    console.log('掩码后的完整蓝图:');
+    console.dir(maskedBlueprint, { depth: null });
+    console.groupEnd();
 
     return maskedBlueprint;
 }

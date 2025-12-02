@@ -97,14 +97,20 @@ export class ConsoleManager {
      * 添加日志
      */
     addLog(type, ...args) {
-        // 🔧 控制台总开关检查 - 如果未启用，直接返回
-        if (!this.consoleEnabled) {
+        // 🔧 控制台总开关检查 - error级别总是显示，其他类型需要开关启用
+        if (!this.consoleEnabled && type !== 'error') {
             return;
         }
 
         const timestamp = new Date();
         let message = args.map(arg => {
             if (typeof arg === 'object') {
+                // 特殊处理 Error 对象
+                if (arg instanceof Error) {
+                    // 只显示错误消息，不显示冗长的堆栈追踪
+                    // 完整堆栈信息仍然会在浏览器控制台（F12）中显示
+                    return `❌ ${arg.message}`;
+                }
                 try {
                     return JSON.stringify(arg, null, 2);
                 } catch (e) {
@@ -137,10 +143,11 @@ export class ConsoleManager {
             }
         }
 
-        // 截断过长的消息
+        // 截断过长的消息 - error类型使用稍大的长度限制（2倍）
+        const maxLength = type === 'error' ? this.maxMessageLength * 2 : this.maxMessageLength;
         const originalLength = message.length;
-        if (message.length > this.maxMessageLength) {
-            message = message.substring(0, this.maxMessageLength) + `... (${originalLength - this.maxMessageLength} 字符已省略)`;
+        if (message.length > maxLength) {
+            message = message.substring(0, maxLength) + `... (${originalLength - maxLength} 字符已省略)`;
         }
 
         const logEntry = {

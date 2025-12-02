@@ -40,7 +40,16 @@ export class HistorianAgent extends Agent {
         console.groupEnd();
 
     try {
-       const responseText = await this.deps.mainLlmService.callLLM([{ role: 'user', content: prompt }], null, abortSignal);
+       // 🔥 静默流式回调：后台接收数据但不显示给用户，避免超时问题
+       const silentStreamCallback = (_chunk) => {
+           // 静默接收，不触发UI事件，只保持连接活跃
+       };
+
+       const responseText = await this.deps.mainLlmService.callLLM(
+           [{ role: 'user', content: prompt }],
+           silentStreamCallback,  // 👈 使用静默流式回调
+           abortSignal
+       );
 
         let potentialJsonString;
         const codeBlockMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);

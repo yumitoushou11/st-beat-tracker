@@ -157,13 +157,22 @@ export class ArchitectAgent extends Agent {
     async execute(context, abortSignal = null) {
         this.diagnose(`--- 章节建筑师AI V9.2 (Function Fix) 启动 --- 正在动态规划新章节...`);
         const prompt = this._createPrompt(context);
-        
+
         console.groupCollapsed('[SBT-DIAGNOSE] Full Architect AI System Prompt V9.2');
         logger.debug(prompt);
         console.groupEnd();
 
         try {
-            const responseText = await this.deps.mainLlmService.callLLM([{ role: 'user', content: prompt }], null, abortSignal);
+            // 🔥 静默流式回调：后台接收数据但不显示给用户，避免超时问题
+            const silentStreamCallback = (_chunk) => {
+                // 静默接收，不触发UI事件，只保持连接活跃
+            };
+
+            const responseText = await this.deps.mainLlmService.callLLM(
+                [{ role: 'user', content: prompt }],
+                silentStreamCallback,  // 👈 使用静默流式回调
+                abortSignal
+            );
             
             console.group('🕵️‍♂️ [ARCHITECT-BLACKBOX] Received Raw Output from LLM Service');
             logger.debug('--- START OF RAW RESPONSE ---');
@@ -594,11 +603,13 @@ _createPrompt(context) {
 ### **【法则零：高密度节拍 (High Density Law)】**
 **定义:** 1个节拍 = 1个完整的叙事段落 (500-800字)。
 **结构:** 必须包含 **[动作序列 + 语言交互 (对话/独白) + 状态改变]**。
+**核心原则:** 一个节拍是**完整的叙事单元**而非**单个镜头**。禁止生成纯渲染氛围或纯动作行为的节拍，每个节拍必须同时包含对话+动作+事件三要素。
 
 **执行标准:**
 1.  **禁止微观:** "伸手拿杯子"、"感到头晕"、"走到窗边"此类动作**禁止独立成拍**，必须合并进更大的事件中。
 2.  **数量控制:** 正常章节 **${beatCountRange}个** 节拍。超过12个说明颗粒度过细，必须合并。
 3.  **拒绝默剧:** 每个节拍必须包含**语言层面的输出**。如果是动作场面，必须伴随内心独白、喊叫或旁观者的评论。
+4.  **禁止单一维度:** 严禁生成只有"氛围描写"、只有"动作序列"或只有"对话"的节拍。每个节拍都必须是对话、动作、事件三者融合的完整叙事。
 
 ---
 

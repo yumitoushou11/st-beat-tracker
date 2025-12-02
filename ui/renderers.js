@@ -656,7 +656,9 @@ function renderRelationshipGraph(chapterState) {
     const unfamiliarStatuses = new Set(['陌生人', '点头之交', '单方面认识']);
 
     const relationshipGraph = chapterState?.staticMatrices?.relationship_graph;
-    const edges = relationshipGraph?.edges || [];
+    const edges = Array.isArray(relationshipGraph?.edges)
+        ? relationshipGraph.edges
+        : [];
 
     if (edges.length === 0) {
         container.html('<p class="sbt-instructions">暂无关系图谱数据。创世后将自动生成角色关系网络。</p>');
@@ -765,7 +767,9 @@ function renderRelationshipGraph(chapterState) {
 
         // 未解决张力标签
         let tensionsHtml = '';
-        const tensions = edge.narrative_status?.unresolved_tension || [];
+        const tensions = Array.isArray(edge.narrative_status?.unresolved_tension)
+            ? edge.narrative_status.unresolved_tension
+            : [];
         if (tensions.length > 0) {
             tensionsHtml = '<div class="sbt-unresolved-tensions">';
             tensions.forEach(tension => {
@@ -776,7 +780,9 @@ function renderRelationshipGraph(chapterState) {
 
         // 重大事件列表
         let eventsHtml = '';
-        const events = edge.narrative_status?.major_events || [];
+        const events = Array.isArray(edge.narrative_status?.major_events)
+            ? edge.narrative_status.major_events
+            : [];
         if (events.length > 0) {
             eventsHtml = '<div class="sbt-major-events-list">';
             events.forEach(event => {

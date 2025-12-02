@@ -346,6 +346,25 @@ async testConnection() {
                 proxy_password: this.config.api_key || '',
             };
 
+            // 【调试专用】打印完整请求体到前端控制台
+            // 使用error级别确保总是显示（这不是真正的错误，只是调试信息）
+            console.error('[🔍 API请求调试 - 非错误] 发送到SillyTavern代理的完整请求:', JSON.stringify({
+                模型名称: requestData.model,
+                API来源: requestData.chat_completion_source,
+                反向代理URL: requestData.reverse_proxy,
+                是否流式: requestData.stream,
+                最大tokens: requestData.max_tokens,
+                温度: requestData.temperature,
+                消息数量: messages.length,
+                密码状态: requestData.proxy_password ? '✅已设置' : '❌未设置',
+                完整消息内容: messages.map((msg, idx) => ({
+                    序号: idx + 1,
+                    角色: msg.role,
+                    内容长度: msg.content?.length || 0,
+                    内容预览: msg.content?.substring(0, 200) + (msg.content?.length > 200 ? '...' : '')
+                }))
+            }, null, 2));
+
             logger.debug('[代理-调试] 发送到 SillyTavern 后端的参数:', {
                 ...requestData,
                 proxy_password: requestData.proxy_password ? '***已设置***' : '(空)',
