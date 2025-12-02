@@ -609,6 +609,15 @@ const spoilerBlockPlaceholder = {
                 chapter: this.currentChapter // V2.0: 传递完整的 chapter 实例
             };
             this.debugLog('✓ chapter 实例已传递（包含 staticMatrices 和 stylistic_archive）');
+
+            // 【调试增强】打印传递给 turnConductor 的 blueprint 结构
+            this.debugLog('传递给 turnConductor 的 blueprint 信息:');
+            this.debugLog('  - plot_beats 数量:', this.currentChapter.chapter_blueprint?.plot_beats?.length || 0);
+            this.debugLog('  - 前3个节拍预览:');
+            this.currentChapter.chapter_blueprint?.plot_beats?.slice(0, 3).forEach((beat, idx) => {
+                this.debugLog(`    节拍${idx}: beat_id=${beat.beat_id}, has_physical_event=${!!beat.physical_event}, has_description=${!!beat.description}`);
+            });
+
             this.debugGroupEnd();
 
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
@@ -647,13 +656,15 @@ if (this.currentChapter.chapter_blueprint) {
 
     if (narrativeHold && narrativeHold.trim() !== '' && narrativeHold !== '无' && narrativeHold !== '无。') {
         spoilerBlockPlaceholder.content = [
-            `# 🚫 【剧透封锁】`,
+            `# 🚫 【绝对严格禁止 - 剧透封锁铁则】`,
+            ``,
+            `## ⚠️ 以下为绝对不可违反的禁令`,
             ``,
             narrativeHold
         ].join('\n');
         this.info('[SBT-INFO] ✓ 第0层剧透封锁已注入');
     } else {
-        spoilerBlockPlaceholder.content = `# 🚫 【剧透封锁】\n\n本回合无特殊封锁要求。`;
+        spoilerBlockPlaceholder.content = `# 🚫 【绝对严格禁止 - 剧透封锁铁则】\n\n本回合无特殊封锁要求。`;
         this.info('[SBT-INFO] ○ 第0层无封锁内容');
     }
 
@@ -810,6 +821,17 @@ if (this.currentChapter.chapter_blueprint) {
     });
     const beaconPreview = maskedBlueprint.endgame_beacon?.substring(0, 50) || maskedBlueprint.endgame_beacons?.[0]?.substring(0, 50) || '无';
     this.debugLog('终章信标状态:', beaconPreview);
+
+    // 【新增】验证高光设计掩码状态
+    if (maskedBlueprint.chapter_core_and_highlight) {
+        const highlightMasked = maskedBlueprint.chapter_core_and_highlight.highlight_design_logic?._masked;
+        const targetBeat = maskedBlueprint.chapter_core_and_highlight.highlight_design_logic?.target_beat_id;
+        this.debugLog('高光设计状态:', highlightMasked ? `(已屏蔽 - 目标节拍: ${targetBeat})` : '(完整可见)');
+        if (highlightMasked) {
+            this.debugLog('  ↳ 避免通过高光设计泄露未来节拍详情');
+        }
+    }
+
     this.debugGroupEnd();
 
     // V3.0 调试：验证第3层内容
@@ -884,14 +906,31 @@ if (this.currentChapter.chapter_blueprint) {
     _buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats) {
         const nextBeat = beats[currentBeatIdx + 1];
         const beatDescription = currentBeat?.physical_event || currentBeat?.description || '未知节拍';
+        const isHighlight = currentBeat?.is_highlight === true;
 
-        return [
+        const sections = [
             `# 🎬 【本回合执导指令】`,
             ``,
             `## 当前剧情进度`,
             `- **当前节拍 (Index ${currentBeatIdx}):** ${beatDescription}`,
             `- **下一节拍:** ${nextBeat ? (nextBeat.physical_event || nextBeat.description) : '（最后节拍）'}`,
-            ``,
+            ``
+        ];
+
+        // 🌟 高光节点特殊指令
+        if (isHighlight) {
+            sections.push(
+                `## ⚠️ 【★ 高光时刻】`,
+                ``,
+                `本节拍是本章的情感支点，请不计篇幅成本地详细演绎：`,
+                `- 充分展开情感细节和内心活动`,
+                `- 使用丰富的感官描写`,
+                `- 允许使用更长的篇幅来刻画这一关键时刻`,
+                ``
+            );
+        }
+
+        sections.push(
             `## 执导原则（必须严格遵守）`,
             ``,
             `### 1. 节点判定的宽容性`,
@@ -913,7 +952,9 @@ if (this.currentChapter.chapter_blueprint) {
             `- **停止位置:** 在当前节拍的核心事件完成后结束`,
             `- 可以自然延伸对话和互动，但不要触发下一节拍的核心事件`,
             ``
-        ].join('\n');
+        );
+
+        return sections.join('\n');
     }
 
  _consolidateChapterEvents(log, startIndex, endIndex) {
@@ -1096,7 +1137,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         } else {
             // 未来的节拍：物理屏蔽内容
             return {
-                beat_id: beat.beat_id,
+                beat_id: `【节拍${index + 1}：内容已屏蔽】`,
                 status: "【待解锁】",
                 description: "【数据删除 - 此时不可见】",
                 type: "Unknown",
@@ -1113,6 +1154,36 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         }
         if (maskedBlueprint.endgame_beacon) {
             maskedBlueprint.endgame_beacon = "【数据删除 - 仅在最后节拍解锁】";
+        }
+    }
+
+    // 【修复】屏蔽 chapter_core_and_highlight 中的导演意图，避免影响AI自然演绎
+    if (maskedBlueprint.chapter_core_and_highlight) {
+        const highlightInfo = maskedBlueprint.chapter_core_and_highlight;
+
+        // 提取目标节拍ID
+        const targetBeatId = highlightInfo.highlight_design_logic?.target_beat_id
+                          || highlightInfo.highlight_directive?.target_beat;
+
+        if (targetBeatId) {
+            // 查找目标节拍的索引
+            const targetBeatIndex = maskedBlueprint.plot_beats.findIndex(
+                beat => beat.beat_id === targetBeatId
+            );
+
+            // 【关键修改】始终屏蔽导演意图的详细内容，避免AI被"导演思维"污染
+            // 只保留 creative_core 让AI理解情感方向，但不告诉它具体怎么做
+            maskedBlueprint.chapter_core_and_highlight = {
+                creative_core: highlightInfo.creative_core,
+                highlight_design_logic: {
+                    _masked: true,
+                    _note: "【数据删除 - 导演意图已屏蔽，请AI根据节拍内容自然演绎】"
+                },
+                highlight_directive: {
+                    _masked: true,
+                    _note: "【数据删除 - 执行指令已屏蔽，请AI根据节拍内容自然演绎】"
+                }
+            };
         }
     }
 

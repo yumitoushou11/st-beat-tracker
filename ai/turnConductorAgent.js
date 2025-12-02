@@ -146,43 +146,63 @@ _createPrompt(context) {
     return BACKEND_SAFE_PASS_PROMPT + `
 # 指令：剧情状态定位 (Plot State Navigation) V9.0
 
-**任务:** 分析最新对话，判断剧情进展到了剧本的哪一步。
+任务:通过分析对话内容，判断剧情当前处于剧本的哪个节拍。
 **原则:** 仅仅定位，不要创作。
 
 ## 1. 当前章节剧本流程（你需要严格遵循的剧情节拍）
-**重要说明:** 以下是本章节的完整剧本流程，前台AI必须按照这些节拍推进剧情。每个节拍的 \`physical_event\` 描述了该阶段应该发生的事件，\`exit_condition\` 描述了完成该节拍的条件。
+以下是本章节的完整剧本流程。每个节拍的 \`event\` 描述了该阶段应该发生的事件，\`exit_condition\` 描述了完成该节拍的条件。
 
 \`\`\`json
 ${JSON.stringify(beats.map((b, i) => ({ index: i, event: b.physical_event || b.description, exit_condition: b.exit_condition })), null, 2)}
 \`\`\`
 
 **终章信标:** ${endgameBeacon}
-**注意:** 前台AI在生成回复时，应该遵循当前剧本节拍的指引，确保剧情按照规划的流程推进。
 
-## 2. 最新对话
+## 2. 最新对话内容
 ${lastExchange}
 
-## 3. 判定法则 (必须严格遵守)
+## 3. 节点定位流程（必须严格执行）
 
-**A. 节点判定 (宽容度 & 参与度)**
-1. **语义匹配:** 只要玩家/AI的行为在*意图*上符合节拍描述即可，无需字面完全一致
-2. **对话场景铁律:** 如果当前节拍包含 exit_condition，只有当**玩家做出了实质性回应**后，才算完成
-3. **抢跑检测:** 如果完成当前节拍后，下一节拍是*单纯的AI描述/环境变化*，则自动合并进当前进度(index + 1)
+步骤1：确定当前所在节拍
+- 仔细阅读"最新对话"中的 AI 情境描述
+- 逐一对比 AI 已经描写的内容与剧本中各节拍的 \`event\` 字段
+- 找出哪些节拍已经在对话中完成，哪些还未开始
 
-**B. 剧透封锁 (Anti-Spoiler)**
-- 查看**当前进度之后**的节拍
-- 将后续才该出现的人/事/物列入 \`narrative_hold\`
+步骤2：设置 current_beat_idx
 
-**C. 终章检测**
-- 如果所有节拍均已完成，且满足终章信标 → \`status: "TRIGGER_TRANSITION"\`
+情况A：存在未完成的节拍
+- 将第一个未完成节拍的 index 设为 \`current_beat_idx\`
+- 检查玩家最新行动是否满足该节拍的 \`exit_condition\`（如果有）
+- 如果玩家输入仅为"继续"等无实质内容 → 保持在当前节拍
 
-## 4. 输出格式 (JSON)
+情况B：所有节拍都已完成（进入终章）
+- 这意味着 AI 已完成最后一个节拍，现在应该输出终章信标内容
+- 设置 \`current_beat_idx = 节拍总数\`（超出索引范围）
+- 在步骤4中必须输出 \`status: "TRIGGER_TRANSITION"\`
+
+## 4. 决策判定（按顺序检查）
+
+检查1：是否已到达终点？
+- 如果 \`current_beat_idx >= 节拍总数\` → 所有节拍已完成
+-输出 \`status: "TRIGGER_TRANSITION"\`
+- 本回合 AI 应该描写终章信标的内容
+
+检查2：以上皆否？
+- \`status: "CONTINUE"\`
+- **剧透封锁铁则**：扫描 \`current_beat_idx\` 之后的所有节拍，将后续才会出现的角色、地点、物品、事件列入 \`narrative_hold\`，使用**绝对严格禁止**的语气
+
+语义匹配原则：
+- 判断节拍是否完成时，使用**意图匹配**而非字面匹配
+- 只要 AI 描写的事件在语义上对应节拍内容，即视为完成
+- 如果节拍有 \`exit_condition\`，必须等玩家做出实质性回应后才算完成
+
+## 5. 输出格式 (JSON)
 
 \`\`\`json
 {
   "status": "[CONTINUE / TRIGGER_TRANSITION]",
   "current_beat_idx": [整数: 当前正在进行或刚刚完成的节拍索引],
-  "narrative_hold": "[字符串: 列出禁止提及的后续关键名词，如'禁止描写地下室的尸体']",
+  "narrative_hold": "[字符串: 使用'严格禁止'的强硬语气列出后续内容。格式：'严格禁止提及角色[名称]、严格禁止描写[事件]、严格禁止暗示[剧情]']",
   "realtime_context_ids": [${isEntityRecallEnabled ? '"[规划外实体ID列表]"' : ''}]
 }
 \`\`\`
