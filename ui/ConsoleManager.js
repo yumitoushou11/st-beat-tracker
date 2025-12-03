@@ -104,7 +104,7 @@ export class ConsoleManager {
 
         const timestamp = new Date();
         let message = args.map(arg => {
-            if (typeof arg === 'object') {
+            if (typeof arg === 'object' && arg !== null) {
                 // 特殊处理 Error 对象
                 if (arg instanceof Error) {
                     // 只显示错误消息，不显示冗长的堆栈追踪
@@ -112,7 +112,24 @@ export class ConsoleManager {
                     return `❌ ${arg.message}`;
                 }
                 try {
-                    return JSON.stringify(arg, null, 2);
+                    const jsonStr = JSON.stringify(arg, null, 2);
+                    // 如果JSON序列化结果是空对象或空数组，尝试提取更多信息
+                    if (jsonStr === '{}' || jsonStr === '[]') {
+                        // 尝试提取对象的所有属性（包括不可枚举的）
+                        const keys = Object.getOwnPropertyNames(arg);
+                        if (keys.length > 0) {
+                            const obj = {};
+                            keys.forEach(key => {
+                                try {
+                                    obj[key] = arg[key];
+                                } catch (e) {
+                                    obj[key] = '[无法访问]';
+                                }
+                            });
+                            return JSON.stringify(obj, null, 2);
+                        }
+                    }
+                    return jsonStr;
                 } catch (e) {
                     return String(arg);
                 }

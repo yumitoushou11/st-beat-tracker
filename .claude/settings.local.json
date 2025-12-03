@@ -12,7 +12,8 @@
       "Bash(chcp)",
       "Bash(dir /B *.txt)",
       "Bash(dir /B /O-D d:a1SillyTavernpublicscriptsextensionsthird-partyst-beat-trackersbt-console-*.txt)",
-      "Bash(cmd /c \"dir /B /O-D sbt-console-*.txt\")"
+      "Bash(cmd /c \"dir /B /O-D sbt-console-*.txt\")",
+      "Bash(dir /B /S \"d:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\")"
     ],
     "deny": [],
     "ask": []

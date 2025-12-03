@@ -138,7 +138,11 @@ async testConnection() {
                 }
                 
                 lastError = error;
-                console.warn(`[LLMApiService] 第 ${attempt} 次API调用失败:`, error);
+                console.warn(`[LLMApiService] 第 ${attempt} 次API调用失败:`, {
+                    message: error?.message || String(error),
+                    name: error?.name,
+                    stack: error?.stack?.split('\n')?.[0]
+                });
 
                  if (retryToast) this.EDITOR.clear(retryToast);
 
@@ -416,7 +420,14 @@ async testConnection() {
             return this.#cleanResponse(content);
 
         } catch (error) {
-            console.error("通过 SillyTavern 内部路由调用 LLM API 错误:", error);
+            // 正确序列化错误信息，避免显示为空对象 {}
+            const errorDetails = {
+                message: error?.message || '未知错误',
+                name: error?.name,
+                status: error?.status,
+                stack: error?.stack?.split('\n').slice(0, 3).join('\n')
+            };
+            console.error("通过 SillyTavern 内部路由调用 LLM API 错误:", errorDetails);
             throw error;
         }
     }
@@ -546,7 +557,14 @@ async testConnection() {
                 return await this.#handleRegularResponse(apiEndpoint, headers, data, abortSignal);
             }
         } catch (error) {
-            console.error("直接调用 LLM API 错误:", error);
+            // 正确序列化错误信息，避免显示为空对象 {}
+            const errorDetails = {
+                message: error?.message || '未知错误',
+                name: error?.name,
+                status: error?.status,
+                stack: error?.stack?.split('\n').slice(0, 3).join('\n')
+            };
+            console.error("直接调用 LLM API 错误:", errorDetails);
             throw error;
         }
     }
