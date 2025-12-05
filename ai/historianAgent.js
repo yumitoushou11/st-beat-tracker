@@ -220,6 +220,11 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 **逻辑节点**: [突破]道具/情报打破卡点 | [转折]局势逆转 | [分支]不可逆选择 | [终结]目标达成/失败
 **输出**: \`updates.storylines.<cat>.<id>\` → {current_status, current_summary, history_entry{timestamp: "${currentTimestamp}", status: "active", summary: "因[事件]，任务进入[新阶段]", chapter: ${currentChapterNumber}}}
 
+#### **分类与摘要铁律 (STRICTLY ENFORCED)**
+- **分类隔离铁律**: 严禁将 \`main_quests\` (主线) 或 \`side_quests\` (支线) 的 ID（如 \`quest_xxx\`）放入 \`personal_arcs\` 中。\`personal_arcs\` 与其他任何分类的故事线ID都不能重复。
+- **Personal Arc 定义**: 仅限角色的内心成长、心理创伤修复或价值观转变。具体的“杀怪/找东西”任务属于 side_quests。
+- **乱码零容忍**: 如果没有新的摘要更新，请直接省略 \`summary\` 字段，**严禁**输出“尚未撰写”、“暂无”等占位符，这会导致系统乱码。
+
 #### **Personal Arc 防滥建条款 (New)**
 - 只有当角色经历了跨越至少两幕、可验证的自我价值观/身份认知转折时，才允许新建 personal_arcs。单章内的情绪波动、被迫顺从或一次性反应，必须记录在现有主线/关系弧的历史记录中。
 - 若相关议题在过往章节已有故事线（如“寻找归宿”），必须更新原线而不是重新创建近似标题。

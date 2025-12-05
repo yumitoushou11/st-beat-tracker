@@ -1425,12 +1425,70 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         }
         return guide;
     }
+
+    /**
+     * @private
+     * V10.1 修复：清理AI生成的摘要中的常见乱码和占位符。
+     * @param {string} text - 需要清理的摘要文本。
+     * @returns {string} - 清理后的文本，或在无效输入时返回标准占位符。
+     */
+    _sanitizeText(text) {
+        if (!text || typeof text !== 'string') return "（暂无详细摘要）";
+        // 过滤常见的乱码模式（如"尚未撰写摘要"的GBK->UTF8错乱编码）或无意义的占位符
+        if (text.includes('δ׫') || text.includes('дժ') || text.trim().length < 5 || text.includes("尚未撰写") || text.includes("暂无")) {
+            return "（暂无详细摘要）";
+        }
+        return text;
+    }
+
+    /**
+     * @private
+     * V10.1 修复：在所有故事线分类中查找指定的storylineId，以应对AI分类错误。
+     * @param {Chapter} chapter - 要搜索的章节对象。
+     * @param {string} storylineId - 要查找的故事线ID。
+     * @returns {{category: string, staticStoryline: object, dynamicStoryline: object}|null} - 包含正确分类和对象的结构，如果未找到则返回null。
+     */
+    _findStorylineAcrossCategories(chapter, storylineId) {
+        const categories = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
+        for (const category of categories) {
+            if (chapter.staticMatrices.storylines[category] && chapter.staticMatrices.storylines[category][storylineId]) {
+                return {
+                    category: category,
+                    staticStoryline: chapter.staticMatrices.storylines[category][storylineId],
+                    dynamicStoryline: chapter.dynamicState.storylines[category]?.[storylineId]
+                };
+            }
+        }
+        return null;
+    }
+
         _applyStateUpdates(workingChapter, delta) {
         this.info("--- 引擎核心：开始应用状态更新Delta ---");
-        
+
+        // V10.1 步骤零：预处理和防御
+        // 🛡️ 防御1: 清理顶层摘要
+        if (delta.new_long_term_summary) {
+            delta.new_long_term_summary = this._sanitizeText(delta.new_long_term_summary);
+        }
+
         // 步骤一：处理新实体的创生 (Creations)
         if (delta.creations && delta.creations.staticMatrices) {
             this.info(" -> 检测到新实体创生请求...");
+
+            // 🛡️ 防御2: 防止创建已存在于其他分类的故事线
+            if (delta.creations.staticMatrices.storylines) {
+                const creators = delta.creations.staticMatrices.storylines;
+                for (const category in creators) {
+                    for (const storylineId in creators[category]) {
+                        const found = this._findStorylineAcrossCategories(workingChapter, storylineId);
+                        if (found) {
+                            this.warn(`🛡️ [防污染] 史官尝试在 ${category} 中创建一个已存在的故事线 ${storylineId} (实际位于 ${found.category})。已拦截该创建操作。`);
+                            delete creators[category][storylineId]; // 从创建请求中移除
+                        }
+                    }
+                }
+            }
+
             // 使用深度合并，将新创建的静态档案安全地并入现有的staticMatrices中
             workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, delta.creations.staticMatrices);
             this.diagnose(" -> 新的静态实体档案已合并。", delta.creations.staticMatrices);
@@ -1635,134 +1693,123 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 }
             }
 
-            // 更新故事线动态和静态
-            if (updates.storylines) {
-                this.debugGroup('[SBE-PROBE] 故事线更新流程启动');
-                this.info(`检测到故事线更新请求，分类数量: ${Object.keys(updates.storylines).length}`);
-                this.debugLog('史官输出的完整 updates.storylines:', JSON.parse(JSON.stringify(updates.storylines)));
-
-                for (const category in updates.storylines) { // main_quests, side_quests...
-                    this.debugGroup(`[SBE-PROBE] 处理分类: ${category}`);
-                    this.info(`  -> 当前分类: ${category}, 故事线数量: ${Object.keys(updates.storylines[category]).length}`);
-
-                    if (!workingChapter.dynamicState.storylines[category]) {
-                        workingChapter.dynamicState.storylines[category] = {};
-                        this.info(`  -> 已初始化 dynamicState.storylines.${category}`);
-                    }
-                    if (!workingChapter.staticMatrices.storylines[category]) {
-                        workingChapter.staticMatrices.storylines[category] = {};
-                        this.info(`  -> 已初始化 staticMatrices.storylines.${category}`);
-                    }
-
-                    this.debugLog(`现有的 staticMatrices.storylines.${category} 故事线:`, Object.keys(workingChapter.staticMatrices.storylines[category]));
-
-                    for (const storylineId in updates.storylines[category]) {
-                        this.debugGroup(`[SBE-PROBE] 处理故事线: ${storylineId}`);
-                        const storylineUpdate = updates.storylines[category][storylineId];
-                        this.info(`  -> 正在处理故事线: ${category}/${storylineId}`);
-                        this.debugLog('史官提供的更新内容:', JSON.parse(JSON.stringify(storylineUpdate)));
-
-                        // 确保故事线在 staticMatrices 中存在
-                        if (!workingChapter.staticMatrices.storylines[category][storylineId]) {
-                            this.warn(`❌ 警告：尝试更新不存在的故事线 ${category}/${storylineId}，跳过此更新`);
-                            this.debugLog('现有故事线列表:', Object.keys(workingChapter.staticMatrices.storylines[category]));
-                            this.debugGroupEnd();
-                            continue;
-                        }
-
-                        // 更新动态状态
-                        if (!workingChapter.dynamicState.storylines[category][storylineId]) {
-                            workingChapter.dynamicState.storylines[category][storylineId] = { history: [] };
-                            this.info(`  -> 已初始化 dynamicState.storylines.${category}.${storylineId}`);
-                        }
-                        const dynamicStoryline = workingChapter.dynamicState.storylines[category][storylineId];
-                        this.debugLog('更新前的动态状态:', JSON.parse(JSON.stringify(dynamicStoryline)));
-
-                        let dynamicUpdated = false;
-                        if (storylineUpdate.current_status) {
-                            dynamicStoryline.current_status = storylineUpdate.current_status;
-                            this.info(`    ✓ 已更新 current_status: ${storylineUpdate.current_status}`);
-                            dynamicUpdated = true;
-                        }
-                        if (storylineUpdate.current_summary) {
-                            dynamicStoryline.current_summary = storylineUpdate.current_summary;
-                            this.info(`    ✓ 已更新 current_summary: ${storylineUpdate.current_summary.substring(0, 50)}...`);
-                            dynamicUpdated = true;
-                        }
-                        if (storylineUpdate.history_entry) {
-                            // V3.1: 只保留最新的完整reasoning，避免UI过长
-                            // 将完整的reasoning存储到latest_reasoning字段（替换模式）
-                            dynamicStoryline.latest_reasoning = storylineUpdate.history_entry;
-
-                            // 在history中只保留简化的状态变化记录（可选：限制长度）
-                            const simplifiedEntry = {
-                                timestamp: storylineUpdate.history_entry.timestamp || new Date().toISOString(),
-                                status: storylineUpdate.history_entry.status || dynamicStoryline.current_status || 'active',
-                                summary: storylineUpdate.history_entry.summary || storylineUpdate.history_entry.summary_update || '',
-                                chapter: storylineUpdate.history_entry.chapter || workingChapter.meta.chapterNumber
-                            };
-                            dynamicStoryline.history.push(simplifiedEntry);
-
-                            // 限制history长度，只保留最近10条记录
-                            if (dynamicStoryline.history.length > 10) {
-                                dynamicStoryline.history = dynamicStoryline.history.slice(-10);
-                            }
-
-                            this.info(`    ✓ 已添加历史记录条目（简化版）`);
-                            dynamicUpdated = true;
-                        }
-
-                        // 【关键修复】更新静态字段
-                        const staticStoryline = workingChapter.staticMatrices.storylines[category][storylineId];
-                        this.debugLog('更新前的静态状态:', JSON.parse(JSON.stringify(staticStoryline)));
-
-                        let staticUpdated = false;
-                        // 更新基本字段（如果史官提供了新值）
-                        if (storylineUpdate.title) {
-                            staticStoryline.title = storylineUpdate.title;
-                            this.info(`    ✓ 已更新静态字段 title: ${storylineUpdate.title}`);
-                            staticUpdated = true;
-                        }
-                        if (storylineUpdate.summary) {
-                            staticStoryline.summary = storylineUpdate.summary;
-                            this.info(`    ✓ 已更新静态字段 summary: ${storylineUpdate.summary.substring(0, 50)}...`);
-                            staticUpdated = true;
-                        }
-                        if (storylineUpdate.status) {
-                            staticStoryline.status = storylineUpdate.status;
-                            this.info(`    ✓ 已更新静态字段 status: ${storylineUpdate.status}`);
-                            staticUpdated = true;
-                        }
-                        if (storylineUpdate.trigger) {
-                            staticStoryline.trigger = storylineUpdate.trigger;
-                            this.info(`    ✓ 已更新静态字段 trigger: ${storylineUpdate.trigger}`);
-                            staticUpdated = true;
-                        }
-                        if (storylineUpdate.type) {
-                            staticStoryline.type = storylineUpdate.type;
-                            this.info(`    ✓ 已更新静态字段 type: ${storylineUpdate.type}`);
-                            staticUpdated = true;
-                        }
-                        if (storylineUpdate.involved_chars) {
-                            staticStoryline.involved_chars = storylineUpdate.involved_chars;
-                            this.info(`    ✓ 已更新静态字段 involved_chars: [${storylineUpdate.involved_chars.join(', ')}]`);
-                            staticUpdated = true;
-                        }
-
-                        if (dynamicUpdated || staticUpdated) {
-                            this.info(`  ✅ 故事线 ${category}/${storylineId} 更新完成 (动态:${dynamicUpdated}, 静态:${staticUpdated})`);
-                        } else {
-                            this.warn(`  ⚠️ 故事线 ${category}/${storylineId} 没有任何字段被更新`);
-                        }
-
-                        this.debugLog('更新后的动态状态:', JSON.parse(JSON.stringify(dynamicStoryline)));
-                        this.debugLog('更新后的静态状态:', JSON.parse(JSON.stringify(staticStoryline)));
-                        this.debugGroupEnd();
-                    }
-                    this.debugGroupEnd();
+            // V10.1 更新故事线（重构逻辑）
+             if (updates.storylines) {
+            this.debugGroup('[SBE-CORE] 故事线更新 - ID优先寻址模式');
+            
+            // 1. 构建本地全局 ID 索引表 (Registry)
+            // 目的：无论 AI 把 ID 扔到哪个分类下，我们都能瞬间找到它在数据库里的真实老家
+            const localIdRegistry = {}; 
+            const validCategories = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
+            
+            validCategories.forEach(realCat => {
+                if (workingChapter.staticMatrices.storylines[realCat]) {
+                    Object.keys(workingChapter.staticMatrices.storylines[realCat]).forEach(id => {
+                        localIdRegistry[id] = realCat; // 映射关系: id -> 真实分类
+                    });
                 }
-                this.debugGroupEnd();
-            } else {
+            });
+
+            // 2. 扁平化 AI 的输入流
+            // 我们不关心 AI 把数据放进了 updates.storylines.main_quests 还是 personal_arcs
+            // 我们只把它们看作一堆待处理的 { id, data } 数据包
+            const flatUpdateQueue = [];
+            
+            for (const aiCat in updates.storylines) {
+                for (const id in updates.storylines[aiCat]) {
+                    flatUpdateQueue.push({
+                        id: id,
+                        data: updates.storylines[aiCat][id],
+                        aiSuggestedCat: aiCat // 仅作为参考或新建时的默认值
+                    });
+                }
+            }
+
+            // 3. 处理队列
+            for (const item of flatUpdateQueue) {
+                const { id, data, aiSuggestedCat } = item;
+                
+                // --- 核心修复：寻址逻辑 ---
+                let targetCategory = localIdRegistry[id];
+                let isNewCreation = false;
+
+                if (targetCategory) {
+                    // Case A: ID 已存在于数据库中
+                    if (targetCategory !== aiSuggestedCat) {
+                        this.warn(`🛡️ [架构纠偏] 修正 ID 归属: ${id} (AI误判: ${aiSuggestedCat} -> 修正为: ${targetCategory})`);
+                    }
+                } else {
+                    // Case B: ID 不存在 (这可能是一个真正的 New Creation，或者是彻底的幻觉)
+                    // 只有当提供了 title 时，我们才认可它是创建操作，否则视为幻觉丢弃
+                    if (data.title) {
+                        isNewCreation = true;
+                        targetCategory = aiSuggestedCat; // 新建时，暂时信任 AI 的分类
+                        this.info(`✨ [新线创建] 接纳新 ID: ${id} 归入 ${targetCategory}`);
+                        
+                        // 初始化结构
+                        if (!workingChapter.staticMatrices.storylines[targetCategory]) {
+                            workingChapter.staticMatrices.storylines[targetCategory] = {};
+                        }
+                        if (!workingChapter.dynamicState.storylines[targetCategory]) {
+                            workingChapter.dynamicState.storylines[targetCategory] = {};
+                        }
+                        
+                        // 注册到静态库 (防止后续循环报错)
+                        workingChapter.staticMatrices.storylines[targetCategory][id] = {
+                            title: data.title,
+                            summary: data.summary || "（暂无摘要）",
+                            status: data.status || "active",
+                            type: targetCategory
+                        };
+                    } else {
+                        this.warn(`🗑️ [幻觉过滤] 丢弃无效更新: ${id} (ID不存在且未提供title，无法创建)`);
+                        continue; // 跳过此条目
+                    }
+                }
+
+                // --- 数据应用逻辑 (此时 targetCategory 绝对正确) ---
+                
+                // 确保动态库存在
+                if (!workingChapter.dynamicState.storylines[targetCategory]) {
+                    workingChapter.dynamicState.storylines[targetCategory] = {};
+                }
+                
+                // 初始化动态对象
+                if (!workingChapter.dynamicState.storylines[targetCategory][id]) {
+                    workingChapter.dynamicState.storylines[targetCategory][id] = { history: [] };
+                }
+
+                const dynamicObj = workingChapter.dynamicState.storylines[targetCategory][id];
+                const staticObj = workingChapter.staticMatrices.storylines[targetCategory][id];
+
+                // 数据清洗
+                const cleanStr = (s) => (s && typeof s === 'string' && !s.includes('δ׫') && !s.includes('')) ? s : null;
+
+                // 1. 更新动态字段
+                if (data.current_status) dynamicObj.current_status = data.current_status;
+                if (data.current_summary) dynamicObj.current_summary = cleanStr(data.current_summary);
+                
+                // 2. 更新历史记录
+                if (data.history_entry) {
+                    dynamicObj.latest_reasoning = data.history_entry;
+                    dynamicObj.history.push({
+                        timestamp: data.history_entry.timestamp || new Date().toISOString(),
+                        status: data.history_entry.status || dynamicObj.current_status || 'active',
+                        summary: cleanStr(data.history_entry.summary) || "（进度推进）",
+                        chapter: workingChapter.meta.chapterNumber || 1
+                    });
+                    if (dynamicObj.history.length > 10) dynamicObj.history = dynamicObj.history.slice(-10);
+                }
+
+                // 3. 更新静态字段 (如果 AI 提供了修改)
+                if (data.title) staticObj.title = data.title;
+                if (data.summary) staticObj.summary = cleanStr(data.summary);
+                if (data.status) staticObj.status = data.status;
+
+                this.info(`  ✅ ID [${id}] 更新完成 (Hash: ${targetCategory})`);
+            }
+            this.debugGroupEnd();
+        }else {
                 this.info("史官未提供任何故事线更新（updates.storylines 为空）");
             }
             this.diagnose(" -> 实体动态状态已更新。", updates);
@@ -1771,7 +1818,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         // 步骤三：更新元数据
         if (delta.new_long_term_summary) {
             this.info(" -> 正在更新长篇故事摘要...");
-            workingChapter.meta.longTermStorySummary = delta.new_long_term_summary;
+            workingChapter.meta.longTermStorySummary = delta.new_long_term_summary; // 已经在顶部清理过
         }
         if (delta.new_handoff_memo) {
             this.info(" -> 正在更新章节交接备忘录...");
