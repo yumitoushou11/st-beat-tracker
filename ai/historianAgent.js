@@ -220,18 +220,29 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 **逻辑节点**: [突破]道具/情报打破卡点 | [转折]局势逆转 | [分支]不可逆选择 | [终结]目标达成/失败
 **输出**: \`updates.storylines.<cat>.<id>\` → {current_status, current_summary, history_entry{timestamp: "${currentTimestamp}", status: "active", summary: "因[事件]，任务进入[新阶段]", chapter: ${currentChapterNumber}}}
 
+#### **Personal Arc 防滥建条款 (New)**
+- 只有当角色经历了跨越至少两幕、可验证的自我价值观/身份认知转折时，才允许新建 personal_arcs。单章内的情绪波动、被迫顺从或一次性反应，必须记录在现有主线/关系弧的历史记录中。
+- 若相关议题在过往章节已有故事线（如“寻找归宿”），必须更新原线而不是重新创建近似标题。
+- 不满足条件时，请保持 \`creations.staticMatrices.storylines.personal_arcs\` 为空。
+
+#### **谜团/危机追踪器 (New)**
+- 对于持续出现但尚未命名/解决的现象（如未知吼叫频段、重复出现的神秘信号、无法解释的环境失常），若跨章节仍无定论，必须创建 side_quest 或 main_quest 进行跟踪。
+- 新线 \`trigger\` 需写明首次出现的场景，\`summary\` 必须说明当前掌握的信息与待解问题。
+- 当本章仅复述旧线索或调查陷入僵局时，请在相应故事线的 history_entry 中写“继续调查但无突破”，进度可以保持 0% 或不变，禁止让线索凭空消失。
+
 ### **M4: 角色档案全维度更新**
 可更新: core{identity身份}, 外貌, personality{性格特质, 价值观, 说话风格}, goals, capabilities{战斗技能, 社交技能, 特殊能力, 弱点}, equipment{武器, 护甲, 物品}, experiences{到访地点, 参与事件, 人生里程碑}
 **禁令**: 不使用\`operation/values/append\`等操作符，数组必须输出完整的更新后数组。
-
 ### **M5: 剪辑师双轨摘要**
 **第一轨**: \`new_long_term_summary\` (200-400字宏观故事摘要)
+  - **维护逻辑**: 以 \`longTermStorySummary\` 为底稿，撰写“截至本章结束”的全局剧情概览，而非复述本章梗概。必须说明本章新增事件如何嵌入既有格局，并点出新的母题/悬念。
+  - **结构建议**: ①旧格局回顾（1-2句）→ ②本章造成的结构性变化（2-3句）→ ③新的威胁/希望/悬念（1句）。
+  - **禁令**: 禁止出现“本章/这一章”字样；不得只描述眼前场景；严禁让上一章的重要线索在摘要里消失。
 **第二轨**: \`new_handoff_memo\` {ending_snapshot, transition_mode, action_handoff}
 - **seamless**: 下一章从结束瞬间的下一秒开始 (高张力时刻)
-- **jump_cut**: 跳过垃圾时间(洗澡/睡觉/赶路)，跳到下一个有意义节点
+- **jump_cut**: 跳过垃圾时间(洗澡/睡觉/赶路)，直接跳到下一个有意义节点
 - **scene_change**: 切换到不同时空
 **垃圾时间**: 纯生理循环/无意义移动/睡眠过程/等待 → 用jump_cut跳过
-
 ### **M6: 关系图谱状态更新**
 **新关系创建**: 两个角色首次建立联系 → 加入\`creations.staticMatrices.relationship_graph.edges\`
 **已有关系更新**: 本章有直接对话/身体接触 → 更新\`relationship_updates\`数组

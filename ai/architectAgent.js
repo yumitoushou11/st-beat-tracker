@@ -7,6 +7,18 @@ import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js';
 import { deepmerge } from '../utils/deepmerge.js';
 
+const safeLocalStorageGet = (key) => {
+    if (typeof localStorage === 'undefined') {
+        return null;
+    }
+    try {
+        return localStorage.getItem(key);
+    } catch (error) {
+        logger.warn(`[ArchitectAgent] 无法读取 localStorage 键 "${key}"`, error);
+        return null;
+    }
+};
+
 
 // 【试验阶段】战术模块：ABC情感沉浸流（按需注入）
 const IMMERSION_MODE_PROMPT = `
@@ -194,10 +206,7 @@ export class ArchitectAgent extends Agent {
             }
             
             const result = repairAndParseJson(potentialJsonString, this);
-            if (!result || !result.chapter_blueprint || !result.chapter_blueprint.plot_beats || !result.chapter_blueprint.chapter_core_and_highlight) {
-                this.diagnose("建筑师AI返回的JSON结构不符合“蓝图”模式。Parsed Object:", result);
-                throw new Error("建筑师AI未能返回包含有效 'chapter_blueprint' 的JSON。");
-            }
+            this._validateArchitectResult(result);
 
             this.info("--- 章节建筑师AI V10.0 --- 新章节的创作蓝图已成功生成。");
             return { 
@@ -215,6 +224,41 @@ export class ArchitectAgent extends Agent {
                 this.toastr.error(`章节蓝图构思失败: ${error.message.substring(0, 200)}...`, "建筑师AI错误");
             }
             return null;
+        }
+    }
+
+    _validateArchitectResult(result) {
+        const baseError = "章节建筑师AI未能返回有效的蓝图响应";
+        if (!result || typeof result !== 'object') {
+            throw new Error(`${baseError}：根对象为空。`);
+        }
+
+        const blueprint = result.chapter_blueprint;
+        if (!blueprint || typeof blueprint !== 'object') {
+            throw new Error(`${baseError}：缺少 chapter_blueprint。`);
+        }
+
+        if (!Array.isArray(blueprint.plot_beats) || blueprint.plot_beats.length === 0) {
+            throw new Error(`${baseError}：plot_beats 不存在或为空。`);
+        }
+
+        if (!blueprint.chapter_core_and_highlight || !blueprint.chapter_core_and_highlight.highlight_design_logic) {
+            throw new Error(`${baseError}：缺少 chapter_core_and_highlight.highlight_design_logic。`);
+        }
+
+        const designNotes = result.design_notes;
+        if (!designNotes || typeof designNotes !== 'object') {
+            throw new Error(`${baseError}：design_notes 缺失。`);
+        }
+
+        const mandatoryNoteKeys = ['player_focus_execution', 'event_priority_report', 'emotional_tone_strategy'];
+        const missingKeys = mandatoryNoteKeys.filter((key) => !designNotes[key]);
+        if (missingKeys.length) {
+            throw new Error(`${baseError}：design_notes 缺少字段 ${missingKeys.join(', ')}。`);
+        }
+
+        if (!designNotes.event_priority_report?.beat_allocation) {
+            throw new Error(`${baseError}：event_priority_report.beat_allocation 缺失。`);
         }
     }
 
@@ -327,11 +371,9 @@ _generateOutputSpecification(config) {
     },
 
     "new_entities_proposal": "[可选：NEW:前缀实体的定义说明]",
-    "storyline_weaving": "[选择了哪1-2条故事线及理由]",
-    "connection_and_hook": "[承上启下说明]",
-    "storyline_weaving": "[选择了哪1-2条故事线及理由]",
-    "ending_structure_choice": "[情感悬崖 / 软着陆] - 说明你为什么选择在这个点切断剧情？", // 新增字段
-    "connection_and_hook": "[承上启下说明 + 软着陆/情感悬崖]",
+    "storyline_weaving": "[选择了哪1-2条故事线及理由（若有次要线请说明如何兼容）]",
+    "connection_and_hook": "[承上启下说明 + 软着陆/情感悬崖/反钩回弹的钩子设计]",
+    "ending_structure_choice": "[情感悬崖 / 软着陆 / 反钩回弹] - 说明你为什么选择在这个点切断剧情？", // 新增字段
   "chapter_blueprint": {
     "title": "[章节名]",${isEntityRecallEnabled ? `
     "chapter_context_ids": ["char_A", "loc_B", "NEW:item_C"],` : ''}
@@ -461,7 +503,7 @@ _createPrompt(context) {
     }
 
     // 【实体召回开关检测】默认关闭
-    const isEntityRecallEnabled = localStorage.getItem('sbt-entity-recall-enabled') === 'true';
+    const isEntityRecallEnabled = safeLocalStorageGet('sbt-entity-recall-enabled') === 'true';
     logger.debug(`[建筑师] 实体召回模式: ${isEntityRecallEnabled ? '启用' : '关闭（默认）'}`);
 
     // 【默认流程】使用系统默认提示词（带动态数据注入）
@@ -473,7 +515,7 @@ _createPrompt(context) {
         const longTermStorySummary = chapter?.meta?.longTermStorySummary || "故事刚刚开始。";
         const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
         // V4.2: 获取玩家设置的章节节拍数量区间
-        const beatCountRange = localStorage.getItem('sbt-beat-count-range') || '8-10';
+        const beatCountRange = safeLocalStorageGet('sbt-beat-count-range') || '8-10';
         // V8.0: 提取故事线追踪数据和文体档案
         const staticStorylines = chapter?.staticMatrices?.storylines || {
             main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
@@ -826,16 +868,20 @@ ${JSON.stringify(chronology, null, 2)}
    *   **高光标记 (is_highlight):** 若 \`emotional_weight >= 8\`，标记为 true，并填写入 \`highlight_directive\`。
 **2. 结尾逻辑 (Ending Logic - The Art of the Cut):**
    *   **最后节拍 (Last Beat):** 完成本章剧情，抛出钩子。
-   *   **【结构性裁决：悬崖 vs 着陆 (Cliffhanger vs Landing)】**
+  *   **【结构性裁决：悬崖 vs 软着陆 vs 反钩回弹】**
        *   **判据:** 检查本章是否包含 **Tier 2 (S级)** 的高能事件（尤其是涉及重逢、秘密揭露、突发危机）。
        *   **Mode A: 情感悬崖 (The Cliffhanger) - [当存在S级事件时强制执行]**
            *   **指令:** 故事必须在冲突/情绪的**最高点**戛然而止。**严禁**描写冲突后的平复、解释或日常回归。
            *   *Fail (反面教材):* 角色A震惊地看着久别的角色B -> A深吸一口气，递给B一杯水 -> 两人坐下开始寒暄。（泄气，变成了流水账）。
            *   *Pass (正面教材):* 角色A震惊地看着久别的角色B -> A手中的杯子滑落，碎片飞溅到B的脚边 -> **(CUT! 本章结束)**。
-       *   **Mode B: 软着陆 (Soft Landing) - [仅限日常/过渡章节]**
-           *   **指令:** 情绪回落，为下一章做铺垫。
+      *   **Mode B: 软着陆 (Soft Landing) - [仅限日常/过渡章节]**
+          *   **指令:** 情绪回落，为下一章做铺垫。
+      *   **Mode C: 反钩回弹 (Reverse Hook) - [用于“先收束再反击”的章节]**
+          *   **指令:** 先让剧情进入短暂的落地或错觉式解决，再在最后一帧抛出反向张力（如旧伏笔反噬、信息战第二段爆弹），制造“以为结束却被反咬”的体验。反钩内容必须与本章核心议题强绑定，时长不可超过 1 个镜头，否则应拆到下一章。
+          *   *安全阀:* 反钩必须建立在本章已铺陈的信息上，禁止凭空引入全新人物/设定。
    *   **终章信标 (Endgame Beacon):** 描述最后节拍**之后 (T+1时刻)** 发生的、**无歧义的可观测事件**。
-       *   **悬崖模式下的信标:** 必须是**"静止的张力"**。例如：环境的空镜（火星熄灭）、僵持的动作（伸在半空的手）、或打破死寂的突兀声响（心跳声、远处的钟声）。**绝对禁止**描写缓解尴尬的动作（如喝水、咳嗽、坐下）。
+      *   **悬崖模式下的信标:** 必须是**"静止的张力"**。例如：环境的空镜（火星熄灭）、僵持的动作（伸在半空的手）、或打破死寂的突兀声响（心跳声、远处的钟声）。**绝对禁止**描写缓解尴尬的动作（如喝水、咳嗽、坐下）。
+      *   **反钩模式下的信标:** 先用一笔巩固“落地后的秩序”，紧接着呈现反向张力的第一个可观测征兆（如灯灭后的暗影脚步、告别后立即弹出的新密讯），让读者意识到真正的危机即将反扑。
        *   **核心铁律:** 信标必须是新内容，**严禁重复**最后节拍的内容！
 ${isEntityRecallEnabled ? `       * **3. 上下文预取 (Context Injection):**
    *   在 \`chapter_context_ids\` 中列出本章涉及的所有实体 ID (char/loc/item/quest)。
