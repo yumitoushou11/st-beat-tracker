@@ -17,6 +17,11 @@ export class HistorianAgent extends Agent {
 
         const prompt = this._createPrompt(context);
 
+        // [SBT-DEBUG] 打印完整输入
+        console.groupCollapsed('【SBT-DEBUG】Historian Agent 完整输入');
+        console.log(prompt);
+        console.groupEnd();
+
         console.groupCollapsed('[SBT-HISTORIAN] Full Historian AI System Prompt V10.0 (Compressed)');
         logger.debug(prompt);
         console.groupEnd();
@@ -50,6 +55,11 @@ export class HistorianAgent extends Agent {
            silentStreamCallback,  // 👈 使用静默流式回调
            abortSignal
        );
+
+        // [SBT-DEBUG] 打印完整输出
+        console.groupCollapsed('【SBT-DEBUG】Historian Agent 完整输出');
+        console.log(responseText);
+        console.groupEnd();
 
         let potentialJsonString;
         const codeBlockMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
@@ -202,9 +212,9 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
   - concepts: {name, description, significance}
   - events: {name, description, timeframe, participants}
   - races: {name, description, traits}
-- **故事线**: 识别新触发的故事线（主线/支线/关系弧/个人成长）
-  - {title, type, summary, trigger, involved_chars, initial_summary}
-  - 分类: main_quests/side_quests/relationship_arcs/personal_arcs
+- **故事线**: 识别新触发的任务或关系。
+  - **允许创建**: \`main_quests\`, \`side_quests\`, \`relationship_arcs\` (当建立新关系或关系性质发生根本改变时)。
+  - **禁止创建**: \`personal_arcs\` (心理成长仅限更新已有项)。
 - **关系边**: 发现两个角色首次建立联系时，创建新的relationship_graph.edges
   - {id, participants:[char1, char2], type, relationship_label, timeline{meeting_status, separation_state}, narrative_status{first_scene_together}}
 
@@ -214,21 +224,24 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 - 0-10陌生: 礼貌客套，保持距离 | 11-40熟悉: 日常交谈，事务性 | 41-70信任: 真诚分享，主动帮助 | 71-90亲密: 分享秘密，为对方承担风险 | 91-100羁绊: 默契理解，自我牺牲
 **输出**: \`updates.characters.<NPC_ID>.social.relationships.<target_ID>\` → {current_affinity, history_entry{change, reasoning}}
 
-### **M3: 故事线逻辑链审计 (V10.0核心)**
+M3: 故事线逻辑链审计
 **创建新故事线**: 录像中触发了新任务/关系/成长线 → 加入\`creations.staticMatrices.storylines.<cat>.<id>\`
 **更新已有故事线**: ❌ "进度+10%" → ✅ "因A导致从X到Y"
 **逻辑节点**: [突破]道具/情报打破卡点 | [转折]局势逆转 | [分支]不可逆选择 | [终结]目标达成/失败
 **输出**: \`updates.storylines.<cat>.<id>\` → {current_status, current_summary, history_entry{timestamp: "${currentTimestamp}", status: "active", summary: "因[事件]，任务进入[新阶段]", chapter: ${currentChapterNumber}}}
+双轨制故事线管理:
+**轨道一：【物理/人际事件】-> 允许新建或更新**
+- 适用分类: \`main_quests\`, \`side_quests\`, \`relationship_arcs\`
+- 当出现新任务或**新的人际关系**时，允许在 \`creations\` 中新建。
+
+**轨道二：【纯心理演变】-> 仅限更新，禁止新建**
+- 适用分类: \`personal_arcs\` (个人成长)
+- **绝对禁令**: **严禁**为心理活动创建新的 ID。不要在 \`creations\` 里写 \`personal_arcs\`！
 
 #### **分类与摘要铁律 (STRICTLY ENFORCED)**
 - **分类隔离铁律**: 严禁将 \`main_quests\` (主线) 或 \`side_quests\` (支线) 的 ID（如 \`quest_xxx\`）放入 \`personal_arcs\` 中。\`personal_arcs\` 与其他任何分类的故事线ID都不能重复。
 - **Personal Arc 定义**: 仅限角色的内心成长、心理创伤修复或价值观转变。具体的“杀怪/找东西”任务属于 side_quests。
 - **乱码零容忍**: 如果没有新的摘要更新，请直接省略 \`summary\` 字段，**严禁**输出“尚未撰写”、“暂无”等占位符，这会导致系统乱码。
-
-#### **Personal Arc 防滥建条款 (New)**
-- 只有当角色经历了跨越至少两幕、可验证的自我价值观/身份认知转折时，才允许新建 personal_arcs。单章内的情绪波动、被迫顺从或一次性反应，必须记录在现有主线/关系弧的历史记录中。
-- 若相关议题在过往章节已有故事线（如“寻找归宿”），必须更新原线而不是重新创建近似标题。
-- 不满足条件时，请保持 \`creations.staticMatrices.storylines.personal_arcs\` 为空。
 
 #### **谜团/危机追踪器 (New)**
 - 对于持续出现但尚未命名/解决的现象（如未知吼叫频段、重复出现的神秘信号、无法解释的环境失常），若跨章节仍无定论，必须创建 side_quest 或 main_quest 进行跟踪。
@@ -289,7 +302,6 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
         "main_quests": {"quest_id": {title, type, summary, trigger, involved_chars, initial_summary}},
         "side_quests": {},
         "relationship_arcs": {},
-        "personal_arcs": {}
       },
       "relationship_graph": {
         "edges": [{"id": "rel_id", "participants": ["char1", "char2"], "type": "stranger_with_history", "relationship_label": "初次相遇", "timeline": {"meeting_status": "陌生人"}, "narrative_status": {"first_scene_together": true}}]

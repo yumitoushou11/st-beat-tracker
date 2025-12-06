@@ -1488,6 +1488,22 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                     }
                 }
             }
+            
+            // 🛡️ [新增] 故事线创建审查机制
+            if (delta.creations.staticMatrices.storylines) {
+                const newStorylines = delta.creations.staticMatrices.storylines;
+                
+                // 定义只允许用户手动创建的“高抽象”分类
+                const RESTRICTED_CATEGORIES = ['personal_arcs', 'relationship_arcs'];
+                
+                for (const category of RESTRICTED_CATEGORIES) {
+                    if (newStorylines[category]) {
+                        this.warn(`🛡️ [权限拦截] 阻止 AI 自动创建 ${category}。该分类仅限用户手动管理，或 AI 仅能更新已有项。`);
+                        // 直接删除 AI 的创建请求，把它扼杀在摇篮里
+                        delete newStorylines[category]; 
+                    }
+                }
+            }
 
             // 使用深度合并，将新创建的静态档案安全地并入现有的staticMatrices中
             workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, delta.creations.staticMatrices);
