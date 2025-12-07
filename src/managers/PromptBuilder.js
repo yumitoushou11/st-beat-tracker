@@ -9,7 +9,7 @@
  * @date 2025-12-07
  */
 
-import { DIRECTOR_RULEBOOK_PROMPT, AFFINITY_BEHAVIOR_MATRIX_PROMPT } from '../ai/prompt_templates.js';
+import { DIRECTOR_RULEBOOK_PROMPT, AFFINITY_BEHAVIOR_MATRIX_PROMPT } from '../../ai/prompt_templates.js';
 
 /**
  * 提示词构建管理器类
