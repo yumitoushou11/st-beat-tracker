@@ -228,14 +228,15 @@ export class TransitionManager {
                         this.info("已有一个提前规划弹窗在等待输入，忽略重复点击");
                         return;
                     }
-    
+
                     const $btn = $('#sbt-early-focus-btn');
                     this.info("玩家点击了提前规划按钮，开始并行捕获输入...");
-    
+
                     // 创建独立的Promise，不阻塞史官（包装为总是resolve的Promise）
                     playerInputPromise = (async () => {
                         try {
-                            return await this._captureEarlyFocusInput(workingChapter, $btn);
+                            const result = await this._captureEarlyFocusInput(workingChapter, $btn);
+                            return result;
                         } catch (error) {
                             this.warn("提前规划输入失败，将回退到常规弹窗", error);
                             return null; // 返回null表示失败，后续会触发常规弹窗
@@ -282,7 +283,8 @@ export class TransitionManager {
     
                     // 等待玩家输入Promise完成（无论成功或失败都会resolve）
                     await playerInputPromise;
-    
+                    playerInputPromise = null; // 重置变量，允许下次点击
+
                     if (this.LEADER.earlyPlayerInput) {
                         // 玩家成功完成了提前规划
                         this.info("使用玩家提前输入的焦点");
