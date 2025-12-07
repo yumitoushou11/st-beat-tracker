@@ -2,7 +2,6 @@
 
 import { Chapter } from './Chapter.js';
 import * as stateManager from './stateManager.js';
-import { DIRECTOR_RULEBOOK_PROMPT, AFFINITY_BEHAVIOR_MATRIX_PROMPT } from './ai/prompt_templates.js';
 import { USER, LEADER, EDITOR } from './src/engine-adapter.js';
 import { simpleHash } from './utils/textUtils.js';
 import * as staticDataManager from './src/StaticDataManager.js';
@@ -21,6 +20,7 @@ import { DebugLogger } from './src/utils/DebugLogger.js';
 import { TextSanitizer } from './src/utils/TextSanitizer.js';
 import { ChapterAnalyzer } from './src/utils/ChapterAnalyzer.js';
 import { ServiceFactory } from './src/services/ServiceFactory.js';
+import { PromptBuilder } from './src/managers/PromptBuilder.js';
 
 export class StoryBeatEngine {
     constructor(dependencies) {
@@ -642,7 +642,7 @@ if (this.currentChapter.chapter_blueprint) {
     const beats = this.currentChapter.chapter_blueprint.plot_beats || [];
     const currentBeat = beats[currentBeatIdx];
 
-    const hardcodedInstructions = this._buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats);
+    const hardcodedInstructions = PromptBuilder.buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats);
 
     instructionPlaceholder.content = hardcodedInstructions;
 
@@ -811,7 +811,7 @@ if (this.currentChapter.chapter_blueprint) {
     this.logger.groupEnd();
 
     // 【V3.2 重构】第4层：通用核心法则与关系指南
-    const regularSystemPrompt = this._buildRegularSystemPrompt();
+    const regularSystemPrompt = PromptBuilder.buildRegularSystemPrompt(this.currentChapter);
     rulesPlaceholder.content = [
         `# **【第4层：通用核心法则与关系指南】**`,
         `## (Core Rules & Relationship Guide)`,
@@ -827,7 +827,7 @@ if (this.currentChapter.chapter_blueprint) {
         } else {
             this.info("裁判模式已关闭。将注入通用剧本和规则，给予AI更高自由度...");
 
-            const regularSystemPrompt = this._buildRegularSystemPrompt(); // 包含核心法则和关系指南
+            const regularSystemPrompt = PromptBuilder.buildRegularSystemPrompt(this.currentChapter); // 包含核心法则和关系指南
    const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
 
             const classicPrompt = [
@@ -856,76 +856,6 @@ if (this.currentChapter.chapter_blueprint) {
         this.isConductorActive = false;
         this.info("[Lock] Prompt注入流程执行完毕，会话锁已立即释放。");    }
 };
-    _buildRegularSystemPrompt() {
-        const relationshipGuide = this._buildRelationshipGuide();
-
- return [
-        DIRECTOR_RULEBOOK_PROMPT,
-        relationshipGuide
-    ].join('\n\n---\n\n');
-}
-
-    /**
-     * 【V9.0 新增】构建硬编码的执导规则（不再由裁判AI生成）
-     * @param {number} currentBeatIdx - 当前节拍索引
-     * @param {object} currentBeat - 当前节拍对象
-     * @param {array} beats - 所有节拍数组
-     * @returns {string} 格式化的执导指令
-     */
-    _buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats) {
-        const nextBeat = beats[currentBeatIdx + 1];
-        const beatDescription = currentBeat?.physical_event || currentBeat?.description || '未知节拍';
-        const isHighlight = currentBeat?.is_highlight === true;
-
-        const sections = [
-            `# 🎬 【本回合执导指令】`,
-            ``,
-            `## 当前剧情进度`,
-            `- **当前节拍 (Index ${currentBeatIdx}):** ${beatDescription}`,
-            `- **下一节拍:** ${nextBeat ? (nextBeat.physical_event || nextBeat.description) : '（最后节拍）'}`,
-            ``
-        ];
-
-        // 🌟 高光节点特殊指令
-        if (isHighlight) {
-            sections.push(
-                `## ⚠️ 【★ 高光时刻】`,
-                ``,
-                `本节拍是本章的情感支点，请不计篇幅成本地详细演绎：`,
-                `- 充分展开情感细节和内心活动`,
-                `- 使用丰富的感官描写`,
-                `- 允许使用更长的篇幅来刻画这一关键时刻`,
-                ``
-            );
-        }
-
-        sections.push(
-            `## 执导原则（必须严格遵守）`,
-            ``,
-            `### 1. 节点判定的宽容性`,
-            `- 只要玩家的行为在**意图**上符合当前节拍，即可推进`,
-            `- 不要死板纠结字面细节，理解玩家的真实意图`,
-            ``,
-            `### 2. 对话节点必须等待玩家参与`,
-            `${currentBeat?.exit_condition ? `- **当前节拍有退出条件:** ${currentBeat.exit_condition}` : ''}`,
-            `- 如果当前节拍涉及对话或互动，必须等待玩家的实质性回应`,
-            `- 不要自问自答，不要替玩家做决定`,
-            ``,
-            `### 3. 信息迷雾协议（防止剧透）`,
-            `- **你只能看到当前节拍及之前的内容**`,
-            `- 未来的节拍已被物理删除，你无法提前描写`,
-            `- 专注于当前节拍的演绎，不要猜测或暗示后续内容`,
-            ``,
-            `### 4. 停止位置`,
-            `- **本回合目标:** 完成当前节拍 (Index ${currentBeatIdx})`,
-            `- **停止位置:** 在当前节拍的核心事件完成后结束`,
-            `- 可以自然延伸对话和互动，但不要触发下一节拍的核心事件`,
-            ``
-        );
-
-        return sections.join('\n');
-    }
-
  _consolidateChapterEvents(log, startIndex, endIndex) {
         this.info(`[Event Consolidation] 正在固化消息索引 ${startIndex} 到 ${endIndex} 之间的关系事件...`);
 
@@ -976,72 +906,6 @@ if (this.currentChapter.chapter_blueprint) {
         this.info(`[Event Consolidation] 固化完成！已将 ${relationshipUpdates.length} 条独立事件合并为1条总结事件。`);
         return consolidatedLog;
     }
-_formatMicroInstruction(instruction) {
-    // 如果输入无效，返回空字符串（主要内容已在 _buildStrictNarrativeConstraints 中输出）
-    if (!instruction || typeof instruction !== 'object') {
-        return "";
-    }
-    const { corrective_action } = instruction;
-    // 如果是校准指令，显示校准提示
-    if (corrective_action && corrective_action.toLowerCase() !== '无 (none)') {
-        return `**校准提示:** ${corrective_action}`;
-    }
-
-    // 常规情况下返回空，因为主要内容已在 _buildStrictNarrativeConstraints 中
-    return "";
-}
-
-/**
- * V4.2: 构建强化负面约束（方案三：Prompt强化）
- * narrative_hold 已移至独立的第0层，此处只保留边界和建议
- * V8.1: 添加润滑策略传递 - 当社交摩擦力为高/极高时，将润滑策略发送给演绎AI
- * V8.2: 高光时刻强制执行 - 检测到★高光标记时，将"建议"改为"要求"
- */
-_buildStrictNarrativeConstraints(currentBeat, microInstruction, commonSenseReview) {
-    const scopeLimit = microInstruction?.scope_limit || '未定义';
-    const narrativeGoal = microInstruction?.narrative_goal || '按照当前节拍自由演绎。';
-
-    // 【V8.2 新增】检测是否为高光时刻
-    const isHighlightMoment = narrativeGoal.includes('【★ 高光时刻】');
-
-    let constraints = [
-        `**当前节拍:** ${currentBeat}`
-    ];
-
-    // 【V8.2 新增】高光时刻时，scope_limit 升维为强制约束
-    if (isHighlightMoment) {
-        constraints.push(`**演绎边界（★强制约束）:** ${scopeLimit}`);
-    } else {
-        constraints.push(`**演绎边界:** ${scopeLimit}`);
-    }
-
-    constraints.push(``);
-
-    // 【V8.1 新增】检查社交摩擦力，如果为高/极高，则添加润滑策略
-    if (commonSenseReview && typeof commonSenseReview === 'object') {
-        const frictionLevel = commonSenseReview.social_friction_level;
-        const lubricationStrategy = commonSenseReview.lubrication_strategy;
-
-        if ((frictionLevel === '高' || frictionLevel === '极高') &&
-            lubricationStrategy &&
-            lubricationStrategy.trim() !== '' &&
-            lubricationStrategy !== '无需润滑') {
-
-            // 添加润滑策略到叙事建议之前
-            constraints.push(`**【社交摩擦力润滑方案】** ${lubricationStrategy}`);
-            constraints.push(``);
-        }
-    }
-
-    // 【V8.2 新增】高光时刻使用强制语气
-    if (isHighlightMoment) {
-        constraints.push(`**导演要求（★高光时刻 - 强制执行）:** ${narrativeGoal}`);
-    } else {
-        constraints.push(`**叙事建议:** ${narrativeGoal}`);
-    }
-
-    return constraints.join('\n');
-}
 
 /**
  * V4.1: 应用剧本动态掩码（方案二：信息迷雾）
@@ -1298,52 +1162,6 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             this.diagnose('[Engine] 构建静态缓存章节预览失败:', error);
             return null;
         }
-    }
-    /**
-     * [辅助函数] 构建关系指南部分（从 onPromptReady 中抽离出来）。
-     * @returns {string}
-     */
-    _buildRelationshipGuide() {
-        let guide = AFFINITY_BEHAVIOR_MATRIX_PROMPT;
-
-        const characters = this.currentChapter.staticMatrices.characters || {};
-        const protagonistId = Object.keys(characters).find(
-            id => characters[id].isProtagonist
-        );
-
-        if (!protagonistId) {
-            guide += "错误：未找到主角信息。\n";
-            return guide;
-        }
-
-        // 从新数据模型中提取关系：遍历所有NPC对主角的关系
-        let hasRelations = false;
-        for (const charId in characters) {
-            if (charId === protagonistId) continue; // 跳过主角自己
-
-            // 优先使用动态关系，回退到静态关系
-            const dynamicRel = this.currentChapter.dynamicState.characters?.[charId]?.relationships?.[protagonistId];
-            const staticRel = characters[charId]?.relationships?.[protagonistId];
-
-            const affinity = dynamicRel?.current_affinity ?? staticRel?.affinity;
-            if (affinity !== undefined) {
-                hasRelations = true;
-                const charName = characters[charId]?.name || charId;
-                let stage = "未知";
-                if (affinity <= 10) stage = "陌生/警惕";
-                else if (affinity <= 40) stage = "熟悉/中立";
-                else if (affinity <= 70) stage = "友好/信任";
-                else if (affinity <= 90) stage = "亲密/依赖";
-                else stage = "羁绊/守护";
-
-                guide += `- **${charName} 对你的看法:** 好感度 **${affinity}** (处于【${stage}】阶段)。\n`;
-            }
-        }
-
-        if (!hasRelations) {
-            guide += "你与其他角色的关系网络尚未建立。\n";
-        }
-        return guide;
     }
 
     /**
