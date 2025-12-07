@@ -12,6 +12,7 @@ import { ENGINE_STATUS } from './src/constants.js';
 import { setupUI, initializeUIManager, populateSettingsUI } from './ui/uiManager.js';
 import { consoleManager } from './ui/ConsoleManager.js';
 import { createLogger } from './utils/logger.js';
+import { showNarrativeFocusPopup } from './ui/popups/proposalPopup.js';
 
 const { eventSource, event_types} = applicationFunctionManager;
 const logger = createLogger('剧情节拍器');
@@ -37,6 +38,7 @@ applicationFunctionManager.eventSource.on(applicationFunctionManager.event_types
         ...jsonUtils,
         updateDashboard,
         getCharacterBoundWorldbookEntries,
+        showNarrativeFocusPopup,
         // 统一日志接口 - 使用新的 Logger 类
         log: sbtLogger.debug.bind(sbtLogger),    // 调试日志
         info: sbtLogger.info.bind(sbtLogger),     // 重要信息
