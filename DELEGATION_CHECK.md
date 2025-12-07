@@ -48,6 +48,25 @@
 - EntityContextManager: 使用sed批量修复41处
 **提交**: 4199116
 
+### ✅ Bug #5: pendingTransition残留导致错误跳过史官
+**问题**: `src/managers/TransitionManager.js:174` 回合指导触发章节转换时直接跳过史官
+**现象**: 章节转换跳过史官复盘，直接进入章节规划阶段
+**触发频率**: 容易触发（上次转换失败后必现）
+**触发条件**:
+- 上次转换因错误/停止/网络问题等未正常完成
+- `LEADER.pendingTransition`未被清理
+- 下次回合指导触发转换时，误认为是"恢复中断的转换"
+**根本原因**:
+- `pendingTransition`没有记录它属于哪次转换（缺少`endIndex`标识）
+- 无法区分"当前转换的中间状态"和"上次转换的残留状态"
+- 导致新转换被错误地当作旧转换的恢复处理
+**修复**:
+- 在`pendingTransition`对象中添加`endIndex`字段记录转换目标索引
+- 在转换开始时验证`pendingTransition.endIndex === endIndex`
+- 如果不匹配，清理过期的`pendingTransition`并重新开始
+- 只有`endIndex`匹配时才恢复之前的转换进度
+**提交**: bf505a6
+
 ## 需要验证的委托链
 
 ### TransitionManager委托方法
