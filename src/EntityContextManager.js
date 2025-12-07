@@ -1,40 +1,42 @@
 // FILE: src/EntityContextManager.js
 
 import { simpleHash } from '../utils/textUtils.js';
+import { DebugLogger } from './utils/DebugLogger.js';
 
 export class EntityContextManager {
     constructor(engine) {
         this.engine = engine;
+        this.logger = new DebugLogger('EntityContextManager');
         this.entityManifestCache = null;
         this.lastStaticMatricesChecksum = null;
     }
 
     getOrGenerateEntityManifest() {
-        const { debugGroup, debugGroupEnd, debugWarn, debugLog, currentChapter } = this.engine;
-        debugGroup('[ENGINE-V2-PROBE] 实体清单缓存管理');
+        const { currentChapter } = this.engine;
+        this.logger.group('[ENGINE-V2-PROBE] 实体清单缓存管理');
 
         if (!currentChapter || !currentChapter.staticMatrices) {
-            debugWarn('⚠️ Chapter 的 staticMatrices 不存在，无法生成清单');
-            debugGroupEnd();
+            this.logger.warn('⚠️ Chapter 的 staticMatrices 不存在，无法生成清单');
+            this.logger.groupEnd();
             return { content: '', totalCount: 0 };
         }
 
         const currentChecksum = simpleHash(JSON.stringify(currentChapter.staticMatrices));
 
         if (this.entityManifestCache && this.lastStaticMatricesChecksum === currentChecksum) {
-            debugLog('✅ 缓存命中，直接返回已缓存的实体清单');
-            debugGroupEnd();
+            this.logger.log('✅ 缓存命中，直接返回已缓存的实体清单');
+            this.logger.groupEnd();
             return this.entityManifestCache;
         }
 
-        debugLog('♻️ 缓存失效或不存在，正在重新生成实体清单...');
+        this.logger.log('♻️ 缓存失效或不存在，正在重新生成实体清单...');
         const manifest = this.generateEntityManifest(currentChapter.staticMatrices);
 
         this.entityManifestCache = manifest;
         this.lastStaticMatricesChecksum = currentChecksum;
 
-        debugLog(`📦 清单已生成并缓存，共 ${manifest.totalCount} 条实体`);
-        debugGroupEnd();
+        this.logger.log(`📦 清单已生成并缓存，共 ${manifest.totalCount} 条实体`);
+        this.logger.groupEnd();
 
         return manifest;
     }
@@ -85,13 +87,13 @@ export class EntityContextManager {
     }
 
     generateFullWorldviewContext() {
-        const { debugGroup, debugGroupEnd, debugLog, currentChapter } = this.engine;
-        debugGroup('[ENGINE-FREE-ROAM] 生成完整世界观档案');
+        const { currentChapter } = this.engine;
+        this.logger.group('[ENGINE-FREE-ROAM] 生成完整世界观档案');
 
         const chapter = currentChapter;
         if (!chapter || !chapter.staticMatrices) {
             console.error('❌ 错误：无法获取章节数据');
-            debugGroupEnd();
+            this.logger.groupEnd();
             return '';
         }
 
@@ -117,7 +119,7 @@ export class EntityContextManager {
             }
         }
 
-        debugLog(`📚 收集到 ${allEntityIds.length} 个实体ID`);
+        this.logger.log(`📚 收集到 ${allEntityIds.length} 个实体ID`);
 
         const contextContent = this.retrieveEntitiesByIdsInternal(
             allEntityIds,
@@ -133,20 +135,20 @@ export class EntityContextManager {
             contextContent
         ].join('\n') : '';
 
-        debugLog(`✅ 完整世界观档案生成完成，长度: ${finalContent.length} 字符`);
-        debugGroupEnd();
+        this.logger.log(`✅ 完整世界观档案生成完成，长度: ${finalContent.length} 字符`);
+        this.logger.groupEnd();
 
         return finalContent;
     }
 
     generateChapterStaticContext(chapterContextIds, sourceChapter = null) {
-        const { debugGroup, debugGroupEnd, debugLog } = this.engine;
-        debugGroup('[ENGINE-V3-PROBE] 章节级静态上下文生成');
-        debugLog('章节规划实体ID列表:', chapterContextIds);
+        
+        this.logger.group('[ENGINE-V3-PROBE] 章节级静态上下文生成');
+        this.logger.log('章节规划实体ID列表:', chapterContextIds);
 
         if (!chapterContextIds || chapterContextIds.length === 0) {
-            debugLog('ℹ️ 本章无预设实体');
-            debugGroupEnd();
+            this.logger.log('ℹ️ 本章无预设实体');
+            this.logger.groupEnd();
             return '';
         }
 
@@ -165,28 +167,28 @@ export class EntityContextManager {
             contextContent
         ].join('\n') : '';
 
-        debugLog(`✅ 章节级静态上下文生成完成，长度 ${finalContent.length} 字符`);
-        debugLog('生成的内容预览（前 200 字符）', finalContent.substring(0, 200));
-        debugGroupEnd();
+        this.logger.log(`✅ 章节级静态上下文生成完成，长度 ${finalContent.length} 字符`);
+        this.logger.log('生成的内容预览（前 200 字符）', finalContent.substring(0, 200));
+        this.logger.groupEnd();
 
         return finalContent;
     }
 
     retrieveEntitiesByIdsInternal(entityIds, contextLabel = '上下文', sourceChapter = null) {
-        const { debugGroup, debugGroupEnd, debugLog, debugWarn, currentChapter } = this.engine;
-        debugGroup(`[ENGINE-V3-PROBE] ${contextLabel}召回`);
-        debugLog('需要召回的实体ID列表:', entityIds);
+        const { currentChapter } = this.engine;
+        this.logger.group(`[ENGINE-V3-PROBE] ${contextLabel}召回`);
+        this.logger.log('需要召回的实体ID列表:', entityIds);
 
         if (!entityIds || entityIds.length === 0) {
-            debugLog('ℹ️ 无需召回');
-            debugGroupEnd();
+            this.logger.log('ℹ️ 无需召回');
+            this.logger.groupEnd();
             return '';
         }
 
         const chapter = sourceChapter || currentChapter;
         if (!chapter || !chapter.staticMatrices) {
             console.error('❌ 错误：无法获取 staticMatrices，章节对象为空');
-            debugGroupEnd();
+            this.logger.groupEnd();
             return '';
         }
 
@@ -232,38 +234,38 @@ export class EntityContextManager {
 
             if (entity) {
                 if (entity.isHidden === true) {
-                    debugLog(`🙈 跳过隐藏实体: ${entityId} (${category})`);
+                    this.logger.log(`🙈 跳过隐藏实体: ${entityId} (${category})`);
                     continue;
                 }
 
-                debugLog(`✅ 找到实体: ${entityId} (${category})`);
+                this.logger.log(`✅ 找到实体: ${entityId} (${category})`);
                 retrievedEntities.push({
                     id: entityId,
                     category: category,
                     data: entity
                 });
             } else {
-                debugWarn(`⚠️ 未找到实体 ${entityId}`);
+                this.logger.warn(`⚠️ 未找到实体 ${entityId}`);
 
                 if (entityId.startsWith('quest_') || entityId.startsWith('arc_')) {
-                    debugGroup('🔍 故事线ID诊断');
-                    debugLog('当前 staticMatrices.storylines 结构:');
+                    this.logger.group('🔍 故事线ID诊断');
+                    this.logger.log('当前 staticMatrices.storylines 结构:');
                     if (staticMatrices.storylines) {
                         for (const cat of ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs']) {
                             const ids = staticMatrices.storylines[cat] ? Object.keys(staticMatrices.storylines[cat]) : [];
-                            debugLog(`  ${cat}:`, ids.length > 0 ? ids : '(空)');
+                            this.logger.log(`  ${cat}:`, ids.length > 0 ? ids : '(空)');
                         }
                     } else {
-                        debugLog('  storylines不存在');
+                        this.logger.log('  storylines不存在');
                     }
-                    debugLog('💡 建议: 如果这是新故事线，ID应该使用 NEW: 前缀');
-                    debugGroupEnd();
+                    this.logger.log('💡 建议: 如果这是新故事线，ID应该使用 NEW: 前缀');
+                    this.logger.groupEnd();
                 }
             }
         }
 
-        debugLog(`📦 成功召回 ${retrievedEntities.length}/${entityIds.length} 个实体`);
-        debugGroupEnd();
+        this.logger.log(`📦 成功召回 ${retrievedEntities.length}/${entityIds.length} 个实体`);
+        this.logger.groupEnd();
 
         if (retrievedEntities.length === 0) {
             return '';
@@ -275,30 +277,30 @@ export class EntityContextManager {
     }
 
     retrieveEntitiesByIds(realtimeContextIds) {
-        const { debugGroup, debugGroupEnd, debugLog, currentChapter } = this.engine;
-        debugGroup('[ENGINE-V3-PROBE] 回合级动态上下文召回');
-        debugLog('turnConductor 识别的实体ID:', realtimeContextIds);
+        const { currentChapter } = this.engine;
+        this.logger.group('[ENGINE-V3-PROBE] 回合级动态上下文召回');
+        this.logger.log('turnConductor 识别的实体ID:', realtimeContextIds);
 
         if (!realtimeContextIds || realtimeContextIds.length === 0) {
-            debugLog('ℹ️ 无需召回');
-            debugGroupEnd();
+            this.logger.log('ℹ️ 无需召回');
+            this.logger.groupEnd();
             return '';
         }
 
         const chapterContextIds = currentChapter?.chapter_blueprint?.chapter_context_ids || [];
         const outOfPlanIds = realtimeContextIds.filter(id => !chapterContextIds.includes(id));
 
-        debugLog(`章节规划实体: ${chapterContextIds.length} 个`);
-        debugLog(`规划外实体 ${outOfPlanIds.length} 个`, outOfPlanIds);
+        this.logger.log(`章节规划实体: ${chapterContextIds.length} 个`);
+        this.logger.log(`规划外实体 ${outOfPlanIds.length} 个`, outOfPlanIds);
 
         if (outOfPlanIds.length === 0) {
-            debugLog('✅ 所有识别的实体均已在章节级注入，无需额外召回');
-            debugGroupEnd();
+            this.logger.log('✅ 所有识别的实体均已在章节级注入，无需额外召回');
+            this.logger.groupEnd();
             return '';
         }
 
         const contextContent = this.retrieveEntitiesByIdsInternal(outOfPlanIds, '回合级动态上下文');
-        debugGroupEnd();
+        this.logger.groupEnd();
 
         return contextContent;
     }

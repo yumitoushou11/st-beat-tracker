@@ -1,8 +1,11 @@
 // FILE: src/NarrativeControlTowerManager.js
 
+import { DebugLogger } from './utils/DebugLogger.js';
+
 export class NarrativeControlTowerManager {
     constructor(engine) {
         this.engine = engine;
+        this.logger = new DebugLogger('NarrativeControlTowerManager');
     }
 
     // V11.0: 新的统一推进处理入口
@@ -59,8 +62,8 @@ export class NarrativeControlTowerManager {
 
 
     update(workingChapter, delta) {
-        const { debugGroup, info, debugLog, debugGroupEnd } = this.engine;
-        debugGroup('[ENGINE-V4] 更新空间控制塔流程');
+        const { info } = this.engine;
+        this.logger.group('[ENGINE-V4] 更新空间控制塔流程');
         info(" -> 开始更新空间档案...");
 
         if (!workingChapter.meta.narrative_control_tower) {
@@ -302,12 +305,12 @@ export class NarrativeControlTowerManager {
         this.syncStorylineProgressWithStorylines(workingChapter);
         this.calculateRhythmDirective(workingChapter);
 
-        debugLog('[V4] 控制塔状态:', {
+        this.logger.log('[V4] 控制塔状态:', {
             recent_intensity: tower.recent_chapters_intensity,
             storyline_progress: tower.storyline_progress,
             rhythm_directive: tower.rhythm_directive
         });
-        debugGroupEnd();
+        this.logger.groupEnd();
     }
 
     syncStorylineProgressWithStorylines(chapter) {
@@ -324,7 +327,6 @@ export class NarrativeControlTowerManager {
     }
 
     normalizeStorylineStaticData(chapter) {
-        const { debugLog } = this.engine;
         const storylines = chapter?.staticMatrices?.storylines;
         if (!storylines) return;
         const categories = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
@@ -358,7 +360,7 @@ export class NarrativeControlTowerManager {
                     patched = true;
                 }
                 if (patched) {
-                    debugLog(`[StorylineNormalize] ${category}/${lineId} 摘要字段已校准`);
+                    this.logger.log(`[StorylineNormalize] ${category}/${lineId} 摘要字段已校准`);
                 }
             });
         });
