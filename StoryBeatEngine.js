@@ -321,7 +321,16 @@ const spoilerBlockPlaceholder = {
 
             // 直接注入到占位符
             const worldviewInjection = `【世界观档案（自由章模式）】\n${allWorldviewContext}`;
+
+            // ✅ 修复：同时更新 content 和 mes，确保 API 和酒馆内部都能读取
+            recallPlaceholder.content = worldviewInjection;
             recallPlaceholder.mes = worldviewInjection;
+
+            // 同时也把其他占位符清空，防止把"正在编译..."发出去
+            spoilerBlockPlaceholder.content = "";
+            instructionPlaceholder.content = "【自由探索模式：无指令】";
+            scriptPlaceholder.content = "【自由探索模式：无剧本】";
+            rulesPlaceholder.content = "";
 
             this.info("✓ 世界观档案已注入，自由章模式激活完成");
             return;
