@@ -13,7 +13,22 @@
       "Bash(dir /B *.txt)",
       "Bash(dir /B /O-D d:a1SillyTavernpublicscriptsextensionsthird-partyst-beat-trackersbt-console-*.txt)",
       "Bash(cmd /c \"dir /B /O-D sbt-console-*.txt\")",
-      "Bash(dir /B /S \"d:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\")"
+      "Bash(dir /B /S \"d:\\a1\\SillyTavern\\public\\scripts\\extensions\\third-party\\st-beat-tracker\")",
+      "Bash(dir:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(del nul)",
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nrefactor: Phase 1 - Extract utility modules from StoryBeatEngine\n\n提取4个基础工具模块，减少主引擎95行代码(-2.7%)\n\n新增模块：\n- src/utils/DebugLogger.js: 统一调试日志管理 (74处调用)\n- src/utils/TextSanitizer.js: 文本清理和验证\n- src/utils/ChapterAnalyzer.js: 章节数据提取和分析\n- src/services/ServiceFactory.js: LLM服务创建工厂\n\n修改：\n- StoryBeatEngine.js: 3514行 → 3419行 (-95行)\n- 删除已迁移的工具方法\n- 简化_initializeCoreServices方法 (22行 → 9行)\n- 移除未使用的LLMApiService导入\n\n新增文档：\n- REFACTORING_PLAN.md: 6阶段重构设计文档\n- QUICK_START.md: 每日执行指南\n- IMPLEMENTATION_CHECKLIST.md: 详细验证清单\n- PHASE1_SUMMARY.md: 阶段1完成总结\n\n✅ 保持100%向后兼容\n✅ 无业务逻辑改动\n✅ 代码质量提升\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(powershell:*)",
+      "Bash(python refactor_phase3.py:*)",
+      "Bash(python extract_handlers.py:*)",
+      "Bash(python integrate_handlers.py:*)",
+      "Bash(git rm:*)",
+      "Bash(del /F refactor_phase3.py refactor_phase3.ps1 delete_methods.ps1 extract_transition_manager.py integrate_transition_manager.py extract_handlers.py integrate_handlers.py)",
+      "Bash(python check_cross_references.py:*)",
+      "Bash(del /F check_cross_references.py)"
     ],
     "deny": [],
     "ask": []

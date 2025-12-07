@@ -104,7 +104,9 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
 
     // 未解决张力
     let tensionsHtml = '';
-    const tensions = edge.narrative_status?.unresolved_tension || [];
+    const tensions = Array.isArray(edge.narrative_status?.unresolved_tension)
+        ? edge.narrative_status.unresolved_tension
+        : [];
     if (tensions.length > 0 || editMode) {
         tensionsHtml = '<div class="sbt-rel-detail-field"><div class="sbt-rel-detail-label"><i class="fa-solid fa-bolt"></i> 未解张力</div><div class="sbt-rel-detail-value"><div class="sbt-rel-tension-tags">';
 
@@ -129,7 +131,9 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
 
     // 重大事件
     let eventsHtml = '';
-    const events = edge.narrative_status?.major_events || [];
+    const events = Array.isArray(edge.narrative_status?.major_events)
+        ? edge.narrative_status.major_events
+        : [];
     if (events.length > 0) {
         eventsHtml = '<div class="sbt-rel-detail-field"><div class="sbt-rel-detail-label"><i class="fa-solid fa-bookmark"></i> 重大事件</div><div class="sbt-rel-detail-value">';
         events.forEach(event => {
