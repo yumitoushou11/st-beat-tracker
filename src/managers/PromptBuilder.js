@@ -21,6 +21,63 @@ import { DIRECTOR_RULEBOOK_PROMPT, AFFINITY_BEHAVIOR_MATRIX_PROMPT } from '../..
  */
 export class PromptBuilder {
     /**
+     * 将好感度数值转换为详细的行为准则描述
+     *
+     * @static
+     * @param {number} affinity - 好感度数值 (0-100)
+     * @returns {Object} 包含阶段名称和行为准则的对象
+     * @returns {string} .stage - 阶段名称（中英文）
+     * @returns {string} .description - 详细的行为准则描述
+     */
+    static getAffinityBehaviorGuideline(affinity) {
+        if (affinity <= 10) {
+            return {
+                stage: "陌生/警惕 (Stranger/Wary)",
+                description: `**核心心态**: 中立、观察、保持距离或轻微怀疑。
+**普适行为准则**:
+  - 对话：使用礼貌、客套或公式化的语言。避免分享个人信息。
+  - 行动：倾向于被动反应，而非主动发起互动。保持物理和心理上的距离。
+  - 内在：将对方视为一个需要评估的未知因素。`
+            };
+        } else if (affinity <= 40) {
+            return {
+                stage: "熟悉/中立 (Acquaintance/Neutral)",
+                description: `**核心心态**: 基本信任已建立，但无特殊情感投入。
+**普适行为准则**:
+  - 对话：可以进行日常、非私密的交谈。可能会回应一些简单的请求。
+  - 行动：互动更加自然，但仍以事务性或偶然性为主。
+  - 内在：将对方视为环境中的一个无害、普通的组成部分。`
+            };
+        } else if (affinity <= 70) {
+            return {
+                stage: "友好/信任 (Friendly/Trusted)",
+                description: `**核心心态**: 积极的正面情感，愿意建立联系。
+**普适行为准则**:
+  - 对话：语气更轻松、真诚。可能会主动开启话题，分享一些个人的观点或经历。
+  - 行动：愿意主动提供举手之劳的帮助。非语言的积极信号增多（如微笑、更近的距离）。
+  - 内在：将对方视为"朋友"或"可靠的人"，乐于与其相处。`
+            };
+        } else if (affinity <= 90) {
+            return {
+                stage: "亲密/依赖 (Close/Reliant)",
+                description: `**核心心态**: 深度信任，情感上的依赖和关心。
+**普适行为准则**:
+  - 对话：可能会分享秘密、展露脆弱的一面。对话中会表现出对你的关心和担忧。
+  - 行动：会主动为你考虑，提供重要的帮助，甚至在一定程度上为你承担风险。
+  - 内在：将你的福祉纳入自己的考量范围，你的情绪会影响到TA。`
+            };
+        } else {
+            return {
+                stage: "羁绊/守护 (Bonded/Protective)",
+                description: `**核心心态**: 深刻的情感连接，将对方视为自己的一部分。
+**普适行为准则**:
+  - 对话：言语中充满不言而喻的默契和深层理解。
+  - 行动：将保护你、实现你的愿望视为最高优先级之一，可能会做出自我牺牲的行为。
+  - 内在：你的存在本身就是TA行动的核心动机之一。`
+            };
+        }
+    }
+    /**
      * 构建关系指南
      *
      * 根据章节中的角色关系数据，生成关系指南提示词
@@ -62,14 +119,14 @@ export class PromptBuilder {
             if (affinity !== undefined) {
                 hasRelations = true;
                 const charName = characters[charId]?.name || charId;
-                let stage = "未知";
-                if (affinity <= 10) stage = "陌生/警惕";
-                else if (affinity <= 40) stage = "熟悉/中立";
-                else if (affinity <= 70) stage = "友好/信任";
-                else if (affinity <= 90) stage = "亲密/依赖";
-                else stage = "羁绊/守护";
 
-                guide += `- **${charName} 对你的看法:** 好感度 **${affinity}** (处于【${stage}】阶段)。\n`;
+                // 使用新的转换函数获取详细的行为准则
+                const guideline = PromptBuilder.getAffinityBehaviorGuideline(affinity);
+
+                guide += `\n### **${charName} 对你的看法**\n`;
+                guide += `**好感度数值:** ${affinity}/100\n`;
+                guide += `**当前阶段:** ${guideline.stage}\n\n`;
+                guide += `${guideline.description}\n`;
             }
         }
 

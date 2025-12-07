@@ -6,6 +6,7 @@ import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js';
 import { deepmerge } from '../utils/deepmerge.js';
+import { PromptBuilder } from '../src/managers/PromptBuilder.js';
 
 const safeLocalStorageGet = (key) => {
     if (typeof localStorage === 'undefined') {
@@ -822,8 +823,35 @@ ${JSON.stringify(chapter?.meta?.narrative_control_tower || {}, null, 2)}
 \`\`\`json
 ${JSON.stringify(currentWorldState.relationship_graph || { edges: [] }, null, 2)}
 \`\`\`
+
+**【好感度行为准则解读】**
+${(() => {
+    // 为每个关系边生成详细的行为准则
+    const relationshipGraph = currentWorldState.relationship_graph || { edges: [] };
+    if (!relationshipGraph.edges || relationshipGraph.edges.length === 0) {
+        return "暂无角色关系数据。";
+    }
+
+    let guidelines = "";
+    for (const edge of relationshipGraph.edges) {
+        const fromChar = currentWorldState.characters?.[edge.from_char_id];
+        const toChar = currentWorldState.characters?.[edge.to_char_id];
+        const fromName = fromChar?.name || fromChar?.core?.name || edge.from_char_id;
+        const toName = toChar?.name || toChar?.core?.name || edge.to_char_id;
+        const affinity = edge.affinity ?? edge.current_affinity ?? 50;
+
+        // 使用PromptBuilder的转换函数获取详细准则
+        const guideline = PromptBuilder.getAffinityBehaviorGuideline(affinity);
+
+        guidelines += "\n### **" + fromName + " → " + toName + "** (好感度: " + affinity + "/100)\n";
+        guidelines += "**当前阶段:** " + guideline.stage + "\n\n";
+        guidelines += guideline.description + "\n";
+    }
+    return guidelines;
+})()}
+
 **【基于张力引擎的编排指令 (MANDATORY)】**
-你不再关注简单的“好感度”，而是必须根据 \`tension_engine\` 的三维分析来设计剧情：
+你必须同时参考**好感度行为准则**和**张力引擎**来设计剧情：
 
 *   **A. 电压检测 (Voltage Check):**
     *   检查 \`narrative_voltage\` (或 \`emotional_weight\`)。若 **≥ 8** 且角色在本章同场，这段关系**必须**成为本章的核心冲突或高光时刻，绝不能写成平淡的流水账。
