@@ -170,36 +170,47 @@ export class TransitionManager {
             let reviewDelta = null;
             let finalNarrativeFocus = "由AI自主创新。";
             let skipHistorian = false;
-    
+
             if (this.LEADER.pendingTransition) {
-                this.info("检测到未完成的章节转换进度，正在恢复...");
-                loadingToast.find('.toast-message').text("恢复之前的进度...");
-    
-                const status = this.LEADER.pendingTransition.status;
-                reviewDelta = this.LEADER.pendingTransition.historianReviewDelta;
-                finalNarrativeFocus = this.LEADER.pendingTransition.playerNarrativeFocus || "由AI自主创新。";
-    
-                // V7.2: 如果史官已完成且已写入 leader，直接跳过史官
-                if (status === 'awaiting_architect' || status === 'historian_saved') {
-                    skipHistorian = true;
-                    // 从 leader 读取史官已保存的结果
-                    if (targetPiece.leader && Chapter.isValidStructure(targetPiece.leader)) {
-                        workingChapter = Chapter.fromJSON(targetPiece.leader);
-                        this.engine.narrativeControlTowerManager.syncStorylineProgressWithStorylines(workingChapter);
-                        this.info("✓ 史官结果已从 leader 恢复，正在合并最新的前端数据...");
-    
-                        //【关键修复】在恢复中间状态后，必须重新合并最新的静态数据，以包含用户在重试期间可能做出的修改
-                        const freshStaticData = staticDataManager.loadStaticData(activeCharId);
-                        if (freshStaticData) {
-                            workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, freshStaticData);
-                            this.info("✓ 最新的前端数据已合并，进入建筑师阶段。");
+                // 验证pendingTransition是否属于当前转换
+                const isSameTransition = this.LEADER.pendingTransition.endIndex === endIndex;
+
+                if (isSameTransition) {
+                    this.info("检测到未完成的章节转换进度，正在恢复...");
+                    loadingToast.find('.toast-message').text("恢复之前的进度...");
+
+                    const status = this.LEADER.pendingTransition.status;
+                    reviewDelta = this.LEADER.pendingTransition.historianReviewDelta;
+                    finalNarrativeFocus = this.LEADER.pendingTransition.playerNarrativeFocus || "由AI自主创新。";
+
+                    // V7.2: 如果史官已完成且已写入 leader，直接跳过史官
+                    if (status === 'awaiting_architect' || status === 'historian_saved') {
+                        skipHistorian = true;
+                        // 从 leader 读取史官已保存的结果
+                        if (targetPiece.leader && Chapter.isValidStructure(targetPiece.leader)) {
+                            workingChapter = Chapter.fromJSON(targetPiece.leader);
+                            this.engine.narrativeControlTowerManager.syncStorylineProgressWithStorylines(workingChapter);
+                            this.info("✓ 史官结果已从 leader 恢复，正在合并最新的前端数据...");
+
+                            //【关键修复】在恢复中间状态后，必须重新合并最新的静态数据，以包含用户在重试期间可能做出的修改
+                            const freshStaticData = staticDataManager.loadStaticData(activeCharId);
+                            if (freshStaticData) {
+                                workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, freshStaticData);
+                                this.info("✓ 最新的前端数据已合并，进入建筑师阶段。");
+                            }
                         }
+                    } else {
+                        workingChapter.playerNarrativeFocus = finalNarrativeFocus;
                     }
+
+                    this.info(`断点恢复状态: ${status}, 跳过史官: ${skipHistorian}`);
                 } else {
-                    workingChapter.playerNarrativeFocus = finalNarrativeFocus;
+                    // pendingTransition是上次转换的残留，清理并重新开始
+                    this.warn(`检测到过期的pendingTransition（属于索引${this.LEADER.pendingTransition.endIndex}，当前索引${endIndex}），已清理。`);
+                    this.LEADER.pendingTransition = null;
+                    this.USER.saveChat();
+                    skipHistorian = false;
                 }
-    
-                this.info(`断点恢复状态: ${status}, 跳过史官: ${skipHistorian}`);
             } else {
                 skipHistorian = false;
             }
@@ -270,6 +281,7 @@ export class TransitionManager {
     
                 // 【阶段1完成】保存史官分析结果到临时存储
                 this.LEADER.pendingTransition = {
+                    endIndex: endIndex,  // 记录转换的目标索引，用于验证
                     historianReviewDelta: reviewDelta,
                     playerNarrativeFocus: null,
                     status: 'awaiting_focus'
