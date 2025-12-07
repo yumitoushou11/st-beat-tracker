@@ -8,6 +8,13 @@
 **修复**: 改为 `this.engine.abortCurrentTask()`
 **提交**: c9cad8f
 
+### ✅ Bug #2: TransitionManager.playerInputPromise未重置
+**问题**: `src/managers/TransitionManager.js:286` playerInputPromise在await后未重置为null
+**现象**: 首次点击提前规划按钮后，再次点击显示"已有一个提前规划弹窗在等待输入"，但实际无弹窗
+**原因**: playerInputPromise变量在完成后未清空，导致重复点击检查始终为true
+**修复**: 在`await playerInputPromise;`后添加 `playerInputPromise = null;`
+**提交**: 6c878fc
+
 ## 需要验证的委托链
 
 ### TransitionManager委托方法
