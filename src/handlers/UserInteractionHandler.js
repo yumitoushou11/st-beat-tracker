@@ -161,7 +161,7 @@ export class UserInteractionHandler {
     
             // V9.2: 升级为硬停止
             this.warn(`[SBT-Stop] 在${stageLabel}阶段收到停止指令，立即中止所有AI请求。`);
-            this.abortCurrentTask();
+            this.engine.abortCurrentTask();
     
             if (this._activeTransitionToast) {
                 const $message = this._activeTransitionToast.find('.toast-message');
