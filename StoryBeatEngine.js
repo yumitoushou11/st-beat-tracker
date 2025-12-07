@@ -1118,9 +1118,6 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         }
     }
 
-    /**
-
-
     onStateChange = () => {
         // 使用 debounce 防止事件风暴（例如，快速删除多条消息）
         clearTimeout(this.syncDebounceTimer);
