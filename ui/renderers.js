@@ -540,6 +540,22 @@ function renderArchiveStorylines(storylineData, container, category, categoryNam
     for (const id in storylineData) {
         const line = storylineData[id];
 
+        // 【过滤占位符】跳过那些只有进度数据但没有实质内容的占位符故事线
+        const summary = line.summary || line.initial_summary || '';
+        const currentSummary = line.current_summary || '';
+        const isPlaceholder = (
+            (summary === '建筑师未撰写摘要。' || summary === '') &&
+            (currentSummary === '尚未记录进展' || currentSummary === '' || currentSummary === '建筑师未撰写摘要。') &&
+            (!line.player_supplement || line.player_supplement === '') &&
+            (!line.history || line.history.length === 0)
+        );
+
+        // 如果是未被用户编辑过的占位符，跳过不显示
+        if (isPlaceholder) {
+            console.log(`[StorylineRender] 过滤占位符故事线: ${id} (仅有进度数据，无实质内容)`);
+            continue;
+        }
+
         // 【修复】优先使用动态状态，回退到静态
         const status = line.current_status || line.status || 'dormant';
         const statusText = status === 'active' ? '进行中' : status === 'completed' ? '已完成' : '休眠';

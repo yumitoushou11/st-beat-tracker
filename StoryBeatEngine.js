@@ -409,7 +409,7 @@ const spoilerBlockPlaceholder = {
 
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
 
-            this.info('[PROBE][CONDUCTOR-V9] 收到回合裁判的GPS定位:', JSON.parse(JSON.stringify(conductorDecision)));
+            this.info('[PROBE][CONDUCTOR-V10] 收到回合裁判的GPS定位与基调检查:', JSON.parse(JSON.stringify(conductorDecision)));
 
             // 【V9.0】检查是否触发章节转换
             if (conductorDecision.status === 'TRIGGER_TRANSITION') {
@@ -438,24 +438,54 @@ const spoilerBlockPlaceholder = {
             }
 
 if (this.currentChapter.chapter_blueprint) {
-    // 【V9.0 精简】第0层：剧透封锁禁令（最高优先级，独立消息）
+    // 【V10.0 新增】第0层：基调纠正指令（最高优先级）
+    const toneCorrection = conductorDecision.tone_correction;
+    let toneCorrectionContent = '';
+
+    if (toneCorrection && toneCorrection !== null && toneCorrection.trim() !== '' && toneCorrection !== 'null') {
+        toneCorrectionContent = [
+            `# ⚠️ 【基调纠正 - 立即执行】`,
+            ``,
+            `## 🔴 检测到剧情基调偏离，必须立即纠正`,
+            ``,
+            toneCorrection,
+            ``,
+            `**执行要求**：`,
+            `- 本回合输出必须优先执行上述纠正指令`,
+            `- 如果要求重新演绎，则忽略之前的描写，从头开始`,
+            `- 如果提供了多个方案，请根据当前情境选择最合适的方案`,
+            ``
+        ].join('\n');
+        this.info('[SBT-INFO] ⚠️ 第0层基调纠正已激活');
+        console.warn('[⚠️ TONE CORRECTION ACTIVE] 基调纠正指令已注入到提示词');
+    } else {
+        this.info('[SBT-INFO] ○ 第0层无需基调纠正');
+    }
+
+    // 【V9.0 精简】第1层：剧透封锁禁令
     const narrativeHold = conductorDecision.narrative_hold || '';
 
     if (narrativeHold && narrativeHold.trim() !== '' && narrativeHold !== '无' && narrativeHold !== '无。') {
         spoilerBlockPlaceholder.content = [
+            toneCorrectionContent, // V10.0: 基调纠正放在最前面
+            toneCorrectionContent ? '\n---\n' : '', // 如果有基调纠正，添加分隔线
             `# 🚫 【绝对严格禁止 - 剧透封锁铁则】`,
             ``,
             `## ⚠️ 以下为绝对不可违反的禁令`,
             ``,
             narrativeHold
         ].join('\n');
-        this.info('[SBT-INFO] ✓ 第0层剧透封锁已注入');
+        this.info('[SBT-INFO] ✓ 第1层剧透封锁已注入');
     } else {
-        spoilerBlockPlaceholder.content = `# 🚫 【绝对严格禁止 - 剧透封锁铁则】\n\n本回合无特殊封锁要求。`;
-        this.info('[SBT-INFO] ○ 第0层无封锁内容');
+        if (toneCorrectionContent) {
+            spoilerBlockPlaceholder.content = toneCorrectionContent;
+        } else {
+            spoilerBlockPlaceholder.content = `# 🚫 【剧透封锁与基调检查】\n\n本回合无特殊封锁要求，无需基调纠正。`;
+        }
+        this.info('[SBT-INFO] ○ 第1层无封锁内容');
     }
 
-    // 【V9.0 新增】第1层：硬编码通用执导规则（不再由裁判生成）
+    // 【V9.0 新增】第2层：硬编码通用执导规则（不再由裁判生成）
     const currentBeatIdx = conductorDecision.current_beat_idx || 0;
     const beats = this.currentChapter.chapter_blueprint.plot_beats || [];
     const currentBeat = beats[currentBeatIdx];

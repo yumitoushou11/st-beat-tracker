@@ -60,7 +60,7 @@ export class TurnConductorAgent extends Agent {
     }
 
     async execute(context) {
-        this.diagnose(`--- 回合裁判 V9.0 (极简GPS模式) 启动 ---`);
+        this.diagnose(`--- 回合裁判 V10.0 (GPS定位+基调纠正+严格顺序) 启动 ---`);
 
         const { lastExchange, chapterBlueprint, chapter } = context;
 
@@ -81,10 +81,12 @@ export class TurnConductorAgent extends Agent {
 
             const decision = this.extractJsonFromString(responseText);
 
-            console.group('[CONDUCTOR-V9-OUTPUT] 极简输出结构');
+            console.group('[CONDUCTOR-V10-OUTPUT] 定位+基调纠正输出结构');
             logger.debug('✓ status:', decision.status);
             logger.debug('✓ current_beat_idx:', decision.current_beat_idx);
             logger.debug('✓ narrative_hold:', decision.narrative_hold?.substring(0, 60) + '...');
+            logger.debug('✓ tone_correction:', decision.tone_correction ? decision.tone_correction.substring(0, 100) + '...' : 'null (无需纠正)');
+            logger.debug('✓ beat_completion_analysis:', decision.beat_completion_analysis?.substring(0, 60) + '...');
             logger.debug('✓ realtime_context_ids:', decision.realtime_context_ids);
             console.groupEnd();
 
@@ -93,16 +95,28 @@ export class TurnConductorAgent extends Agent {
                 throw new Error("裁判AI返回的JSON缺少必要字段 (status 或 current_beat_idx)");
             }
 
-            // 确保 realtime_context_ids 存在
+            // 确保可选字段有默认值
             if (!decision.realtime_context_ids) {
                 decision.realtime_context_ids = [];
             }
+            if (!decision.tone_correction) {
+                decision.tone_correction = null;
+            }
+            if (!decision.beat_completion_analysis) {
+                decision.beat_completion_analysis = "未提供完成度分析";
+            }
 
-            this.info("--- 回合裁判 V9.0 --- GPS定位完成");
+            // V10.0: 如果有基调纠正指令，在控制台高亮显示
+            if (decision.tone_correction) {
+                console.warn('[⚠️ TONE CORRECTION REQUIRED] 检测到基调偏离，需要纠正：');
+                console.warn(decision.tone_correction);
+            }
+
+            this.info("--- 回合裁判 V10.0 --- GPS定位与基调检查完成");
             return decision;
 
         } catch (error) {
-            this.diagnose("--- 回合裁判 V9.0 执行失败 ---", error);
+            this.diagnose("--- 回合裁判 V10.0 执行失败 ---", error);
             if (this.toastr) {
                 this.toastr.error(`裁判执行失败: ${error.message}`, "裁判AI错误");
             }
@@ -111,6 +125,8 @@ export class TurnConductorAgent extends Agent {
                 status: "CONTINUE",
                 current_beat_idx: 0,
                 narrative_hold: "无",
+                tone_correction: null,
+                beat_completion_analysis: "执行失败，无法分析",
                 realtime_context_ids: []
             };
         }
@@ -142,68 +158,75 @@ _createPrompt(context) {
         chapterContextIds = chapterBlueprint?.chapter_context_ids || [];
     }
 
-    // 极简Prompt V9.0：只做GPS定位和剧透封锁
+    // V10.0 Prompt：GPS定位 + 基调纠正 + 严格顺序
     return BACKEND_SAFE_PASS_PROMPT + `
-# 指令：剧情状态定位 (Plot State Navigation) V9.0
+# 指令：剧情定位与基调纠正 V10.0
 
-任务:通过分析对话内容，判断剧情当前处于剧本的哪个节拍。
-**原则:** 仅仅定位，不要创作。
+**任务**: 判断当前节拍位置，检测基调偏离。
 
-## 1. 当前章节剧本流程（你需要严格遵循的剧情节拍）
-以下是本章节的完整剧本流程。每个节拍的 \`event\` 描述了该阶段应该发生的事件，\`exit_condition\` 描述了完成该节拍的条件。
-
+## 1. 剧本流程
 \`\`\`json
-${JSON.stringify(beats.map((b, i) => ({ index: i, event: b.physical_event || b.description, exit_condition: b.exit_condition })), null, 2)}
+${JSON.stringify(beats.map((b, i) => ({
+    index: i,
+    event: b.physical_event || b.description,
+    exit_condition: b.exit_condition,
+    emotional_direction: b.state_change || "无"
+})), null, 2)}
 \`\`\`
-
 **终章信标:** ${endgameBeacon}
 
-## 2. 最新对话内容
+## 2. 最新对话
 ${lastExchange}
 
-## 3. 节点定位流程（必须严格执行）
+## 3. 定位规则（严格顺序）
 
-步骤1：确定当前所在节拍
-- 仔细阅读"最新对话"中的 AI 情境描述
-- 逐一对比 AI 已经描写的内容与剧本中各节拍的 \`event\` 字段
-- 找出哪些节拍已经在对话中完成，哪些还未开始
+**禁止跳跃**：节拍推进必须逐级进行，从0开始逐个验证。
 
-步骤2：设置 current_beat_idx
+**节拍完成标准**（三个条件同时满足）：
+1. 核心事件已被详细描写（不是一笔带过）
+2. 有exit_condition时，玩家已做实质性回应
+3. 情感基调符合预期（无偏离）
 
-情况A：存在未完成的节拍
-- 将第一个未完成节拍的 index 设为 \`current_beat_idx\`
-- 检查玩家最新行动是否满足该节拍的 \`exit_condition\`（如果有）
-- 如果玩家输入仅为"继续"等无实质内容 → 保持在当前节拍
+**伪完成判定**（以下情况=未完成）：
+- AI只是"提到"该事件，未展开描写
+- AI刚开场，核心互动未发生
+- 玩家未回应（Dialogue Scene必需）
+- 情感基调偏离
 
-情况B：所有节拍都已完成（进入终章）
-- 这意味着 AI 已完成最后一个节拍，现在应该输出终章信标内容
-- 设置 \`current_beat_idx = 节拍总数\`（超出索引范围）
-- 在步骤4中必须输出 \`status: "TRIGGER_TRANSITION"\`
+**设置current_beat_idx**：第一个未完成的节拍。有疑问时保持当前，不前进。
 
-## 4. 决策判定（按顺序检查）
+## 4. 基调纠正检查
 
-检查1：是否已到达终点？
-- 如果 \`current_beat_idx >= 节拍总数\` → 所有节拍已完成
--输出 \`status: "TRIGGER_TRANSITION"\`
-- 本回合 AI 应该描写终章信标的内容
+针对current_beat_idx节拍，对比【剧本预期】vs【实际执行】：
 
-检查2：以上皆否？
-- \`status: "CONTINUE"\`
-- **剧透封锁铁则**：扫描 \`current_beat_idx\` 之后的所有节拍，将后续才会出现的角色、地点、物品、事件列入 \`narrative_hold\`，使用**绝对严格禁止**的语气
+**偏离类型1：玩家抵触**
+- 现象：剧本预期玩家【接受/原谅/同意】，实际【拒绝/冷淡/抵触】
+- 输出：提供2个方案 - A:让NPC更低姿态再次请求; B:让AI通过玩家非语言信号暗示松动
 
-语义匹配原则：
-- 判断节拍是否完成时，使用**意图匹配**而非字面匹配
-- 只要 AI 描写的事件在语义上对应节拍内容，即视为完成
-- 如果节拍有 \`exit_condition\`，必须等玩家做出实质性回应后才算完成
+**偏离类型2：NPC基调错误**
+- 现象：剧本要求【脆弱/温柔/试探】，实际【威胁/强势/命令】
+- 输出：指出错误，要求重新演绎该节拍
 
-## 5. 输出格式 (JSON)
+**偏离类型3：情节跳跃**
+- 现象：当前节拍未完成，AI已描写下一节拍
+- 输出：要求回退，继续填充当前节拍
 
+**tone_correction格式**：
+\`\`\`
+检测到[偏离类型]：[简述现象]
+纠正方案A：[具体指令]
+纠正方案B：[具体指令]（如适用）
+\`\`\`
+
+## 5. 输出 (JSON)
 \`\`\`json
 {
-  "status": "[CONTINUE / TRIGGER_TRANSITION]",
-  "current_beat_idx": [整数: 当前正在进行或刚刚完成的节拍索引],
-  "narrative_hold": "[字符串: 使用'严格禁止'的强硬语气列出后续内容。格式：'严格禁止提及角色[名称]、严格禁止描写[事件]、严格禁止暗示[剧情]']",
-  "realtime_context_ids": [${isEntityRecallEnabled ? '"[规划外实体ID列表]"' : ''}]
+  "status": "CONTINUE或TRIGGER_TRANSITION",
+  "current_beat_idx": 0,
+  "narrative_hold": "严格禁止后续内容",
+  "tone_correction": "纠正指令或null",
+  "beat_completion_analysis": "节拍完成度分析",
+  "realtime_context_ids": [${isEntityRecallEnabled ? '...' : ''}]
 }
 \`\`\`
 ${isEntityRecallEnabled ? `
