@@ -18,6 +18,19 @@
 **修复**: 改用布尔标志`isCapturingInput`追踪状态，在finally块中重置
 **提交**: e8e0443 (替代之前的6c878fc修复方案)
 
+### ✅ Bug #3: 缺失showNarrativeFocusPopup依赖注入
+**问题**: `src/handlers/UserInteractionHandler.js:80` 调用`this.deps.showNarrativeFocusPopup()`时报错
+**错误**: `TypeError: this.deps.showNarrativeFocusPopup is not a function`
+**根本原因**:
+- Phase 5重构时将UserInteractionHandler提取为独立模块
+- 忘记将`showNarrativeFocusPopup`添加到`applicationDependencies`对象
+- 导致UserInteractionHandler无法访问该函数，立即抛出TypeError
+- 这也是导致Bug #2中Promise异常的根本原因
+**修复**:
+- 在index.js中导入`showNarrativeFocusPopup`
+- 将其添加到`applicationDependencies`对象中
+**提交**: 0650466
+
 ## 需要验证的委托链
 
 ### TransitionManager委托方法
