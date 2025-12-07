@@ -9,7 +9,7 @@
  * @date 2025-12-07
  */
 
-import { LLMApiService } from '../LLMApiService.js';
+import { LLMApiService } from '../../LLMApiService.js';
 
 /**
  * 服务工厂类
