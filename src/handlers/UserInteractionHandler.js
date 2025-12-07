@@ -64,18 +64,18 @@ export class UserInteractionHandler {
             if (!$button || $button.length === 0) {
                 return null;
             }
-    
+
             if (this._transitionStopRequested) {
                 this.info("章节转换已请求停止，忽略新的提前规划输入。");
                 return null;
             }
-    
+
             this.info("玩家点击了提前规划按钮");
             $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
-    
+
             this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
             let popupResult;
-    
+
             try {
                 popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
             } catch (error) {

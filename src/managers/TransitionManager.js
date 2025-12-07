@@ -221,10 +221,11 @@ export class TransitionManager {
     
                 // 【核心修复】将史官执行和玩家输入变成两个独立的并行Promise
                 let playerInputPromise = null;
-    
+                let isCapturingInput = false; // 使用布尔标志而不是检查Promise对象
+
                 // 添加提前规划按钮的事件监听（不阻塞史官）
                 $('#sbt-early-focus-btn').off('click').on('click', async () => {
-                    if (playerInputPromise) {
+                    if (isCapturingInput) {
                         this.info("已有一个提前规划弹窗在等待输入，忽略重复点击");
                         return;
                     }
@@ -232,6 +233,7 @@ export class TransitionManager {
                     const $btn = $('#sbt-early-focus-btn');
                     this.info("玩家点击了提前规划按钮，开始并行捕获输入...");
 
+                    isCapturingInput = true; // 设置标志，防止重复点击
                     // 创建独立的Promise，不阻塞史官（包装为总是resolve的Promise）
                     playerInputPromise = (async () => {
                         try {
@@ -240,6 +242,8 @@ export class TransitionManager {
                         } catch (error) {
                             this.warn("提前规划输入失败，将回退到常规弹窗", error);
                             return null; // 返回null表示失败，后续会触发常规弹窗
+                        } finally {
+                            isCapturingInput = false; // 无论成功或失败，都重置标志
                         }
                     })();
                 });
