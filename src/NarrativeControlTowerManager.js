@@ -5,6 +5,59 @@ export class NarrativeControlTowerManager {
         this.engine = engine;
     }
 
+    // V11.0: 新的统一推进处理入口
+    processAdvancement(advancementData, workingChapter) {
+        const { info } = this.engine;
+        info(`[NCT] 接收到推进信号: source=${advancementData.source}`);
+        if (advancementData.source === 'storyline') {
+            this._processStorylineAdvancement(advancementData, workingChapter);
+        } else if (advancementData.source === 'relationship') {
+            this._processRelationshipAdvancement(advancementData, workingChapter);
+        }
+    }
+
+    _processStorylineAdvancement(data, chapter) {
+        const { storyline_id, progress_delta, new_stage, reasoning } = data;
+        const { info } = this.engine;
+
+        if (!storyline_id || progress_delta === undefined) return;
+
+        const tower = chapter.meta.narrative_control_tower;
+        if (!tower.storyline_progress[storyline_id]) {
+            tower.storyline_progress[storyline_id] = {
+                current_progress: 0,
+                current_stage: "unknown",
+                pacing_curve: "default",
+                last_increment: 0,
+                threshold_alerts: []
+            };
+        }
+
+        const sp = tower.storyline_progress[storyline_id];
+        const previous_progress = sp.current_progress;
+        sp.current_progress = Math.min(100, sp.current_progress + progress_delta);
+        sp.last_increment = progress_delta;
+        
+        if (new_stage) {
+            sp.current_stage = new_stage;
+        }
+
+        info(`  ✓ [NCT-Storyline] ${storyline_id} 进度: ${previous_progress}% -> ${sp.current_progress}% (+${progress_delta}%)。理由: ${reasoning}`);
+    }
+
+    _processRelationshipAdvancement(data, chapter) {
+        const { char_id_from, char_id_to, weight, significance, reasoning } = data;
+        const { info, warn } = this.engine;
+
+        if (!char_id_from || !char_id_to || weight === undefined) return;
+        
+        info(`  ✓ [NCT-Relationship] ${char_id_from}-${char_id_to} 关系事件权重: ${weight}。性质: ${significance}。理由: ${reasoning}`);
+
+        // 未来扩展：在这里添加逻辑，将关系事件的权重应用到相关的 `relationship_arc` 进度上，或影响全局节奏。
+        warn(`[NCT-Stub] _processRelationshipAdvancement 功能暂未完全实现，仅记录信号。`);
+    }
+
+
     update(workingChapter, delta) {
         const { debugGroup, info, debugLog, debugGroupEnd } = this.engine;
         debugGroup('[ENGINE-V4] 更新空间控制塔流程');
@@ -226,71 +279,26 @@ export class NarrativeControlTowerManager {
                 }
             }
         }
-
         if (delta.storyline_progress_deltas && Array.isArray(delta.storyline_progress_deltas)) {
-            const progressDeltas = delta.storyline_progress_deltas;
-            info(`  -> [中枢] 接收 ${progressDeltas.length} 条故事线进度更新`);
-
-            for (const pd of progressDeltas) {
-                const { storyline_id, previous_progress, progress_delta, new_progress,
-                        delta_reasoning, threshold_crossed, new_stage } = pd;
-
-                if (!tower.storyline_progress[storyline_id]) {
-                    tower.storyline_progress[storyline_id] = {
-                        current_progress: 0,
-                        current_stage: "unknown",
-                        pacing_curve: "default",
-                        last_increment: 0,
-                        threshold_alerts: []
-                    };
-                }
-
-                const sp = tower.storyline_progress[storyline_id];
-                sp.current_progress = new_progress;
-                sp.last_increment = progress_delta;
-
-                if (!sp.metadata || typeof sp.metadata !== 'object') {
-                    sp.metadata = {};
-                }
-                const metadataKeys = [
-                    'storyline_title',
-                    'storyline_summary',
-                    'storyline_type',
-                    'storyline_category',
-                    'storyline_trigger',
-                    'involved_chars',
-                    'player_supplement',
-                    'current_status',
-                    'current_summary'
-                ];
-                for (const key of metadataKeys) {
-                    if (pd[key] !== undefined && pd[key] !== null) {
-                        sp.metadata[key] = pd[key];
-                    }
-                }
-                if (delta_reasoning) {
-                    sp.metadata.delta_reasoning = delta_reasoning;
-                }
-
-                if (new_stage) {
-                    sp.current_stage = new_stage;
-                }
-
-                if (threshold_crossed) {
-                    info(`  ✓ [中枢] ${storyline_id}: 跨越阈值 "${threshold_crossed}" (${previous_progress}% -> ${new_progress}%)`);
-                } else {
-                    info(`  ✓ [中枢] ${storyline_id}: 增长 +${progress_delta}% (${new_progress}%)`);
-                }
-
-                this.materializeStorylineProgressEntry(
-                    workingChapter,
-                    storyline_id,
-                    sp,
-                    { extraSource: pd }
-                );
-            }
+            delta.storyline_progress_deltas.forEach(item => {
+                this.processAdvancement({ 
+                    source: 'storyline', 
+                    ...item 
+                }, workingChapter);
+            });
         }
 
+        // 2. 处理关系叙事权重 (如果需要影响全局节奏或关系弧光)
+        if (delta.relationship_advancements && Array.isArray(delta.relationship_advancements)) {
+            delta.relationship_advancements.forEach(item => {
+                this.processAdvancement({ 
+                    source: 'relationship', 
+                    char_id_from: item.subject_id, // 映射字段名
+                    char_id_to: item.target_id,
+                    ...item 
+                }, workingChapter);
+            });
+        }
         this.syncStorylineProgressWithStorylines(workingChapter);
         this.calculateRhythmDirective(workingChapter);
 

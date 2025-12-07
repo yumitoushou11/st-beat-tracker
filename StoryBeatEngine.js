@@ -1464,7 +1464,8 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
         _applyStateUpdates(workingChapter, delta) {
         this.info("--- 引擎核心：开始应用状态更新Delta ---");
-
+        const collectedStorylineDeltas = [];
+        const collectedRelationshipDeltas = [];
         // V10.1 步骤零：预处理和防御
         // 🛡️ 防御1: 清理顶层摘要
         if (delta.new_long_term_summary) {
@@ -1799,12 +1800,30 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 const staticObj = workingChapter.staticMatrices.storylines[targetCategory][id];
 
                 // 数据清洗
-                const cleanStr = (s) => (s && typeof s === 'string' && !s.includes('δ׫') && !s.includes('')) ? s : null;
-
+                  const cleanStr = (s) => {
+                if (!s || typeof s !== 'string') return null;
+                // 过滤掉特定乱码字符
+                if (s.includes('δ׫') || s.includes('дժ')) return null;
+                // 过滤掉纯空白字符串
+                if (s.trim() === '') return null;
+                return s;
+            };
                 // 1. 更新动态字段
                 if (data.current_status) dynamicObj.current_status = data.current_status;
                 if (data.current_summary) dynamicObj.current_summary = cleanStr(data.current_summary);
-                
+                if (data.advancement) {
+                    // 收集给控制塔
+                    collectedStorylineDeltas.push({
+                        storyline_id: id,
+                        category: targetCategory,
+                        ...data.advancement
+                    });
+                    
+                    // [新增] 同时更新本地动态状态，方便 Prompt 和 UI 读取
+                    if (data.advancement.new_stage) {
+                        dynamicObj.current_stage = data.advancement.new_stage;
+                    }
+                }
                 // 2. 更新历史记录
                 if (data.history_entry) {
                     dynamicObj.latest_reasoning = data.history_entry;
@@ -1974,7 +1993,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             this.debugGroupEnd();
         }
 
-        // V3.0 步骤五：处理关系图谱更新 (Relationship Graph Updates)
+ // [V10.1 Fix] 步骤五：处理关系图谱更新 (Relationship Graph Updates)
         if (delta.relationship_updates && Array.isArray(delta.relationship_updates)) {
             this.debugGroup('[ENGINE-V3-PROBE] 关系图谱更新流程');
             this.info(" -> 检测到关系图谱更新请求...");
@@ -1989,7 +2008,33 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             this.debugLog(`收到 ${relationshipUpdates.length} 条关系边更新`, relationshipUpdates);
 
             for (const relUpdate of relationshipUpdates) {
-                const { relationship_id, updates } = relUpdate;
+                // 1. [Fix] ID 兼容性处理：同时支持 standard ID 和 edge_id
+                const relationship_id = relUpdate.relationship_id || relUpdate.edge_id; 
+                
+                if (!relationship_id) {
+                    this.warn(`警告：发现一条缺少 ID 的关系更新记录，跳过。`);
+                    continue;
+                }
+
+                // 2. [Fix] 核心修复：数据源兼容性处理
+                // AI 有时会忘记把数据包裹在 "updates" 字段里，直接写在根节点
+                let updatesToApply = relUpdate.updates;
+
+                if (!updatesToApply) {
+                    // 降级策略：尝试从根对象提取非保留字段
+                    updatesToApply = { ...relUpdate };
+                    // 移除元数据字段，剩下的认为是数据字段
+                    delete updatesToApply.relationship_id;
+                    delete updatesToApply.edge_id;
+                    delete updatesToApply.narrative_advancement; // 这是给控制塔用的，不直接写入图谱
+                    
+                    // 如果过滤后还有内容，就当做 updates 使用
+                    if (Object.keys(updatesToApply).length > 0) {
+                        this.debugLog(`[兼容模式] 检测到扁平化数据结构，已自动提取字段作为更新源:`, Object.keys(updatesToApply));
+                    } else {
+                        updatesToApply = null; // 真的没数据
+                    }
+                }
 
                 // 查找对应的关系边
                 const edgeIndex = workingChapter.staticMatrices.relationship_graph.edges.findIndex(
@@ -2002,27 +2047,49 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 }
 
                 const edge = workingChapter.staticMatrices.relationship_graph.edges[edgeIndex];
-                this.debugLog(`正在更新关系边: ${relationship_id}`, updates);
+                
+                // 3. [Feature] 捕获叙事权重 (如果存在)
+                // 确保 collectedRelationshipDeltas 在函数开头已定义，否则这里加个类型检查
+                if (relUpdate.narrative_advancement && typeof collectedRelationshipDeltas !== 'undefined') {
+                    collectedRelationshipDeltas.push({
+                        relationship_id: relationship_id,
+                        participants: edge.participants,
+                        ...relUpdate.narrative_advancement
+                    });
+                    this.info(`  📊 捕获关系权重: ${relationship_id} (Weight: ${relUpdate.narrative_advancement.weight})`);
+                }
 
-                // 应用更新 - 使用点标记法路径
-                for (const [path, value] of Object.entries(updates)) {
-                    const keys = path.split('.');
-                    let target = edge;
+                // 4. [Fix] 安全应用更新 (防止 updatesToApply 为 null 导致崩溃)
+                if (updatesToApply && typeof updatesToApply === 'object') {
+                    this.debugLog(`正在更新关系边: ${relationship_id}`, updatesToApply);
 
-                    // 遍历到倒数第二层
-                    for (let i = 0; i < keys.length - 1; i++) {
-                        const key = keys[i];
-                        if (!target[key]) {
-                            target[key] = {};
+                    // 应用更新 - 使用点标记法路径
+                    for (const [path, value] of Object.entries(updatesToApply)) {
+                        // 这里的 try-catch 是为了防止极端畸形路径导致 split 报错
+                        try {
+                            const keys = path.split('.');
+                            let target = edge;
+
+                            // 遍历到倒数第二层
+                            for (let i = 0; i < keys.length - 1; i++) {
+                                const key = keys[i];
+                                if (!target[key]) {
+                                    target[key] = {};
+                                }
+                                target = target[key];
+                            }
+
+                            // 设置最终值
+                            const finalKey = keys[keys.length - 1];
+                            target[finalKey] = value;
+
+                            this.info(`  ✓ 已更新 ${relationship_id}.${path}`);
+                        } catch (err) {
+                            this.warn(`  ⚠️ 应用字段 ${path} 失败: ${err.message}`);
                         }
-                        target = target[key];
                     }
-
-                    // 设置最终值
-                    const finalKey = keys[keys.length - 1];
-                    target[finalKey] = value;
-
-                    this.info(`  ✓ 已更新 ${relationship_id}.${path}`);
+                } else {
+                    this.debugLog(`  ℹ️ 关系 ${relationship_id} 没有实质性内容更新 (可能仅包含 narrative_advancement)`);
                 }
 
                 // 处理占位符替换
@@ -2033,7 +2100,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                         return obj.replace(/\{\{current_chapter_uid\}\}/g, currentChapterUid);
                     } else if (Array.isArray(obj)) {
                         return obj.map(replacePlaceholders);
-                    } else if (obj && typeof obj === 'object') {
+                    } else if (obj && typeof obj === 'object' && obj !== null) { // 增加 null 检查
                         const result = {};
                         for (const [key, value] of Object.entries(obj)) {
                             result[key] = replacePlaceholders(value);
@@ -2044,7 +2111,6 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 }
 
                 workingChapter.staticMatrices.relationship_graph.edges[edgeIndex] = replacePlaceholders(edge);
-                this.info(`  ✅ 关系边 ${relationship_id} 更新完成`);
             }
 
             this.debugLog(`关系图谱当前边数: ${workingChapter.staticMatrices.relationship_graph.edges.length}`);

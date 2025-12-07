@@ -220,23 +220,28 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 
 ### **M2: 关系裁决**
 **铁律**: 只更新NPC对主角或NPC对NPC的好感度，禁止量化主角情感。
-**好感度阶段** (0-100，禁止溢出/小数):
-- 0-10陌生: 礼貌客套，保持距离 | 11-40熟悉: 日常交谈，事务性 | 41-70信任: 真诚分享，主动帮助 | 71-90亲密: 分享秘密，为对方承担风险 | 91-100羁绊: 默契理解，自我牺牲
-**输出**: \`updates.characters.<NPC_ID>.social.relationships.<target_ID>\` → {current_affinity, history_entry{change, reasoning}}
+**好感度阶段** (0-100，禁止溢出/小数): 0-10陌生 | 11-40熟悉 | 41-70信任 | 71-90亲密 | 91-100羁绊
+**输出**: \`updates.characters.<NPC_ID>.social.relationships.<target_ID>\` → {current_affinity, history_entry, narrative_advancement}
+- **narrative_advancement**: 如果关系变化具有重大【叙事权重】，请附加此项。
+- **weight**: (0-10) 此事件对故事的推动力有多大？(例如: 激烈争吵=8, 普通对话=2)
+- **significance**: 事件性质 (例如: \`major_tension\`, \`intimacy_breakthrough\`, \`trust_damaged\`)
+- **reasoning**: 简述理由。
 
-M3: 故事线逻辑链审计
-**创建新故事线**: 录像中触发了新任务/关系/成长线 → 加入\`creations.staticMatrices.storylines.<cat>.<id>\`
-**更新已有故事线**: ❌ "进度+10%" → ✅ "因A导致从X到Y"
-**逻辑节点**: [突破]道具/情报打破卡点 | [转折]局势逆转 | [分支]不可逆选择 | [终结]目标达成/失败
-**输出**: \`updates.storylines.<cat>.<id>\` → {current_status, current_summary, history_entry{timestamp: "${currentTimestamp}", status: "active", summary: "因[事件]，任务进入[新阶段]", chapter: ${currentChapterNumber}}}
-双轨制故事线管理:
-**轨道一：【物理/人际事件】-> 允许新建或更新**
-- 适用分类: \`main_quests\`, \`side_quests\`, \`relationship_arcs\`
-- 当出现新任务或**新的人际关系**时，允许在 \`creations\` 中新建。
+### **M3: 统一事件审计 (Unified Event Auditing)**
+**原则**: 将“内容更新”和“进度更新”合并为一个原子操作。
+**故事线更新**:
+- **输出**: \`updates.storylines.<cat>.<id>\` → {current_status, current_summary, history_entry, advancement}
+- **advancement**: 如果故事线有实质进展，请附加此项。
+- **progress_delta**: (0-25) 进度增量百分比。
+- **new_stage**: (可选) 如果跨越了阈值，进入的新阶段名称 (例如: "集结阶段")。
+- **reasoning**: 简述理由。
 
-**轨道二：【纯心理演变】-> 仅限更新，禁止新建**
-- 适用分类: \`personal_arcs\` (个人成长)
-- **绝对禁令**: **严禁**为心理活动创建新的 ID。不要在 \`creations\` 里写 \`personal_arcs\`！
+#### **分类权限锁 (Category Permission Lock)**
+1.  **Main/Side Quests**: 允许自由创建新任务 (\`creations\`) 和更新旧任务 (\`updates\`)。
+2.  **Personal/Relationship Arcs (严禁创建)**: 
+    *   **只读模式**: 你**禁止**在 \`creations\` 中为这两个分类添加新 ID。
+    *   **仅限更新**: 你**只能**在 \`updates\` 中更新列表中已存在的 ID。
+    *   **成长处理**: 如果发生了不在现有列表中的新成长（例如“主角突然觉醒了正义感”），请将这段描述**合并到触发该成长的 Main/Side Quest 的摘要中**，不要为此新建条目！
 
 #### **分类与摘要铁律 (STRICTLY ENFORCED)**
 - **分类隔离铁律**: 严禁将 \`main_quests\` (主线) 或 \`side_quests\` (支线) 的 ID（如 \`quest_xxx\`）放入 \`personal_arcs\` 中。\`personal_arcs\` 与其他任何分类的故事线ID都不能重复。
@@ -278,46 +283,57 @@ M3: 故事线逻辑链审计
 **time_jump**: 睡觉/剧本明确跳跃, +1天或更多, 重置time_slot, 更新生理状态{fatigue, hunger}
 **输出**: \`chronology_update\` {transition_type, new_day_count, new_time_slot, new_weather, reasoning, npc_schedule_hint}
 
-### **M9: 故事线进度结算 (逻辑链版)**
-**进度增量**: +0%停滞 | +1~5%小步 | +6~15%跳跃 | +16~25%重大节点
-**阈值**: 15%激励事件 | 25%游戏时刻 | 50%中点 | 75%一无所有 | 90%终局 | 关系线额外: 30%暧昧 | 60%深化 | 85%质变
-**输出**: \`storyline_progress_deltas\` [{storyline_id, previous_progress, progress_delta, new_progress, delta_reasoning: "因[事件A]，从[状态X]变成[状态Y]，推进N%", threshold_crossed, new_stage}]
-
 ---
 **【最终输出格式】**
 \`\`\`json
 {
   "creations": {
     "staticMatrices": {
-      "characters": {"char_id": {core{name, identity, age, gender}, personality{性格特质[], 说话风格}, social{relationships{}}}},
-      "worldview": {
-        "locations": {"loc_id": {name, description, type, atmosphere}},
-        "items": {"item_id": {name, description, properties, owner}},
-        "factions": {"faction_id": {name, description, ideology, influence}},
-        "concepts": {"concept_id": {name, description, significance}},
-        "events": {"event_id": {name, description, timeframe, participants}},
-        "races": {"race_id": {name, description, traits}}
-      },
+      "characters": {"char_id": {}},
+      "worldview": {},
       "storylines": {
-        "main_quests": {"quest_id": {title, type, summary, trigger, involved_chars, initial_summary}},
-        "side_quests": {},
-        "relationship_arcs": {},
+        "main_quests": {"quest_id": {}}
       },
-      "relationship_graph": {
-        "edges": [{"id": "rel_id", "participants": ["char1", "char2"], "type": "stranger_with_history", "relationship_label": "初次相遇", "timeline": {"meeting_status": "陌生人"}, "narrative_status": {"first_scene_together": true}}]
-      }
+      "relationship_graph": {}
     }
   },
   "updates": {
-    "characters": {"char_npc": {core{identity}, personality{性格特质[]}, social{relationships{"target": {current_affinity, history_entry{change, reasoning}}}}}},
-    "storylines": {"main_quests": {"quest_id": {current_status, current_summary, history_entry{timestamp: "2025-01-15T10:30:00", status: "active", summary: "因A，任务进入B", chapter: 5}}}}
+    "characters": {
+      "char_npc": {
+        "social": {
+          "relationships": {
+            "char_yumi": {
+              "current_affinity": 78,
+              "history_entry": {"change": 5, "reasoning": "Yumi对Theo的控制欲感到不安"},
+              "narrative_advancement": {
+                "weight": 7,
+                "significance": "major_tension",
+                "reasoning": "控制欲初显"
+              }
+            }
+          }
+        }
+      }
+    },
+    "storylines": {
+      "main_quests": {
+        "quest_main_01": {
+          "current_summary": "Yumi 到达了 Theo 家，控制塔的第一个谜题摆在她面前。",
+          "history_entry": {"summary": "抵达新地点"},
+          "advancement": {
+            "progress_delta": 5,
+            "new_stage": "集结阶段",
+            "reasoning": "到达中心据点"
+          }
+        }
+      }
+    }
   },
-  "relationship_updates": [{"relationship_id": "rel_id", "updates": {"timeline.last_interaction": "{{current_chapter_uid}}", "timeline.separation_duration": "none"}}],
+  "relationship_updates": [],
   "new_long_term_summary": "...",
-  "new_handoff_memo": {"ending_snapshot": "...", "transition_mode": "seamless|jump_cut|scene_change", "action_handoff": "..."},
-  "chronology_update": {"transition_type": "same_slot|next_slot|time_jump", "new_day_count": 1, "new_time_slot": "evening", "reasoning": "..."},
-  "rhythm_assessment": {"current_phase": "inhale", "recommended_next_phase": "hold", "phase_transition_triggered": true, "emotional_intensity": 7, "intensity_reasoning": "...", "chapter_type": "Scene", "narrative_devices_used": {"spotlight_protocol": false}, "cycle_increment": false},
-  "storyline_progress_deltas": [{"storyline_id": "quest_id", "previous_progress": 25, "progress_delta": 10, "new_progress": 35, "delta_reasoning": "因获得线索，从无方向变成有目标，推进10%"}]
+  "new_handoff_memo": {"ending_snapshot": "...", "transition_mode": "jump_cut", "action_handoff": "..."},
+  "chronology_update": {"transition_type": "same_slot"},
+  "rhythm_assessment": {}
 }
 \`\`\`
 

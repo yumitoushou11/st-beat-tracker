@@ -569,8 +569,7 @@ function renderArchiveStorylines(storylineData, container, category, categoryNam
 
                 // 计算实际索引（考虑倒序显示）
                 const actualIndex = startIndex + (recentEntries.length - 1 - displayIndex);
-                const update = entry.summary_update || entry.status_change || '无更新';
-
+                const update = entry.summary_update || entry.summary || entry.status_change || '无更新';
                 historyHtml += `<div class="sbt-storyline-history-entry">
                     <span class="sbt-storyline-timestamp">${timestamp}</span>:
                     <span class="sbt-history-content" contenteditable="true" data-history-index="${actualIndex}">${update}</span>
@@ -586,13 +585,26 @@ function renderArchiveStorylines(storylineData, container, category, categoryNam
         const eyeTitle = isHidden ? '显示此故事线（当前已隐藏，不会被AI使用）' : '隐藏此故事线（暂时不让AI使用）';
 
         const progressState = resolveProgressState(line, id);
-        let progressHtml = '';
+         let progressHtml = '';
 
-        if (progressState) {
-            const progressValue = clampProgressValue(progressState.current_progress);
-            const stageLabel = formatStageLabel(progressState.current_stage);
+        // [V10.1 Fix] 前端渲染增强：
+        // 如果控制塔没有返回进度 (progressState 为空)，但故事线本身携带了 advancement (AI刚生成的增量)，
+        // 我们临时构造一个进度对象来显示，避免UI留白。
+        let displayState = progressState;
+        
+        if (!displayState && line.advancement) {
+            displayState = {
+                current_progress: line.advancement.progress_delta || 0, // 临时用增量当进度显示
+                current_stage: line.advancement.new_stage || '阶段更新',
+                last_increment: line.advancement.progress_delta
+            };
+        }
+
+        if (displayState) { // 将原来的 if (progressState) 改为使用 displayState
+            const progressValue = clampProgressValue(displayState.current_progress);
+            const stageLabel = formatStageLabel(displayState.current_stage);
             const displayValue = Math.round(progressValue);
-            const deltaValue = Number(progressState.last_increment);
+            const deltaValue = Number(displayState.last_increment);
             const hasDelta = Number.isFinite(deltaValue) && deltaValue !== 0;
             const deltaText = hasDelta
                 ? `<div class="sbt-storyline-progress-delta">本章推进 ${deltaValue > 0 ? '+' : ''}${deltaValue}%</div>`
