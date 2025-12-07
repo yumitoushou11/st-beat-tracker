@@ -1,8 +1,7 @@
 // FILE: StoryBeatEngine.js
 
 import { Chapter } from './Chapter.js';
-import * as stateManager from './stateManager.js'; 
-import { LLMApiService } from './LLMApiService.js';
+import * as stateManager from './stateManager.js';
 import { DIRECTOR_RULEBOOK_PROMPT, AFFINITY_BEHAVIOR_MATRIX_PROMPT } from './ai/prompt_templates.js';
 import { USER, LEADER, EDITOR } from './src/engine-adapter.js';
 import { simpleHash } from './utils/textUtils.js';
@@ -18,6 +17,11 @@ import { TurnConductorAgent } from './ai/turnConductorAgent.js';
 import { NarrativeControlTowerManager } from './src/NarrativeControlTowerManager.js';
 import { EntityContextManager } from './src/EntityContextManager.js';
 import { promptManager } from './promptManager.js';
+import { DebugLogger } from './src/utils/DebugLogger.js';
+import { TextSanitizer } from './src/utils/TextSanitizer.js';
+import { ChapterAnalyzer } from './src/utils/ChapterAnalyzer.js';
+import { ServiceFactory } from './src/services/ServiceFactory.js';
+
 export class StoryBeatEngine {
     constructor(dependencies) {
         this.deps = dependencies;
@@ -26,6 +30,9 @@ export class StoryBeatEngine {
         this.diagnose = dependencies.diagnose;
         this.toastr = dependencies.toastr;
         this.eventBus = dependencies.eventBus;
+
+        // 初始化调试日志器
+        this.logger = new DebugLogger('StoryBeatEngine');
         this.USER = USER;
         this.LEADER = LEADER;
         this.EDITOR = EDITOR;
@@ -54,33 +61,6 @@ export class StoryBeatEngine {
         this.conductorLlmService = null; // 回合裁判专用服务
         this.turnConductorAgent = null;
 
-        // 【调试模式辅助方法】
-        this.debugLog = (...args) => {
-            if (localStorage.getItem('sbt-debug-mode') === 'true') {
-                console.log(...args); // <--- 修改为调用 console.log
-            }
-        };
-        this.debugGroup = (...args) => {
-            if (localStorage.getItem('sbt-debug-mode') === 'true') {
-                console.group(...args);
-            }
-        };
-        this.debugGroupCollapsed = (...args) => {
-            if (localStorage.getItem('sbt-debug-mode') === 'true') {
-                console.groupCollapsed(...args);
-            }
-        };
-        this.debugGroupEnd = () => {
-            if (localStorage.getItem('sbt-debug-mode') === 'true') {
-                console.groupEnd();
-            }
-        };
-        this.debugWarn = (...args) => {
-            if (localStorage.getItem('sbt-debug-mode') === 'true') {
-                console.warn(...args);
-            }
-        };
-
         this.narrativeControlTowerManager = new NarrativeControlTowerManager(this);
         this.entityContextManager = new EntityContextManager(this);
     }
@@ -95,27 +75,16 @@ export class StoryBeatEngine {
     _initializeCoreServices() {
         const apiSettings = stateManager.getApiSettings();
 
-        // 实例化主服务
-        this.mainLlmService = new LLMApiService({
-            api_provider: apiSettings.main.apiProvider || 'direct_openai',
-            api_url: apiSettings.main.apiUrl,
-            api_key: apiSettings.main.apiKey,
-            model_name: apiSettings.main.modelName,
-            tavernProfile: apiSettings.main.tavernProfile || '', // 修复：添加预设ID
-        }, { EDITOR: this.EDITOR, USER: this.USER });
-        this.info(`核心大脑 LLM 服务已实例化 [模式: ${apiSettings.main.apiProvider || 'direct_openai'}]`);
+        // 使用ServiceFactory创建服务
+        const services = ServiceFactory.createServices(
+            apiSettings,
+            { USER: this.USER, EDITOR: this.EDITOR },
+            this.info
+        );
+        this.mainLlmService = services.mainLlmService;
+        this.conductorLlmService = services.conductorLlmService;
 
-        // 实例化回合裁判服务
-        this.conductorLlmService = new LLMApiService({
-            api_provider: apiSettings.conductor.apiProvider || 'direct_openai',
-            api_url: apiSettings.conductor.apiUrl,
-            api_key: apiSettings.conductor.apiKey,
-            model_name: apiSettings.conductor.modelName,
-            tavernProfile: apiSettings.conductor.tavernProfile || '', // 修复：添加预设ID
-        }, { EDITOR: this.EDITOR, USER: this.USER });
-        this.info(`回合裁判 LLM 服务已实例化 [模式: ${apiSettings.conductor.apiProvider || 'direct_openai'}]`);
-
-     const agentDependencies = {
+        const agentDependencies = {
             ...this.deps, // 继承来自引擎构造函数的基础依赖 (log, toastr等)
             mainLlmService: this.mainLlmService,
             conductorLlmService: this.conductorLlmService
@@ -602,23 +571,23 @@ const spoilerBlockPlaceholder = {
             lastExchange = historicalContext + lastExchange;
 
             // V2.0: 准备 TurnConductor 所需的完整上下文
-            this.debugGroup('[ENGINE-V2-PROBE] 准备 TurnConductor 输入上下文');
+            this.logger.group('[ENGINE-V2-PROBE] 准备 TurnConductor 输入上下文');
             const conductorContext = {
                 lastExchange: lastExchange,
                 chapterBlueprint: this.currentChapter.chapter_blueprint,
                 chapter: this.currentChapter // V2.0: 传递完整的 chapter 实例
             };
-            this.debugLog('✓ chapter 实例已传递（包含 staticMatrices 和 stylistic_archive）');
+            this.logger.log('✓ chapter 实例已传递（包含 staticMatrices 和 stylistic_archive）');
 
             // 【调试增强】打印传递给 turnConductor 的 blueprint 结构
-            this.debugLog('传递给 turnConductor 的 blueprint 信息:');
-            this.debugLog('  - plot_beats 数量:', this.currentChapter.chapter_blueprint?.plot_beats?.length || 0);
-            this.debugLog('  - 前3个节拍预览:');
+            this.logger.log('传递给 turnConductor 的 blueprint 信息:');
+            this.logger.log('  - plot_beats 数量:', this.currentChapter.chapter_blueprint?.plot_beats?.length || 0);
+            this.logger.log('  - 前3个节拍预览:');
             this.currentChapter.chapter_blueprint?.plot_beats?.slice(0, 3).forEach((beat, idx) => {
-                this.debugLog(`    节拍${idx}: beat_id=${beat.beat_id}, has_physical_event=${!!beat.physical_event}, has_description=${!!beat.description}`);
+                this.logger.log(`    节拍${idx}: beat_id=${beat.beat_id}, has_physical_event=${!!beat.physical_event}, has_description=${!!beat.description}`);
             });
 
-            this.debugGroupEnd();
+            this.logger.groupEnd();
 
             const conductorDecision = await this.turnConductorAgent.execute(conductorContext);
 
@@ -634,9 +603,9 @@ const spoilerBlockPlaceholder = {
             // V2.0: 处理实时上下文召回
             let dynamicContextInjection = '';
             if (conductorDecision.realtime_context_ids && conductorDecision.realtime_context_ids.length > 0) {
-                this.debugGroup('[ENGINE-V2-PROBE] 实时上下文召回流程');
+                this.logger.group('[ENGINE-V2-PROBE] 实时上下文召回流程');
                 this.info(`检测到 ${conductorDecision.realtime_context_ids.length} 个需要实时召回的实体`);
-                this.debugLog('实体ID列表:', conductorDecision.realtime_context_ids);
+                this.logger.log('实体ID列表:', conductorDecision.realtime_context_ids);
 
                 dynamicContextInjection = this.entityContextManager.retrieveEntitiesByIds(conductorDecision.realtime_context_ids);
 
@@ -645,7 +614,7 @@ const spoilerBlockPlaceholder = {
                 } else {
                     this.warn('⚠️ 动态上下文生成失败或为空');
                 }
-                this.debugGroupEnd();
+                this.logger.groupEnd();
             } else {
                 this.info('[ENGINE-V2] 本回合无需实时上下文召回');
             }
@@ -736,16 +705,16 @@ if (this.currentChapter.chapter_blueprint) {
     recallPlaceholder.content = recallContent.join('\n');
 
     // V9.0 调试：验证第2层召回内容
-    this.debugGroup('[ENGINE-V9-DEBUG] 第2层召回内容验证');
-    this.debugLog('召回模式:', isEntityRecallEnabled ? '按需召回' : '全量注入');
-    this.debugLog('注入内容总长度:', recallPlaceholder.content.length);
+    this.logger.group('[ENGINE-V9-DEBUG] 第2层召回内容验证');
+    this.logger.log('召回模式:', isEntityRecallEnabled ? '按需召回' : '全量注入');
+    this.logger.log('注入内容总长度:', recallPlaceholder.content.length);
     if (isEntityRecallEnabled) {
-        this.debugLog('是否包含章节级实体:', recallPlaceholder.content.includes('📂 章节级核心实体档案'));
-        this.debugLog('是否包含回合级召回:', recallPlaceholder.content.includes('本回合额外召回'));
+        this.logger.log('是否包含章节级实体:', recallPlaceholder.content.includes('📂 章节级核心实体档案'));
+        this.logger.log('是否包含回合级召回:', recallPlaceholder.content.includes('本回合额外召回'));
     } else {
-        this.debugLog('是否为全量注入模式:', recallPlaceholder.content.includes('Full Injection Mode'));
+        this.logger.log('是否为全量注入模式:', recallPlaceholder.content.includes('Full Injection Mode'));
     }
-    this.debugGroupEnd();
+    this.logger.groupEnd();
 
     // 【V9.0 修改】第3层：本章创作蓝图（纯净版，使用信息迷雾）
     const maskedBlueprint = this._applyBlueprintMask(
@@ -810,36 +779,36 @@ if (this.currentChapter.chapter_blueprint) {
     this.info(`✓ 第3层创作蓝图已注入（当前节拍索引: ${currentBeatIdx}，已应用动态掩码）`);
 
     // V4.1 调试：验证掩码效果
-    this.debugGroup('[ENGINE-V4.1-DEBUG] 剧本动态掩码验证');
-    this.debugLog('当前节拍索引:', currentBeatIdx);
-    this.debugLog('原始节拍数量:', this.currentChapter.chapter_blueprint.plot_beats?.length || 0);
-    this.debugLog('掩码后节拍结构:');
+    this.logger.group('[ENGINE-V4.1-DEBUG] 剧本动态掩码验证');
+    this.logger.log('当前节拍索引:', currentBeatIdx);
+    this.logger.log('原始节拍数量:', this.currentChapter.chapter_blueprint.plot_beats?.length || 0);
+    this.logger.log('掩码后节拍结构:');
     maskedBlueprint.plot_beats?.forEach((beat, idx) => {
         const contentPreview = beat.plot_summary?.substring(0, 50) || beat.description?.substring(0, 50) || beat.summary?.substring(0, 50) || '无内容';
         const visibility = beat.status === '【待解锁】' ? '(已屏蔽)' : '(完整可见)';
-        this.debugLog(`  节拍${idx + 1}: ${beat.status} ${visibility} - ${contentPreview}...`);
+        this.logger.log(`  节拍${idx + 1}: ${beat.status} ${visibility} - ${contentPreview}...`);
     });
     const beaconPreview = maskedBlueprint.endgame_beacon?.substring(0, 50) || maskedBlueprint.endgame_beacons?.[0]?.substring(0, 50) || '无';
-    this.debugLog('终章信标状态:', beaconPreview);
+    this.logger.log('终章信标状态:', beaconPreview);
 
     // 【新增】验证高光设计掩码状态
     if (maskedBlueprint.chapter_core_and_highlight) {
         const highlightMasked = maskedBlueprint.chapter_core_and_highlight.highlight_design_logic?._masked;
         const targetBeat = maskedBlueprint.chapter_core_and_highlight.highlight_design_logic?.target_beat_id;
-        this.debugLog('高光设计状态:', highlightMasked ? `(已屏蔽 - 目标节拍: ${targetBeat})` : '(完整可见)');
+        this.logger.log('高光设计状态:', highlightMasked ? `(已屏蔽 - 目标节拍: ${targetBeat})` : '(完整可见)');
         if (highlightMasked) {
-            this.debugLog('  ↳ 避免通过高光设计泄露未来节拍详情');
+            this.logger.log('  ↳ 避免通过高光设计泄露未来节拍详情');
         }
     }
 
-    this.debugGroupEnd();
+    this.logger.groupEnd();
 
     // V3.0 调试：验证第3层内容
-    this.debugGroup('[ENGINE-V3-DEBUG] 第3层蓝图内容验证');
-    this.debugLog('scriptContent 总长度:', scriptContent.length);
-    this.debugLog('蓝图包含plot_beats:', scriptContent.includes('plot_beats'));
-    this.debugLog('蓝图包含endgame信标:', scriptContent.includes('endgame_beacon'));
-    this.debugGroupEnd();
+    this.logger.group('[ENGINE-V3-DEBUG] 第3层蓝图内容验证');
+    this.logger.log('scriptContent 总长度:', scriptContent.length);
+    this.logger.log('蓝图包含plot_beats:', scriptContent.includes('plot_beats'));
+    this.logger.log('蓝图包含endgame信标:', scriptContent.includes('endgame_beacon'));
+    this.logger.groupEnd();
 
     // 【V3.2 重构】第4层：通用核心法则与关系指南
     const regularSystemPrompt = this._buildRegularSystemPrompt();
@@ -1072,35 +1041,6 @@ _buildStrictNarrativeConstraints(currentBeat, microInstruction, commonSenseRevie
     }
 
     return constraints.join('\n');
-}
-
-/**
- * 处理节拍中的 ★ 星标标记
- * 检测 description 是否以 ★ 开头，如果是则设置 is_highlight 并清理标记
- */
-_processStarMarkedBeats(blueprint) {
-    if (!blueprint || !blueprint.plot_beats || !Array.isArray(blueprint.plot_beats)) {
-        return;
-    }
-
-    let starCount = 0;
-    blueprint.plot_beats.forEach((beat, index) => {
-        if (beat.description && typeof beat.description === 'string') {
-            const trimmed = beat.description.trim();
-            if (trimmed.startsWith('★')) {
-                // 设置高光标记
-                beat.is_highlight = true;
-                // 清理描述中的 ★ 符号
-                beat.description = trimmed.substring(1).trim();
-                starCount++;
-                this.info(`[★ 星标检测] 节拍 ${index + 1} 被标记为高光节拍: ${beat.description.substring(0, 50)}...`);
-            }
-        }
-    });
-
-    if (starCount > 0) {
-        this.info(`[★ 星标统计] 本章共有 ${starCount} 个高光节拍`);
-    }
 }
 
 /**
@@ -1360,26 +1300,6 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         }
     }
     /**
-     * [辅助函数] 从剧本纯文本中提取出“终章信标”部分。
-     * @param {string} scriptText - 完整的剧本字符串。
-     * @returns {string} - 只包含“终章信标”部分的文本。
-     */
-    _extractEndgameBeacons(scriptText = '') {
-        const match = scriptText.match(/## 四、事件触发逻辑与终章信标[\s\S]*?(?=(?:## 五、|$))/);
-        return match ? match[0].trim() : "【错误：未能提取终章信标】";
-    }
-
-    /**
-     * [辅助函数] 从剧本纯文本中提取出当前的章节ID（例如 "第一卷"）。
-     * @param {string} scriptText - 完整的剧本字符串。
-     * @returns {string} - 章节ID。
-     */
-    _extractChapterId(scriptText = '') {
-        const match = scriptText.match(/<第(.*?)>/);
-        return match ? match[1].trim() : "未知章节";
-    }
-
-    /**
      * [辅助函数] 构建关系指南部分（从 onPromptReady 中抽离出来）。
      * @returns {string}
      */
@@ -1428,21 +1348,6 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
     /**
      * @private
-     * V10.1 修复：清理AI生成的摘要中的常见乱码和占位符。
-     * @param {string} text - 需要清理的摘要文本。
-     * @returns {string} - 清理后的文本，或在无效输入时返回标准占位符。
-     */
-    _sanitizeText(text) {
-        if (!text || typeof text !== 'string') return "（暂无详细摘要）";
-        // 过滤常见的乱码模式（如"尚未撰写摘要"的GBK->UTF8错乱编码）或无意义的占位符
-        if (text.includes('δ׫') || text.includes('дժ') || text.trim().length < 5 || text.includes("尚未撰写") || text.includes("暂无")) {
-            return "（暂无详细摘要）";
-        }
-        return text;
-    }
-
-    /**
-     * @private
      * V10.1 修复：在所有故事线分类中查找指定的storylineId，以应对AI分类错误。
      * @param {Chapter} chapter - 要搜索的章节对象。
      * @param {string} storylineId - 要查找的故事线ID。
@@ -1469,7 +1374,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         // V10.1 步骤零：预处理和防御
         // 🛡️ 防御1: 清理顶层摘要
         if (delta.new_long_term_summary) {
-            delta.new_long_term_summary = this._sanitizeText(delta.new_long_term_summary);
+            delta.new_long_term_summary = TextSanitizer.sanitizeText(delta.new_long_term_summary);
         }
 
         // 步骤一：处理新实体的创生 (Creations)
@@ -1712,7 +1617,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
             // V10.1 更新故事线（重构逻辑）
              if (updates.storylines) {
-            this.debugGroup('[SBE-CORE] 故事线更新 - ID优先寻址模式');
+            this.logger.group('[SBE-CORE] 故事线更新 - ID优先寻址模式');
             
             // 1. 构建本地全局 ID 索引表 (Registry)
             // 目的：无论 AI 把 ID 扔到哪个分类下，我们都能瞬间找到它在数据库里的真实老家
@@ -1843,7 +1748,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
                 this.info(`  ✅ ID [${id}] 更新完成 (Hash: ${targetCategory})`);
             }
-            this.debugGroupEnd();
+            this.logger.groupEnd();
         }else {
                 this.info("史官未提供任何故事线更新（updates.storylines 为空）");
             }
@@ -1862,11 +1767,11 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
         // V6.0 步骤三B：更新年表时间
         if (delta.chronology_update) {
-            this.debugGroup('[ENGINE-V6-CHRONOLOGY] 时间流逝更新流程');
+            this.logger.group('[ENGINE-V6-CHRONOLOGY] 时间流逝更新流程');
             this.info(" -> 检测到年表更新请求...");
 
             const chronUpdate = delta.chronology_update;
-            this.debugLog('收到时间更新:', chronUpdate);
+            this.logger.log('收到时间更新:', chronUpdate);
 
             if (!workingChapter.dynamicState.chronology) {
                 workingChapter.dynamicState.chronology = {
@@ -1920,15 +1825,15 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 }
             }
 
-            this.debugLog('最终时间状态:', JSON.parse(JSON.stringify(chron)));
-            this.debugLog('时间转换类型:', chronUpdate.transition_type);
-            this.debugLog('推理:', chronUpdate.reasoning);
-            this.debugGroupEnd();
+            this.logger.log('最终时间状态:', JSON.parse(JSON.stringify(chron)));
+            this.logger.log('时间转换类型:', chronUpdate.transition_type);
+            this.logger.log('推理:', chronUpdate.reasoning);
+            this.logger.groupEnd();
         }
 
         // V2.0 步骤四：更新宏观叙事弧光
         if (delta.updates?.meta?.active_narrative_arcs) {
-            this.debugGroup('[ENGINE-V2-PROBE] 宏观叙事弧光更新流程');
+            this.logger.group('[ENGINE-V2-PROBE] 宏观叙事弧光更新流程');
             this.info(" -> 检测到宏观叙事弧光更新请求...");
 
             if (!workingChapter.meta.active_narrative_arcs) {
@@ -1937,7 +1842,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             }
 
             const arcUpdates = delta.updates.meta.active_narrative_arcs;
-            this.debugLog(`收到 ${arcUpdates.length} 条弧光更新`, arcUpdates);
+            this.logger.log(`收到 ${arcUpdates.length} 条弧光更新`, arcUpdates);
 
             for (const arcUpdate of arcUpdates) {
                 const existingArcIndex = workingChapter.meta.active_narrative_arcs.findIndex(
@@ -1989,13 +1894,13 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 }
             }
 
-            this.debugLog(`当前活跃弧光数量: ${workingChapter.meta.active_narrative_arcs.length}`);
-            this.debugGroupEnd();
+            this.logger.log(`当前活跃弧光数量: ${workingChapter.meta.active_narrative_arcs.length}`);
+            this.logger.groupEnd();
         }
 
  // [V10.1 Fix] 步骤五：处理关系图谱更新 (Relationship Graph Updates)
         if (delta.relationship_updates && Array.isArray(delta.relationship_updates)) {
-            this.debugGroup('[ENGINE-V3-PROBE] 关系图谱更新流程');
+            this.logger.group('[ENGINE-V3-PROBE] 关系图谱更新流程');
             this.info(" -> 检测到关系图谱更新请求...");
 
             // 确保relationship_graph存在
@@ -2005,7 +1910,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             }
 
             const relationshipUpdates = delta.relationship_updates;
-            this.debugLog(`收到 ${relationshipUpdates.length} 条关系边更新`, relationshipUpdates);
+            this.logger.log(`收到 ${relationshipUpdates.length} 条关系边更新`, relationshipUpdates);
 
             for (const relUpdate of relationshipUpdates) {
                 // 1. [Fix] ID 兼容性处理：同时支持 standard ID 和 edge_id
@@ -2030,7 +1935,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                     
                     // 如果过滤后还有内容，就当做 updates 使用
                     if (Object.keys(updatesToApply).length > 0) {
-                        this.debugLog(`[兼容模式] 检测到扁平化数据结构，已自动提取字段作为更新源:`, Object.keys(updatesToApply));
+                        this.logger.log(`[兼容模式] 检测到扁平化数据结构，已自动提取字段作为更新源:`, Object.keys(updatesToApply));
                     } else {
                         updatesToApply = null; // 真的没数据
                     }
@@ -2061,7 +1966,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
                 // 4. [Fix] 安全应用更新 (防止 updatesToApply 为 null 导致崩溃)
                 if (updatesToApply && typeof updatesToApply === 'object') {
-                    this.debugLog(`正在更新关系边: ${relationship_id}`, updatesToApply);
+                    this.logger.log(`正在更新关系边: ${relationship_id}`, updatesToApply);
 
                     // 应用更新 - 使用点标记法路径
                     for (const [path, value] of Object.entries(updatesToApply)) {
@@ -2089,7 +1994,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                         }
                     }
                 } else {
-                    this.debugLog(`  ℹ️ 关系 ${relationship_id} 没有实质性内容更新 (可能仅包含 narrative_advancement)`);
+                    this.logger.log(`  ℹ️ 关系 ${relationship_id} 没有实质性内容更新 (可能仅包含 narrative_advancement)`);
                 }
 
                 // 处理占位符替换
@@ -2113,13 +2018,13 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 workingChapter.staticMatrices.relationship_graph.edges[edgeIndex] = replacePlaceholders(edge);
             }
 
-            this.debugLog(`关系图谱当前边数: ${workingChapter.staticMatrices.relationship_graph.edges.length}`);
-            this.debugGroupEnd();
+            this.logger.log(`关系图谱当前边数: ${workingChapter.staticMatrices.relationship_graph.edges.length}`);
+            this.logger.groupEnd();
         }
 
         // V2.0 步骤六：合并文体档案更新
         if (delta.stylistic_analysis_delta) {
-            this.debugGroup('[ENGINE-V2-PROBE] 文体档案合并流程');
+            this.logger.group('[ENGINE-V2-PROBE] 文体档案合并流程');
             this.info(" -> 检测到文体档案更新请求...");
 
             if (!workingChapter.dynamicState.stylistic_archive) {
@@ -2193,7 +2098,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 this.diagnose('[文体诊断]', stylisticDelta.stylistic_diagnosis);
             }
 
-            this.debugGroupEnd();
+            this.logger.groupEnd();
         }
 
         // V4.0 步骤七：更新叙事控制塔 (Narrative Control Tower)
@@ -2271,7 +2176,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         async _runGenesisFlow(firstMessageContent = null) {
         this._setStatus(ENGINE_STATUS.BUSY_GENESIS);
         this.info(`--- 创世纪流程启动 (ECI模型 V3.1) ---`);
-        this.debugGroup(`BRIDGE-PROBE [GENESIS-FLOW-ECI]`);
+        this.logger.group(`BRIDGE-PROBE [GENESIS-FLOW-ECI]`);
 
         // 初始化中止控制器
         this._transitionStopRequested = false;
@@ -2360,9 +2265,9 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 throw new Error("严重错误：未能从任何来源获取到静态数据矩阵。");
             }
             // 4. 【验证日志】
-            this.debugGroupCollapsed('[SBE-DIAGNOSE] Chapter state before planning:');
+            this.logger.groupCollapsed('[SBE-DIAGNOSE] Chapter state before planning:');
             console.dir(JSON.parse(JSON.stringify(this.currentChapter)));
-            this.debugGroupEnd();
+            this.logger.groupEnd();
 
             // 5. 获取玩家导演焦点
             this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
@@ -2412,18 +2317,18 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 const architectResult = await this._planNextChapter(true, this.currentChapter, firstMessageContent, this.currentTaskAbortController.signal);
                 if (architectResult && architectResult.new_chapter_script) {
                     // 处理 ★ 星标节拍
-                    this._processStarMarkedBeats(architectResult.new_chapter_script);
+                    ChapterAnalyzer.processStarMarkedBeats(architectResult.new_chapter_script, this.info);
 
                     this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
                     this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
 
                     // V3.0: 生成并缓存章节级静态上下文
                     const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
-                    this.debugGroup('[ENGINE-V3-DEBUG] GENESIS - 章节上下文缓存');
-                    this.debugLog('建筑师返回的 chapter_context_ids:', chapterContextIds);
+                    this.logger.group('[ENGINE-V3-DEBUG] GENESIS - 章节上下文缓存');
+                    this.logger.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
                     this.currentChapter.cachedChapterStaticContext = this.entityContextManager.generateChapterStaticContext(chapterContextIds);
-                    this.debugLog('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
-                    this.debugGroupEnd();
+                    this.logger.log('缓存后 cachedChapterStaticContext 长度:', this.currentChapter.cachedChapterStaticContext?.length || 0);
+                    this.logger.groupEnd();
                     this.info(`GENESIS: 建筑师成功生成开篇创作蓝图及设计笔记。章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
                     this.isGenesisStatePendingCommit = true;
                     const chatPieces = this.USER.getContext()?.chat || [];
@@ -2452,7 +2357,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         } finally {
             this._setStatus(ENGINE_STATUS.IDLE);
             this.currentTaskAbortController = null;
-            this.debugGroupEnd();
+            this.logger.groupEnd();
             if (loadingToast) this.toastr.clear(loadingToast);
         }
     }
@@ -2543,7 +2448,7 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
     );
     this._activeTransitionToast = loadingToast;
     this.info(`--- 章节转换流程启动 (ECI事务模型 V3.1 - 断点恢复增强版) ---`);
-    this.debugGroup(`BRIDGE-PROBE [CHAPTER-TRANSITION-RESILIENT]: ${eventUid}`);
+    this.logger.group(`BRIDGE-PROBE [CHAPTER-TRANSITION-RESILIENT]: ${eventUid}`);
 
     try {
         const activeCharId = this.USER.getContext()?.characterId;
@@ -2784,16 +2689,16 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
             }
 
             loadingToast.find('.toast-message').text("正在固化记忆并刷新状态...");
-            this._processStarMarkedBeats(architectResult.new_chapter_script);
+            ChapterAnalyzer.processStarMarkedBeats(architectResult.new_chapter_script, this.info);
             updatedNewChapter.chapter_blueprint = architectResult.new_chapter_script;
             updatedNewChapter.activeChapterDesignNotes = architectResult.design_notes;
 
             const chapterContextIds = architectResult.new_chapter_script.chapter_context_ids || [];
-            this.debugGroup('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
-            this.debugLog('建筑师返回的 chapter_context_ids:', chapterContextIds);
+            this.logger.group('[ENGINE-V3-DEBUG] 章节转换 - 章节上下文缓存');
+            this.logger.log('建筑师返回的 chapter_context_ids:', chapterContextIds);
             updatedNewChapter.cachedChapterStaticContext = this.entityContextManager.generateChapterStaticContext(chapterContextIds, updatedNewChapter);        
-            this.debugLog('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
-            this.debugGroupEnd();
+            this.logger.log('缓存后 cachedChapterStaticContext 长度:', updatedNewChapter.cachedChapterStaticContext?.length || 0);
+            this.logger.groupEnd();
             this.info(`章节转换: 章节级静态上下文已缓存（${chapterContextIds.length}个实体）。`);
         }
 
@@ -2836,11 +2741,11 @@ async triggerChapterTransition(eventUid, endIndex, transitionType = 'Standard') 
         if (loadingToast) {
             this.toastr.clear(loadingToast);
         }
-        this.debugGroupEnd();
+        this.logger.groupEnd();
     }
 }
 async _runStrategicReview(chapterContext, startIndex, endIndex, abortSignal = null) {
-    this.debugGroup("BRIDGE-PROBE [STRATEGIC-REVIEW]");
+    this.logger.group("BRIDGE-PROBE [STRATEGIC-REVIEW]");
     this.info("史官正在复盘本章历史...");
 
     let reviewDelta = null;
@@ -2872,7 +2777,7 @@ async _runStrategicReview(chapterContext, startIndex, endIndex, abortSignal = nu
         this.diagnose("在 _runStrategicReview 过程中发生错误:", error);
         // 其他错误不抛出，让上层根据 reviewDelta === null 来处理
     } finally {
-        this.debugGroupEnd();
+        this.logger.groupEnd();
         return reviewDelta;
     }
 }
@@ -3272,9 +3177,9 @@ async rerollChapterBlueprint() {
         };
 
         this.info("准备传递给建筑师的上下文:");
-        this.debugGroupCollapsed("建筑师上下文（重roll）");
+        this.logger.groupCollapsed("建筑师上下文（重roll）");
         console.dir(JSON.parse(JSON.stringify(contextForArchitect)));
-        this.debugGroupEnd();
+        this.logger.groupEnd();
 
         // 调用建筑师AI重新生成
         const architectResult = await this.architectAgent.execute(contextForArchitect, abortSignal);
@@ -3412,11 +3317,11 @@ async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessag
         firstMessageContent: firstMessageContent
     };
 
-    this.debugGroup(`BRIDGE-PROBE [PLAN-CHAPTER]`);
+    this.logger.group(`BRIDGE-PROBE [PLAN-CHAPTER]`);
     this.diagnose(`PLAN-1: 正在调用 ArchitectAgent (${isGenesis ? '创世纪模式' : '常规模式'})...`);
-    this.debugGroupCollapsed("传递给 ArchitectAgent 的完整 'context' 对象:");
+    this.logger.groupCollapsed("传递给 ArchitectAgent 的完整 'context' 对象:");
     console.dir(JSON.parse(JSON.stringify(contextForArchitect)));
-    this.debugGroupEnd();
+    this.logger.groupEnd();
 
     try {
         const architectResult = await this.architectAgent.execute(contextForArchitect, abortSignal);
@@ -3435,7 +3340,7 @@ async _planNextChapter(isGenesis = false, chapterForPlanning = null, firstMessag
         this.diagnose(`章节建筑师在规划时失败:`, error);
         return null;
     } finally {
-        this.debugGroupEnd();
+        this.logger.groupEnd();
     }
 }
     setNarrativeFocus(focusText) {
