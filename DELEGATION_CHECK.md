@@ -8,12 +8,15 @@
 **修复**: 改为 `this.engine.abortCurrentTask()`
 **提交**: c9cad8f
 
-### ✅ Bug #2: TransitionManager.playerInputPromise未重置
-**问题**: `src/managers/TransitionManager.js:286` playerInputPromise在await后未重置为null
+### ✅ Bug #2: TransitionManager重复点击检查失效
+**问题**: `src/managers/TransitionManager.js:227` 使用Promise对象进行重复点击检查
 **现象**: 首次点击提前规划按钮后，再次点击显示"已有一个提前规划弹窗在等待输入"，但实际无弹窗
-**原因**: playerInputPromise变量在完成后未清空，导致重复点击检查始终为true
-**修复**: 在`await playerInputPromise;`后添加 `playerInputPromise = null;`
-**提交**: 6c878fc
+**根本原因**:
+- Promise对象即使内部抛出异常，对象本身仍然存在
+- `if (playerInputPromise)`检查会一直返回true，无法反映Promise完成状态
+- showNarrativeFocusPopup抛出异常后，按钮永久失效
+**修复**: 改用布尔标志`isCapturingInput`追踪状态，在finally块中重置
+**提交**: e8e0443 (替代之前的6c878fc修复方案)
 
 ## 需要验证的委托链
 
