@@ -23,6 +23,8 @@ import { ServiceFactory } from './src/services/ServiceFactory.js';
 import { PromptBuilder } from './src/managers/PromptBuilder.js';
 import { StateUpdateManager } from './src/managers/StateUpdateManager.js';
 import { TransitionManager } from './src/managers/TransitionManager.js';
+import { UserInteractionHandler } from './src/handlers/UserInteractionHandler.js';
+import { CleanupHandler } from './src/handlers/CleanupHandler.js';
 
 export class StoryBeatEngine {
     constructor(dependencies) {
@@ -71,6 +73,12 @@ export class StoryBeatEngine {
 
         // 初始化章节转换管理器
         this.transitionManager = new TransitionManager(this, dependencies);
+
+        // 初始化用户交互处理器
+        this.userInteractionHandler = new UserInteractionHandler(this, dependencies);
+
+        // 初始化清理处理器
+        this.cleanupHandler = new CleanupHandler(this, dependencies);
     }
 
     _setStatus(newStatus) {
@@ -142,128 +150,11 @@ export class StoryBeatEngine {
      * @param {Chapter} workingChapter
      * @param {JQuery} $button
      */
-    async _captureEarlyFocusInput(workingChapter, $button) {
-        if (!$button || $button.length === 0) {
-            return null;
-        }
 
-        if (this._transitionStopRequested) {
-            this.info("章节转换已请求停止，忽略新的提前规划输入。");
-            return null;
-        }
 
-        this.info("玩家点击了提前规划按钮");
-        $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i>');
-
-        this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
-        let popupResult;
-
-        try {
-            popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
-        } catch (error) {
-            this.warn("[SBT] 提前规划弹窗异常，已回退到常规流程", error);
-            $button.prop('disabled', false).html('<i class="fa-solid fa-pen-ruler"></i> 规划');
-            this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
-            throw error;
-        }
-
-        // 玩家取消：恢复按钮并设置默认焦点，避免史官结束后再次弹窗
-        if (!popupResult.confirmed && !popupResult.freeRoam && !popupResult.abc) {
-            $button.prop('disabled', false)
-                .html('<i class="fa-solid fa-pen-ruler"></i> 规划')
-                .css('background-color', '');
-            this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
-            this.info("玩家取消了提前输入，使用默认AI自主创新模式");
-
-            // 即使取消，也设置默认值，避免史官结束后再次弹出焦点询问
-            this.LEADER.earlyPlayerInput = {
-                focus: "由AI自主创新。",
-                freeRoam: false
-            };
-            return this.LEADER.earlyPlayerInput;
-        }
-
-        let earlyFocus = "由AI自主创新。";
-        let earlyFreeRoam = false;
-
-        if (popupResult.freeRoam) {
-            earlyFreeRoam = true;
-            earlyFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
-        } else if (popupResult.abc) {
-            const userInput = popupResult.value || "";
-            earlyFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
-        } else if (popupResult.confirmed && popupResult.value) {
-            earlyFocus = popupResult.value;
-        }
-
-        this.LEADER.earlyPlayerInput = {
-            focus: earlyFocus,
-            freeRoam: earlyFreeRoam
-        };
-
-        this._setStatus(ENGINE_STATUS.BUSY_TRANSITIONING);
-        $button.html('<i class="fa-solid fa-check"></i> 已记录')
-            .css('background-color', '#4caf50');
-        this.info(`玩家提前输入已记录: ${earlyFocus}`);
-        return this.LEADER.earlyPlayerInput;
-    }
-
-    _bindStopButton(stageLabel) {
-        const $stopBtn = $('#sbt-stop-transition-btn');
-        if ($stopBtn.length === 0) {
-            return;
-        }
-        $stopBtn.off('click').on('click', () => {
-            this._handleStopTransitionRequest(stageLabel, $stopBtn);
-        });
-    }
-
-    _handleStopTransitionRequest(stageLabel = '未知阶段', $button = null) {
-        if (this._transitionStopRequested) {
-            this.info("章节转换停止指令已存在，忽略重复请求。");
-            return;
-        }
-
-        this._transitionStopRequested = true;
-        if ($button && $button.length > 0) {
-            $button.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> 停止中');
-        }
-        $('.sbt-compact-focus-btn').prop('disabled', true);
-
-        // V9.2: 升级为硬停止
-        this.warn(`[SBT-Stop] 在${stageLabel}阶段收到停止指令，立即中止所有AI请求。`);
-        this.abortCurrentTask();
-
-        if (this._activeTransitionToast) {
-            const $message = this._activeTransitionToast.find('.toast-message');
-            if ($message.length > 0 && $message.find('.sbt-stop-hint').length === 0) {
-                $message.append('<div class="sbt-stop-hint" style="color: #ffc107;">[!] 已发送强制中止指令...</div>');
-            }
-        }
-    }
     // V9.2 新增：硬停止方法
-    abortCurrentTask() {
-        this.warn('收到外部强制中止指令！');
-        this._transitionStopRequested = true;
-        if (this.currentTaskAbortController) {
-            this.currentTaskAbortController.abort();
-            this.info('AbortController 已触发中止。');
-        }
-    }
 
-    _throwIfStopRequested(stageLabel = '') {
-        if (this._transitionStopRequested) {
-            const error = new Error(`用户在${stageLabel || '未知'}阶段终止了章节转换`);
-            error.code = 'SBT_TRANSITION_STOP';
-            throw error;
-        }
-    }
 
-    _cleanupAfterTransitionStop() {
-        this.LEADER.pendingTransition = null;
-        this.LEADER.earlyPlayerInput = null;
-        this.USER.saveChat?.();
-    }
 
     /**
      * 🔧 清理chat消息中的污染leader数据
@@ -272,87 +163,6 @@ export class StoryBeatEngine {
      * 2. 纯静态缓存leader包含运行时字段
      * @returns {object} 清理报告 { cleanedCount, pollutedMessages }
      */
-    _cleanPollutedLeadersInChat() {
-        const chat = this.USER.getContext()?.chat;
-        if (!chat || !Array.isArray(chat)) {
-            this.diagnose('[清理器] Chat未加载或为空');
-            return { cleanedCount: 0, pollutedMessages: [] };
-        }
-
-        let cleanedCount = 0;
-        const pollutedMessages = [];
-
-        this.diagnose(`[清理器] 开始扫描 ${chat.length} 条消息中的leader数据`);
-
-        for (let i = 0; i < chat.length; i++) {
-            const message = chat[i];
-            if (!message || !message.leader) continue;
-
-            const leader = message.leader;
-            const uid = leader.uid || 'unknown';
-            const removedFields = [];
-
-            // 判断这是真实章节还是静态缓存
-            const isRealChapter = uid.startsWith('chapter_') || uid.match(/^[a-zA-Z0-9_-]+$/);
-            const isStaticCache = uid.startsWith('static_cache_');
-
-            this.diagnose(`[清理器] 检查消息 #${i}: uid=${uid}, isRealChapter=${isRealChapter}, isStaticCache=${isStaticCache}`);
-
-            // 🔧 情况1: 真实章节被污染了静态缓存标记
-            if (isRealChapter && !isStaticCache) {
-                // 真实章节不应该有 __source: "static_cache"
-                // 但 cachedChapterStaticContext 和 lastUpdated 是合法字段，不应删除
-                if (leader.__source === 'static_cache') {
-                    delete leader.__source;
-                    removedFields.push('__source');
-                    this.diagnose(`[清理器] 移除真实章节的 __source 污染标记`);
-                }
-            }
-
-            // 🔧 情况2: 静态缓存leader包含不应有的字段
-            if (isStaticCache) {
-                // 静态缓存不应该有这些运行时字段（它们属于真实章节）
-                const STATIC_CACHE_FORBIDDEN_FIELDS = [
-                    'chapter_blueprint',
-                    'activeChapterDesignNotes',
-                    'cachedChapterStaticContext',
-                    'lastUpdated'
-                ];
-
-                for (const field of STATIC_CACHE_FORBIDDEN_FIELDS) {
-                    if (leader.hasOwnProperty(field)) {
-                        delete leader[field];
-                        removedFields.push(field);
-                        this.diagnose(`[清理器] 移除静态缓存的运行时字段: ${field}`);
-                    }
-                }
-            }
-
-            if (removedFields.length > 0) {
-                cleanedCount++;
-                pollutedMessages.push({
-                    messageIndex: i,
-                    uid: uid,
-                    removedFields: removedFields
-                });
-
-                this.info(`[清理器] 清理消息 #${i} (uid: ${uid})，移除字段: ${removedFields.join(', ')}`);
-            }
-        }
-
-        // 如果有清理，保存chat
-        if (cleanedCount > 0) {
-            this.info(`[清理器] 共清理了 ${cleanedCount} 条消息，正在保存...`);
-            this.USER.saveChat?.();
-        } else {
-            this.diagnose('[清理器] 未发现需要清理的数据');
-        }
-
-        return {
-            cleanedCount,
-            pollutedMessages
-        };
-    }
 
     async start() {
         this.info("叙事流引擎 ( State Refactored) 正在启动...");
@@ -1746,4 +1556,64 @@ async forceChapterTransition() {
     // _planNextChapter() - 已迁移
     // _runGenesisFlow() - 已迁移
     // _runStrategicReview() - 已迁移
+
+    // ========== 用户交互委托方法 ==========
+    
+    /**
+     * 捕获提前规划输入（委托给 UserInteractionHandler）
+     * @private
+     */
+    async _captureEarlyFocusInput(workingChapter, $button) {
+        return this.userInteractionHandler._captureEarlyFocusInput(workingChapter, $button);
+    }
+    
+    /**
+     * 绑定停止按钮（委托给 UserInteractionHandler）
+     * @private
+     */
+    _bindStopButton(stageLabel) {
+        return this.userInteractionHandler._bindStopButton(stageLabel);
+    }
+    
+    /**
+     * 处理停止转换请求（委托给 UserInteractionHandler）
+     * @private
+     */
+    _handleStopTransitionRequest(stageLabel, $button) {
+        return this.userInteractionHandler._handleStopTransitionRequest(stageLabel, $button);
+    }
+    
+    // ========== 清理委托方法 ==========
+    
+    /**
+     * 中止当前任务（委托给 CleanupHandler）
+     * @public
+     */
+    abortCurrentTask() {
+        return this.cleanupHandler.abortCurrentTask();
+    }
+    
+    /**
+     * 检查是否请求停止（委托给 CleanupHandler）
+     * @private
+     */
+    _throwIfStopRequested(stageLabel) {
+        return this.cleanupHandler._throwIfStopRequested(stageLabel);
+    }
+    
+    /**
+     * 转换停止后清理（委托给 CleanupHandler）
+     * @private
+     */
+    _cleanupAfterTransitionStop() {
+        return this.cleanupHandler._cleanupAfterTransitionStop();
+    }
+    
+    /**
+     * 清理污染的leader数据（委托给 CleanupHandler）
+     * @private
+     */
+    _cleanPollutedLeadersInChat() {
+        return this.cleanupHandler._cleanPollutedLeadersInChat();
+    }
 }
