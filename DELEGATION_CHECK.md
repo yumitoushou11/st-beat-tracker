@@ -31,6 +31,23 @@
 - 将其添加到`applicationDependencies`对象中
 **提交**: 0650466
 
+### ✅ Bug #4: 使用不存在的debug方法
+**问题**: `src/NarrativeControlTowerManager.js:63` 调用`debugGroup()`等方法时报错
+**错误**: `TypeError: debugGroup is not a function`
+**影响范围**:
+- NarrativeControlTowerManager: 4处使用
+- EntityContextManager: 41处使用
+**根本原因**:
+- 这两个模块试图从`this.engine`解构`debugGroup`, `debugLog`, `debugGroupEnd`, `debugWarn`
+- 但这些方法在StoryBeatEngine中不存在
+- 应该使用DebugLogger实例替代
+**修复**:
+- 在两个模块中导入并创建DebugLogger实例
+- 替换所有debug方法调用为`this.logger.*`对应方法
+- NarrativeControlTowerManager: 手动修复4处
+- EntityContextManager: 使用sed批量修复41处
+**提交**: 4199116
+
 ## 需要验证的委托链
 
 ### TransitionManager委托方法
