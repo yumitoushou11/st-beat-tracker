@@ -859,6 +859,12 @@ export class StateUpdateManager {
         }
 
         // V4.0 步骤七：更新叙事控制塔 (Narrative Control Tower)
+        // 【修复】将收集的故事线进度增量传递给控制塔
+        if (collectedStorylineDeltas.length > 0) {
+            delta.storyline_progress_deltas = collectedStorylineDeltas;
+            this.info(`✓ 已收集 ${collectedStorylineDeltas.length} 条故事线进度增量，准备传递给控制塔`);
+        }
+
         if (delta.rhythm_assessment || delta.storyline_progress_deltas) {
             this.engine.narrativeControlTowerManager.update(workingChapter, delta);
         }

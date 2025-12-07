@@ -170,8 +170,11 @@ export class ArchitectAgent extends Agent {
         this.diagnose(`--- 章节建筑师AI V9.2 (Function Fix) 启动 --- 正在动态规划新章节...`);
         const prompt = this._createPrompt(context);
 
-        console.groupCollapsed('[SBT-DIAGNOSE] Full Architect AI System Prompt V9.2');
-        logger.debug(prompt);
+        // 【增强日志】打印建筑师完整输入到控制台
+        console.group('📐 [章节建筑师 - 完整输入] Architect AI Input Prompt');
+        console.log('==================== 开始 ====================');
+        console.log(prompt);
+        console.log('==================== 结束 ====================');
         console.groupEnd();
 
         try {
@@ -185,11 +188,12 @@ export class ArchitectAgent extends Agent {
                 silentStreamCallback,  // 👈 使用静默流式回调
                 abortSignal
             );
-            
-            console.group('🕵️‍♂️ [ARCHITECT-BLACKBOX] Received Raw Output from LLM Service');
-            logger.debug('--- START OF RAW RESPONSE ---');
-            logger.debug(responseText);
-            logger.debug('--- END OF RAW RESPONSE ---');
+
+            // 【增强日志】打印建筑师完整输出到控制台
+            console.group('📋 [章节建筑师 - 完整输出] Architect AI Raw Output');
+            console.log('==================== 开始 ====================');
+            console.log(responseText);
+            console.log('==================== 结束 ====================');
             console.groupEnd();
             
             let potentialJsonString;

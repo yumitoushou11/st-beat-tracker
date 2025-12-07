@@ -1842,7 +1842,7 @@ $('#extensions-settings-button').after(html);
     });
 
     // -- V8.0: 故事线追踪 - 删除故事线 --
-    $wrapper.on('click', '.sbt-storyline-delete-btn', function(e) {
+    $wrapper.on('click', '.sbt-storyline-delete-btn', async function(e) {
         e.stopPropagation(); // 防止触发卡片点击
 
         const lineId = $(this).data('storyline-id') || $(this).data('line-id');
@@ -1861,28 +1861,39 @@ $('#extensions-settings-button').after(html);
             return;
         }
 
-        // 删除静态部分
-        delete effectiveState.staticMatrices.storylines[category][lineId];
+        try {
+            // 删除静态部分
+            delete effectiveState.staticMatrices.storylines[category][lineId];
 
-        // 删除动态部分
-        if (effectiveState.dynamicState.storylines?.[category]?.[lineId]) {
-            delete effectiveState.dynamicState.storylines[category][lineId];
+            // 删除动态部分
+            if (effectiveState.dynamicState.storylines?.[category]?.[lineId]) {
+                delete effectiveState.dynamicState.storylines[category][lineId];
+            }
+
+            // 【修复】删除控制塔中的故事线进度数据，防止系统重新创建
+            if (effectiveState.meta?.narrative_control_tower?.storyline_progress?.[lineId]) {
+                delete effectiveState.meta.narrative_control_tower.storyline_progress[lineId];
+                deps.info(`✓ 已清除故事线 ${lineId} 的控制塔进度数据`);
+            }
+
+            // 保存（添加await确保保存完成）
+            if (typeof deps.onSaveCharacterEdit === 'function') {
+                await deps.onSaveCharacterEdit('storyline_deleted', effectiveState);
+            }
+
+            // 触发更新
+            if (deps.eventBus) {
+                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
+            }
+
+            // 隐藏详情面板（如果正在显示）
+            $('#sbt-storyline-detail-panel').hide();
+
+            deps.toastr.success(`故事线"${staticLine.title}"已删除`, '删除成功');
+        } catch (error) {
+            deps.diagnose('[UIManager] 删除故事线时发生错误:', error);
+            deps.toastr.error(`删除失败: ${error.message}`, '错误');
         }
-
-        // 保存
-        if (typeof deps.onSaveCharacterEdit === 'function') {
-            deps.onSaveCharacterEdit('storyline_deleted', effectiveState);
-        }
-
-        // 触发更新
-        if (deps.eventBus) {
-            deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
-        }
-
-        // 隐藏详情面板（如果正在显示）
-        $('#sbt-storyline-detail-panel').hide();
-
-        deps.toastr.success(`故事线"${staticLine.title}"已删除`, '删除成功');
     });
 
     // -- V8.0: 故事线追踪 - 添加涉及角色 --
