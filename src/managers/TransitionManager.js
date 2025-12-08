@@ -698,12 +698,30 @@ export class TransitionManager {
                     `);
                     this._bindStopButton('创世纪-智能分析阶段');
 
+                    // V8.0: 获取完整的用户/主角信息
+                    const context = this.USER.getContext();
+                    const userName = window.name1 || context.name1 || '未知';
+                    const personaDescription = context.powerUserSettings?.persona_description || '';
                     const persona = window.personas?.[window.main_persona];
+
+                    // 整合主角信息
+                    const protagonistInfo = {
+                        name: userName,
+                        description: personaDescription,
+                        personaContent: persona?.content || '',
+                    };
+
+                    this.info(`GENESIS: 主角信息 - 名字: ${userName}`);
+
                     // V8.0: 使用创世纪资料源管理器获取世界书条目（支持手动精选模式）
                     const { getWorldbookEntriesForGenesis } = await import('../../genesis-worldbook/worldbookManager.js');
                     const worldInfoEntries = await getWorldbookEntriesForGenesis();
                     this.info(`GENESIS: 已获取 ${worldInfoEntries.length} 个世界书条目用于分析`);
-                    const agentOutput = await this.intelligenceAgent.execute({ worldInfoEntries, persona }, this.currentTaskAbortController.signal);
+
+                    const agentOutput = await this.intelligenceAgent.execute({
+                        worldInfoEntries,
+                        protagonistInfo
+                    }, this.currentTaskAbortController.signal);
     
                     if (agentOutput && agentOutput.staticMatrices) {
                         this.info("GENESIS: AI分析成功，生成了新的数据。");

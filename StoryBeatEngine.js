@@ -1153,11 +1153,25 @@ async reanalyzeWorldbook() {
         const activeCharId = this.currentChapter.characterId;
         this.info(`--- 启动对角色 ${activeCharId} 的世界书热重载 ---`);
 
+        // V8.0: 获取完整的用户/主角信息
+        const context = this.USER.getContext();
+        const userName = window.name1 || context.name1 || '未知';
+        const personaDescription = context.powerUserSettings?.persona_description || '';
         const persona = window.personas?.[window.main_persona];
-        const worldInfoEntries = await this.deps.getCharacterBoundWorldbookEntries(this.USER.getContext());
+
+        const protagonistInfo = {
+            name: userName,
+            description: personaDescription,
+            personaContent: persona?.content || '',
+        };
+
+        const worldInfoEntries = await this.deps.getCharacterBoundWorldbookEntries(context);
 
         this.diagnose("热重载: 调用 IntelligenceAgent...");
-        const analysisResult = await this.intelligenceAgent.execute({ worldInfoEntries, persona }, this.currentTaskAbortController.signal);
+        const analysisResult = await this.intelligenceAgent.execute({
+            worldInfoEntries,
+            protagonistInfo
+        }, this.currentTaskAbortController.signal);
 
         if (!analysisResult || !analysisResult.staticMatrices) {
             throw new Error("IntelligenceAgent未能返回有效的分析结果（缺少staticMatrices）。");

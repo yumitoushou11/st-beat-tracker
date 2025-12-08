@@ -5,9 +5,20 @@ import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js'; 
 export class IntelligenceAgent extends Agent {
 
-  _createPrompt(worldInfoEntries, persona) {
-        const safePersona = persona || { content: "无主角人设信息。" };
-        const personaText = safePersona.content;
+  _createPrompt(worldInfoEntries, protagonistInfo) {
+        // V8.0: 整合主角信息
+        const userName = protagonistInfo?.name || "未知";
+        const userDescription = protagonistInfo?.description || "";
+        const personaContent = protagonistInfo?.personaContent || "";
+
+        // 构建主角信息文本
+        let protagonistText = `主角名字: ${userName}\n`;
+        if (userDescription) {
+            protagonistText += `主角个人描述: ${userDescription}\n`;
+        }
+        if (personaContent) {
+            protagonistText += `主角人设卡片内容: ${personaContent}\n`;
+        }
 
         let formattedWorldInfo = "无特定的世界观条目。";
         if (worldInfoEntries && worldInfoEntries.length > 0) {
@@ -19,12 +30,22 @@ export class IntelligenceAgent extends Agent {
         return BACKEND_SAFE_PASS_PROMPT + `
 # 指令：ECI原子化数据库创生协议 V1.0
 
-你的身份是“创世数据库管理员”，一个拥有上帝视角的AI。你的任务是将非结构化的文本情报，转化为一个结构严谨的、高度分类的、只反映【目前故事还未开始时】状态的【静态实体数据库】。
+你的身份是"创世数据库管理员"，一个拥有上帝视角的AI。你的任务是将非结构化的文本情报，转化为一个结构严谨的、高度分类的、只反映【目前故事还未开始时】状态的【静态实体数据库】。
 
 --- 原始情报 ---
-<protagonist_persona>
-${personaText}
-</protagonist_persona>
+<protagonist_info>
+${protagonistText}
+
+【重要提示】：
+- 主角的真实身份就是上述信息中的"${userName}"。
+- 在世界书条目中，如果出现 {{user}}、{{用户}}、玩家 等标记，它们指代的就是这个主角"${userName}"。
+- 你需要将主角的个人信息（名字、描述、人设）与世界书中所有涉及 {{user}} 的条目进行**融合分析**。
+- 在为主角建档时，必须综合考虑：
+  1. 主角自己的人设描述
+  2. 世界书中关于 {{user}} 的所有信息（背景、关系、能力等）
+  3. 将两者融合，创建一个完整、统一的主角档案
+</protagonist_info>
+
 <world_info_entries>
 ${formattedWorldInfo}
 </world_info_entries>
@@ -352,14 +373,10 @@ ${formattedWorldInfo}
     }
 
      async execute(context, abortSignal = null) {
-        const { worldInfoEntries, persona } = context;
+        const { worldInfoEntries, protagonistInfo } = context;
         this.diagnose("--- 智能情报官AI 启动 --- 正在对世界书进行全维度解析...");
 
-        const prompt = this._createPrompt(worldInfoEntries, persona);
-
-        console.groupCollapsed('[SBT-DIAGNOSE] Full IntelligenceAgent AI System Prompt');
-        logger.debug(prompt);
-        console.groupEnd();
+        const prompt = this._createPrompt(worldInfoEntries, protagonistInfo);
 
         let responseText = null; // 1. 在try块外部声明，确保在catch中可访问
 
