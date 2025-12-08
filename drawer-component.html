@@ -109,6 +109,66 @@
                             ></textarea>
                         </div>
 
+                        <!-- V8.0: 世界书筛选器 -->
+                        <div class="sbt-control-card">
+                            <label class="sbt-toggle-label">
+                                <span class="sbt-toggle-text">
+                                    <i class="fa-solid fa-book-atlas fa-fw"></i> 世界书筛选器
+                                </span>
+                                <i class="fa-solid fa-circle-info fa-fw" title="控制创世纪时AI读取哪些世界书内容。自动模式会读取角色绑定的所有世界书，手动模式允许你精确选择要读取的条目。"></i>
+                            </label>
+
+                            <!-- 模式选择 -->
+                            <div class="sbt-worldbook-source-selection" style="margin-top: 10px;">
+                                <label class="sbt-radio-label">
+                                    <input type="radio" name="sbt-wb-source" value="auto" id="sbt-wb-source-auto" checked>
+                                    <span>自动读取（角色绑定）</span>
+                                </label>
+                                <label class="sbt-radio-label">
+                                    <input type="radio" name="sbt-wb-source" value="manual" id="sbt-wb-source-manual">
+                                    <span>手动选择（精确控制）</span>
+                                </label>
+                            </div>
+
+                            <!-- 手动选择面板 -->
+                            <div id="sbt-wb-manual-panel" class="sbt-wb-manual-panel" style="display: none; margin-top: 15px;">
+                                <div class="sbt-wb-selection-container">
+                                    <!-- 世界书列表 -->
+                                    <div class="sbt-wb-books-section">
+                                        <div class="sbt-wb-section-header">
+                                            <h6><i class="fa-solid fa-books fa-fw"></i> 选择世界书</h6>
+                                            <button id="sbt-wb-refresh-books-btn" class="sbt-icon-btn" title="刷新世界书列表">
+                                                <i class="fa-solid fa-sync"></i>
+                                            </button>
+                                        </div>
+                                        <input type="text" id="sbt-wb-books-search" class="sbt-search-input" placeholder="搜索世界书...">
+                                        <div id="sbt-wb-books-list" class="sbt-wb-checkbox-list">
+                                            <p class="sbt-instructions-small">加载中...</p>
+                                        </div>
+                                    </div>
+
+                                    <!-- 条目列表 -->
+                                    <div class="sbt-wb-entries-section">
+                                        <div class="sbt-wb-section-header">
+                                            <h6><i class="fa-solid fa-file-lines fa-fw"></i> 选择条目</h6>
+                                            <button id="sbt-wb-refresh-entries-btn" class="sbt-icon-btn" title="刷新条目列表">
+                                                <i class="fa-solid fa-sync"></i>
+                                            </button>
+                                        </div>
+                                        <input type="text" id="sbt-wb-entries-search" class="sbt-search-input" placeholder="搜索条目...">
+                                        <div class="sbt-wb-selection-controls">
+                                            <button id="sbt-wb-select-all-entries" class="sbt-mini-btn">全选</button>
+                                            <button id="sbt-wb-deselect-all-entries" class="sbt-mini-btn">全不选</button>
+                                            <span id="sbt-wb-entries-count" class="sbt-count-badge">0 / 0</span>
+                                        </div>
+                                        <div id="sbt-wb-entries-list" class="sbt-wb-checkbox-list">
+                                            <p class="sbt-instructions-small">请先选择世界书</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <button id="sbt-start-genesis-btn" class="sbt-primary-btn">
                             <i class="fa-solid fa-book-sparkles fa-fw"></i> 开始新的叙事篇章
                         </button>

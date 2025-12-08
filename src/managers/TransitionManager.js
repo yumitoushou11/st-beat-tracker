@@ -697,9 +697,12 @@ export class TransitionManager {
                         </div>
                     `);
                     this._bindStopButton('创世纪-智能分析阶段');
-    
+
                     const persona = window.personas?.[window.main_persona];
-                    const worldInfoEntries = await this.deps.getCharacterBoundWorldbookEntries(context);
+                    // V8.0: 使用创世纪资料源管理器获取世界书条目（支持手动精选模式）
+                    const { getWorldbookEntriesForGenesis } = await import('../../genesis-worldbook/worldbookManager.js');
+                    const worldInfoEntries = await getWorldbookEntriesForGenesis();
+                    this.info(`GENESIS: 已获取 ${worldInfoEntries.length} 个世界书条目用于分析`);
                     const agentOutput = await this.intelligenceAgent.execute({ worldInfoEntries, persona }, this.currentTaskAbortController.signal);
     
                     if (agentOutput && agentOutput.staticMatrices) {

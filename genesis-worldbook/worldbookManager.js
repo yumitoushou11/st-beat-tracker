@@ -88,3 +88,24 @@ export async function getCharacterBoundWorldbookEntries(context) {
     info(`[Main Process] Process complete. Total enabled entries found: ${enabledEntries.length}`);
     return enabledEntries;
 }
+
+/**
+ * @description 【V8.0新增】使用创世纪资料源管理器获取世界书条目
+ * 根据用户的选择模式（自动/手动）返回相应的世界书条目
+ * @returns {Promise<object[]>}
+ */
+export async function getWorldbookEntriesForGenesis() {
+    try {
+        // 动态导入，避免循环依赖
+        const { getGenesisWorldBookEntries } = await import('./genesisSourceManager.js');
+        const entries = await getGenesisWorldBookEntries();
+        info(`[Genesis Source] 为创世纪获取了 ${entries.length} 个世界书条目`);
+        return entries;
+    } catch (error) {
+        warn('[Genesis Source] 获取世界书条目失败，回退到传统方法:', error);
+        // 回退到传统方法
+        const { USER } = await import('../src/engine-adapter.js');
+        const context = USER.getContext();
+        return await getCharacterBoundWorldbookEntries(context);
+    }
+}
