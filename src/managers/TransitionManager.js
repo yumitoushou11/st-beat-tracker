@@ -59,6 +59,9 @@ export class TransitionManager {
     /** 获取事件总线 */
     get eventBus() { return this.engine.eventBus; }
     
+    /** 获取id等交互 */
+    get status() { return this.engine.status; }
+    
     /** 获取各种Agent */
     get intelligenceAgent() { return this.engine.intelligenceAgent; }
     get historianAgent() { return this.engine.historianAgent; }
