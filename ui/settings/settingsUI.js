@@ -162,93 +162,99 @@ export function bindNarrativeModeSwitchHandler($wrapper, deps, getCurrentChapter
 }
 
 /**
+ * 辅助函数：读取模型名称（优先从下拉选择器，如果是手动输入则从输入框）
+ */
+const getModelName = (selectId, inputId) => {
+    const selectValue = String($(`#${selectId}`).val() || '').trim();
+    if (selectValue && selectValue !== '__manual__') {
+        return selectValue;
+    }
+    return String($(`#${inputId}`).val()).trim();
+};
+
+/**
+ * 核心保存函数 - 从UI读取设置并保存
+ * @returns {boolean} 保存是否成功
+ */
+export function saveSettings() {
+    let newSettings = {
+        main: {
+            apiProvider: String($('#sbt-api-provider-select').val()).trim(),
+            apiUrl: String($('#sbt-api-url-input').val()).trim(),
+            apiKey: String($('#sbt-api-key-input').val()).trim(),
+            modelName: getModelName('sbt-model-name-select', 'sbt-model-name-input'),
+            tavernProfile: String($('#sbt-preset-select').val() || '').trim(),
+        },
+        conductor: {
+            apiProvider: String($('#sbt-conductor-api-provider-select').val()).trim(),
+            apiUrl: String($('#sbt-conductor-api-url-input').val()).trim(),
+            apiKey: String($('#sbt-conductor-api-key-input').val()).trim(),
+            modelName: getModelName('sbt-conductor-model-name-select', 'sbt-conductor-model-name-input'),
+            tavernProfile: String($('#sbt-conductor-preset-select').val() || '').trim(),
+        }
+    };
+
+    // 智能填充：如果回合裁判未配置，则自动使用主API的配置
+    let conductorNeedsAutoFill = false;
+
+    if (newSettings.conductor.apiProvider === 'sillytavern_preset') {
+        conductorNeedsAutoFill = !newSettings.conductor.tavernProfile;
+    } else {
+        conductorNeedsAutoFill = !newSettings.conductor.apiUrl || !newSettings.conductor.apiKey;
+    }
+
+    if (conductorNeedsAutoFill) {
+        newSettings.conductor = { ...newSettings.main };
+        // 将自动填充后的值更新回UI
+        $('#sbt-conductor-api-provider-select').val(newSettings.conductor.apiProvider);
+        $('#sbt-conductor-api-url-input').val(newSettings.conductor.apiUrl);
+        $('#sbt-conductor-api-key-input').val(newSettings.conductor.apiKey);
+        $('#sbt-conductor-model-name-input').val(newSettings.conductor.modelName);
+        $('#sbt-conductor-preset-select').val(newSettings.conductor.tavernProfile || '');
+    }
+
+    // 检查主API配置是否完整
+    if (newSettings.main.apiProvider === 'sillytavern_preset') {
+        if (!newSettings.main.tavernProfile) {
+            logger.warn('[自动保存] 预设模式未选择预设，跳过保存');
+            return false;
+        }
+    } else {
+        if (!newSettings.main.apiUrl || !newSettings.main.apiKey) {
+            logger.warn('[自动保存] URL或Key为空，跳过保存');
+            return false;
+        }
+    }
+
+    // 保存设置
+    saveApiSettings(newSettings);
+
+    // 调试日志
+    logger.debug('[自动保存] 主LLM配置:', {
+        provider: newSettings.main.apiProvider,
+        tavernProfile: newSettings.main.tavernProfile,
+        modelName: newSettings.main.modelName || '(空)',
+        hasUrl: !!newSettings.main.apiUrl,
+        hasKey: !!newSettings.main.apiKey
+    });
+    logger.debug('[自动保存] 回合裁判配置:', {
+        provider: newSettings.conductor.apiProvider,
+        tavernProfile: newSettings.conductor.tavernProfile,
+        modelName: newSettings.conductor.modelName || '(空)',
+        hasUrl: !!newSettings.conductor.apiUrl,
+        hasKey: !!newSettings.conductor.apiKey
+    });
+
+    $(document).trigger('sbt-api-settings-saved', [newSettings]);
+    return true;
+}
+
+/**
  * 绑定设置保存处理器
  * @param {jQuery} $wrapper - 容器元素
  * @param {Object} deps - 依赖注入对象
  */
 export function bindSettingsSaveHandler($wrapper, deps) {
-    // 辅助函数：读取模型名称（优先从下拉选择器，如果是手动输入则从输入框）
-    const getModelName = (selectId, inputId) => {
-        const selectValue = String($(`#${selectId}`).val() || '').trim();
-        if (selectValue && selectValue !== '__manual__') {
-            return selectValue;
-        }
-        return String($(`#${inputId}`).val()).trim();
-    };
-
-    // 核心保存函数
-    const saveSettings = () => {
-        let newSettings = {
-            main: {
-                apiProvider: String($('#sbt-api-provider-select').val()).trim(),
-                apiUrl: String($('#sbt-api-url-input').val()).trim(),
-                apiKey: String($('#sbt-api-key-input').val()).trim(),
-                modelName: getModelName('sbt-model-name-select', 'sbt-model-name-input'),
-                tavernProfile: String($('#sbt-preset-select').val() || '').trim(),
-            },
-            conductor: {
-                apiProvider: String($('#sbt-conductor-api-provider-select').val()).trim(),
-                apiUrl: String($('#sbt-conductor-api-url-input').val()).trim(),
-                apiKey: String($('#sbt-conductor-api-key-input').val()).trim(),
-                modelName: getModelName('sbt-conductor-model-name-select', 'sbt-conductor-model-name-input'),
-                tavernProfile: String($('#sbt-conductor-preset-select').val() || '').trim(),
-            }
-        };
-
-        // 智能填充：如果回合裁判未配置，则自动使用主API的配置
-        let conductorNeedsAutoFill = false;
-
-        if (newSettings.conductor.apiProvider === 'sillytavern_preset') {
-            conductorNeedsAutoFill = !newSettings.conductor.tavernProfile;
-        } else {
-            conductorNeedsAutoFill = !newSettings.conductor.apiUrl || !newSettings.conductor.apiKey;
-        }
-
-        if (conductorNeedsAutoFill) {
-            newSettings.conductor = { ...newSettings.main };
-            // 将自动填充后的值更新回UI
-            $('#sbt-conductor-api-provider-select').val(newSettings.conductor.apiProvider);
-            $('#sbt-conductor-api-url-input').val(newSettings.conductor.apiUrl);
-            $('#sbt-conductor-api-key-input').val(newSettings.conductor.apiKey);
-            $('#sbt-conductor-model-name-input').val(newSettings.conductor.modelName);
-            $('#sbt-conductor-preset-select').val(newSettings.conductor.tavernProfile || '');
-        }
-
-        // 检查主API配置是否完整
-        if (newSettings.main.apiProvider === 'sillytavern_preset') {
-            if (!newSettings.main.tavernProfile) {
-                logger.warn('[自动保存] 预设模式未选择预设，跳过保存');
-                return false;
-            }
-        } else {
-            if (!newSettings.main.apiUrl || !newSettings.main.apiKey) {
-                logger.warn('[自动保存] URL或Key为空，跳过保存');
-                return false;
-            }
-        }
-
-        // 保存设置
-        saveApiSettings(newSettings);
-
-        // 调试日志
-        logger.debug('[自动保存] 主LLM配置:', {
-            provider: newSettings.main.apiProvider,
-            tavernProfile: newSettings.main.tavernProfile,
-            modelName: newSettings.main.modelName || '(空)',
-            hasUrl: !!newSettings.main.apiUrl,
-            hasKey: !!newSettings.main.apiKey
-        });
-        logger.debug('[自动保存] 回合裁判配置:', {
-            provider: newSettings.conductor.apiProvider,
-            tavernProfile: newSettings.conductor.tavernProfile,
-            modelName: newSettings.conductor.modelName || '(空)',
-            hasUrl: !!newSettings.conductor.apiUrl,
-            hasKey: !!newSettings.conductor.apiKey
-        });
-
-        $(document).trigger('sbt-api-settings-saved', [newSettings]);
-        return true;
-    };
 
     // V8.0: 失焦即保存 - 监听所有输入框和下拉框的变化
     const apiInputSelectors = [
@@ -294,15 +300,6 @@ export function bindSettingsSaveHandler($wrapper, deps) {
  * @param {Object} deps - 依赖注入对象
  */
 export function bindAPITestHandlers($wrapper, deps) {
-    // 辅助函数：读取模型名称（优先从下拉选择器，如果是手动输入则从输入框）
-    const getModelName = (selectId, inputId) => {
-        const selectValue = String($(`#${selectId}`).val() || '').trim();
-        if (selectValue && selectValue !== '__manual__') {
-            return selectValue;
-        }
-        return String($(`#${inputId}`).val()).trim();
-    };
-
     // 测试核心大脑API连接
     $wrapper.on('click', '#sbt-test-api-btn', async function() {
         const $btn = $(this);

@@ -409,7 +409,18 @@ async testConnection() {
 
             // 处理响应
             if (responseData.error) {
-                throw new Error(`API 错误: ${responseData.error.message || JSON.stringify(responseData.error)}`);
+                // 增强错误信息，帮助用户调试
+                const errorMsg = responseData.error.message || JSON.stringify(responseData.error);
+                logger.error('[代理模式] API返回错误:', {
+                    错误消息: errorMsg,
+                    请求配置: {
+                        模型: this.config.model_name || '(未设置)',
+                        API来源: 'openai',
+                        反向代理: this.config.api_url || '(未设置)',
+                        密码状态: this.config.api_key ? '已设置' : '未设置'
+                    }
+                });
+                throw new Error(`API 错误: ${errorMsg}\n\n调试信息:\n- 模型: ${this.config.model_name || '(未设置)'}\n- API URL: ${this.config.api_url || '(未设置)'}\n- 提供商: ${this.config.api_provider}`);
             }
 
             const content = responseData.choices?.[0]?.message?.content || responseData.content;
