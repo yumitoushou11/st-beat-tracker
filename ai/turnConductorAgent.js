@@ -218,7 +218,24 @@ ${lastExchange}
 纠正方案B：[具体指令]（如适用）
 \`\`\`
 
-## 5. 输出 (JSON)
+## 5. 章节转换判定
+
+**触发条件**：本回合对话涉及终章信标内容
+
+**判定规则**：
+1. 查看"最新对话"中AI和玩家的内容
+2. 判断对话是否涉及终章信标（${endgameBeacon}）中描述的事件
+3. 如果涉及终章信标内容（不管是开始、进行中还是完成）→ \`"status": "TRIGGER_TRANSITION"\`
+4. 如果对话与终章信标无关 → \`"status": "CONTINUE"\`
+
+**重要**：只要本回合触及终章信标的内容就立即切换，不需要等完全完成。
+
+**示例**：
+- 终章信标："主角离开村庄"
+- 对话涉及：主角告别村长/走向村口/踏出大门 → \`TRIGGER_TRANSITION\`
+- 对话不涉及：主角在酒馆闲聊 → \`CONTINUE\`
+
+## 6. 输出 (JSON)
 \`\`\`json
 {
   "status": "CONTINUE或TRIGGER_TRANSITION",
@@ -230,7 +247,7 @@ ${lastExchange}
 }
 \`\`\`
 ${isEntityRecallEnabled ? `
-## 5. 实体召回 (Entity Recall - 规划外实体检索)
+## 7. 实体召回 (Entity Recall - 规划外实体检索)
 
 **任务:** 识别本回合涉及的**规划外**实体（不在chapter_context_ids中的实体）
 

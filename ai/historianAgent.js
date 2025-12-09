@@ -195,7 +195,8 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
    ${existingEntityManifest}
 4. **完整数据**: <static_matrices>${JSON.stringify(staticMatrices, null, 2)}</static_matrices>
    <dynamic_state>${JSON.stringify(dynamicState, null, 2)}</dynamic_state>
-5. **长线摘要**: ${longTermStorySummary}
+5. **全局故事总梗概（从第1章到第${currentChapterNumber - 1}章）**: ${longTermStorySummary}
+   ⚠️ 这是截至上一章结束的全局总梗概，包含了从故事开始到现在的所有重要情节。你需要在此基础上累加本章内容，而不是替换它。
 6. **节奏环**: 当前相位\`${narrativeRhythmClock.current_phase}\`, 已持续${narrativeRhythmClock.current_phase_duration}章, 周期${narrativeRhythmClock.cycle_count}
 
 ---
@@ -258,9 +259,13 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 **禁令**: 不使用\`operation/values/append\`等操作符，数组必须输出完整的更新后数组。
 ### **M5: 剪辑师双轨摘要**
 **第一轨**: \`new_long_term_summary\` (200-400字宏观故事摘要)
-  - **维护逻辑**: 以 \`longTermStorySummary\` 为底稿，撰写“截至本章结束”的全局剧情概览，而非复述本章梗概。必须说明本章新增事件如何嵌入既有格局，并点出新的母题/悬念。
-  - **结构建议**: ①旧格局回顾（1-2句）→ ②本章造成的结构性变化（2-3句）→ ③新的威胁/希望/悬念（1句）。
-  - **禁令**: 禁止出现“本章/这一章”字样；不得只描述眼前场景；严禁让上一章的重要线索在摘要里消失。
+  - **维护逻辑**: 这是一个**累积式全局总梗概**，记录从第1章到第${currentChapterNumber}章的完整故事。以上文提供的\`全局故事总梗概\`为底稿，**在其基础上补充本章新增的情节**，形成"截至本章结束"的完整故事概览。
+  - **严禁操作**: 禁止只写本章内容而丢弃之前的总梗概；禁止让已有的重要线索、角色、事件在新梗概中消失。
+  - **结构建议**: ①已有格局回顾（保留之前章节的核心事件，1-2句）→ ②本章造成的结构性变化（2-3句）→ ③新的威胁/希望/悬念（1句）。
+  - **禁令**: 禁止出现"本章/这一章"字样；不得只描述眼前场景；必须保持故事连续性。
+  - **示例对比**:
+    - ❌ 错误："主角在酒馆和NPC聊天，然后接了一个任务。"（只有本章内容）
+    - ✅ 正确："主角离开村庄后，经历了森林遇袭和神秘商人的警告。如今抵达王都，在酒馆意外卷入一场暗杀阴谋，不得不接下保护商队的任务以换取情报。"（包含之前+本章）
 **第二轨**: \`new_handoff_memo\` {ending_snapshot, transition_mode, action_handoff}
 - **seamless**: 下一章从结束瞬间的下一秒开始 (高张力时刻)
 - **jump_cut**: 跳过垃圾时间(洗澡/睡觉/赶路)，直接跳到下一个有意义节点
