@@ -177,6 +177,8 @@ const getModelName = (selectId, inputId) => {
  * @returns {boolean} 保存是否成功
  */
 export function saveSettings() {
+    console.log('[SBT-DEBUG] saveSettings 被调用，版本: V8.1');
+
     let newSettings = {
         main: {
             apiProvider: String($('#sbt-api-provider-select').val()).trim(),
@@ -217,12 +219,16 @@ export function saveSettings() {
     if (newSettings.main.apiProvider === 'sillytavern_preset') {
         if (!newSettings.main.tavernProfile) {
             logger.warn('[自动保存] 预设模式未选择预设，跳过保存');
-            return false;
+            return { success: false, reason: '预设模式未选择预设' };
         }
     } else {
         if (!newSettings.main.apiUrl || !newSettings.main.apiKey) {
             logger.warn('[自动保存] URL或Key为空，跳过保存');
-            return false;
+            return { success: false, reason: 'API URL 或 API Key 为空' };
+        }
+        if (!newSettings.main.modelName) {
+            logger.warn('[自动保存] 模型名称为空，跳过保存');
+            return { success: false, reason: '模型名称为空' };
         }
     }
 
@@ -246,7 +252,7 @@ export function saveSettings() {
     });
 
     $(document).trigger('sbt-api-settings-saved', [newSettings]);
-    return true;
+    return { success: true };
 }
 
 /**
@@ -255,6 +261,9 @@ export function saveSettings() {
  * @param {Object} deps - 依赖注入对象
  */
 export function bindSettingsSaveHandler($wrapper, deps) {
+    // 调试：确认函数被调用
+    console.log('[SBT-DEBUG] bindSettingsSaveHandler 被调用，版本: V8.1-修复失焦保存');
+    console.log('[SBT-DEBUG] $wrapper 元素数量:', $wrapper.length);
 
     // V8.0: 失焦即保存 - 监听所有输入框和下拉框的变化
     const apiInputSelectors = [
@@ -275,21 +284,30 @@ export function bindSettingsSaveHandler($wrapper, deps) {
     // 为所有输入框和下拉框绑定失焦自动保存
     apiInputSelectors.forEach(selector => {
         $wrapper.on('blur change', selector, function() {
+            console.log(`[SBT-DEBUG] ${selector} 触发了 blur/change 事件`);
             // V8.0修正: 立即保存，不使用防抖延迟（避免用户改完立即测试时配置还没生效）
-            const success = saveSettings();
-            if (success) {
+            const result = saveSettings();
+            if (result.success) {
                 logger.info('[自动保存] API设置已自动保存');
+                console.log('[SBT-DEBUG] 保存成功');
+            } else {
+                // 失焦保存失败时，给用户一个友好的提示
+                logger.debug(`[自动保存] 配置不完整，未保存: ${result.reason}`);
+                console.warn(`[SBT-DEBUG] 保存失败: ${result.reason}`);
+                // 不显示 toastr，避免打扰用户输入，只在控制台记录
             }
         });
     });
 
+    console.log('[SBT-DEBUG] 已为', apiInputSelectors.length, '个选择器绑定事件');
+
     // 保留原有的保存按钮功能（手动保存+显示提示）
     $wrapper.on('click', '#sbt-save-settings-btn', () => {
-        const success = saveSettings();
-        if (success) {
+        const result = saveSettings();
+        if (result.success) {
             deps.toastr.success("所有API设置已保存并应用！", "操作成功");
         } else {
-            deps.toastr.warning("请检查设置是否完整。", "保存失败");
+            deps.toastr.warning(`请检查设置是否完整：${result.reason}`, "保存失败");
         }
     });
 }
@@ -312,13 +330,28 @@ export function bindAPITestHandlers($wrapper, deps) {
 
         try {
             // V8.0修正: 测试前先强制保存配置，确保测试和实际调用使用相同配置
-            const saveSuccess = saveSettings();
-            if (!saveSuccess) {
-                throw new Error('配置不完整，无法测试。请检查所有必填项。');
+            const result = saveSettings();
+            if (!result.success) {
+                throw new Error(`配置不完整，无法测试：${result.reason}\n\n请检查所有必填项：\n- API URL\n- API Key\n- 模型名称`);
             }
 
-            // 等待配置更新完成（因为 sbt-api-settings-saved 事件会重新初始化服务）
-            await new Promise(resolve => setTimeout(resolve, 100));
+            console.log('[SBT-DEBUG] 配置已保存，正在直接更新 mainLlmService 配置...');
+
+            // 直接更新 LLM 服务的配置（不依赖事件监听器的异步延迟）
+            const settings = getApiSettings();
+            deps.mainLlmService.updateConfig({
+                apiProvider: settings.main.apiProvider,
+                apiUrl: settings.main.apiUrl,
+                apiKey: settings.main.apiKey,
+                modelName: settings.main.modelName,
+                tavernProfile: settings.main.tavernProfile
+            });
+
+            console.log('[SBT-DEBUG] mainLlmService 配置已更新:', {
+                provider: settings.main.apiProvider,
+                url: settings.main.apiUrl,
+                model: settings.main.modelName
+            });
 
             const successMessage = await deps.mainLlmService.testConnection();
             deps.toastr.success(successMessage, "核心大脑API连接成功");
