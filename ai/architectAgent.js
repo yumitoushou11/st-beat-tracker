@@ -65,92 +65,6 @@ const IMMERSION_MODE_PROMPT = `
 \`\`\`
 `;
 
-// V7.0 策略模块：网文模式（按需注入）
-const WEB_NOVEL_STRATEGY_PROMPT = `
-### **【 叙事策略：🔥 网文模式 (Web Novel)】**
-**身份切换:** 你是首席"多巴胺工程师"。你的任务是设计快感，但必须拒绝廉价的通用模板。
-**核心公理:** **没有爽点的章节是垃圾，但只有套路的章节是庸俗。**
-
-**1. 爽点构建四大法则 (The 4 Pillars)**
-*   **预期差:** 铺垫NPC的轻视/绝望(压抑) -> 主角展示超常力量(爆发) -> NPC震惊/打脸(反馈)。
-*   **即时反馈:** 付出必须当场兑现。获得道具=当场使用；救人=当场获赠重宝/情报。**禁止延迟满足。**
-*   **特权感:** 强调"只有主角能做到"。神器只认主他，冰山美女只对他笑，神兽只亲近他，。
-*   **危机即机遇:** 敌人=快递员，困境=展示舞台。吃瘪必须当场找回场子。
-
-**2. 创新执行协议 (Creative Execution Protocol)**
-*   **拒绝通用解:** 如果你的打脸方式是“直接一拳打飞”或“拿出更贵的宝物”，**重写！**
-*   **绑定世界观:** 爽点必须利用**当前独有的设定**（如：角色的特殊技能、敌人的具体弱点、场景的特殊机关）。
-*   **反套路:** 在套路中加入**微创新**。
-    *   *旧:* 敌人嘲讽 -> 主角打脸。
-    *   *新:* 敌人嘲讽 -> 主角**顺着敌人的话**挖坑 -> 敌人自己跳进坑里 -> 达成更具羞辱性的打脸。
-
-**3. 结构法则: 起承转合(钩)**
-*   **起 (1-2拍):** 承接上章，设立新目标。
-*   **承 (2-3拍):** 推进事件，**必须包含**至少1次小挫折或低估（为反转蓄能）。
-*   **转 (2-3拍):** **核心爽点爆发**。根据快感类型（公开成就/秘密优势/策略碾压）描写核心反转。
-*   **合 (1-2拍):** 收获**实质奖励**（物质/能力/地位），并展示其即时价值。
-*   **钩 (1拍):** 抛出悬念/冲突/欲望型钩子，禁止完美闭环。
-
-**4. 强制执行标准 (KPI)**
-*   **密度:** 每个节拍必须包含 [动作+信息+爽点推进]，拒绝慢镜头。
-*   **反默剧:** 整章**最多1个**死人节拍。主角独处时必须引入系统/角色/回忆对话。
-
-**5. 输出要求:**
-在 \`design_notes\` 中**必须**新增 \`satisfaction_blueprint\`:
-\`\`\`json
-"satisfaction_blueprint": {
-  "core_pleasure_source": "[快感类型: 公开成就/秘密优势/策略碾压/个人突破]",
-  "expectation_setup": "[如何铺垫压抑/低估？]",
-  "climax_payoff": "[高潮反馈描写：NPC反应/内心掌控感]",
-  
-  // 【爽点独特性自辩】
-  "unique_design_logic": {
-      "trope_twist": "[你如何翻新了这个套路？]",
-      "setting_integration": "[如何结合世界观与角色的特殊性？]"
-  },
-
-  "tangible_rewards": "[获得的实质奖励及即时价值展示]",
-  "hook_design": "[钩子类型及具体事件]",
-  "silence_check_report": "[逐拍检查对话/声音来源，统计死人节拍数]"
-}
-\`\`\`
-`;
-
-// V7.6 策略模块：正剧模式 (Classic RPG / Drama)
-const CLASSIC_RPG_STRATEGY_PROMPT = `
-### **【V7.6 叙事策略：🎭 正剧模式 (Classic RPG / Drama)】**
-**身份切换:** 你是"正剧导演"。你的任务是构建**扎实的叙事呼吸**，拒绝快餐式的爽感，追求情感的厚度与逻辑的严密。
-
-**1. 呼吸哲学 (The Breath of Narrative)**
-*   **Scene-Sequel 交替律:**
-    *   **Scene (场景):** 目标 -> 冲突 -> 灾难/阻碍。用于推进剧情。
-    *   **Sequel (后续):** 反应 -> 困境 -> 决定。用于消化情感、调整状态。
-    *   **铁律:** 高强度 Scene (intensity >= 8) 之后，**必须**接一个 Sequel 章节让角色喘息。禁止连续高潮。
-
-**2. 节奏相位控制 (Pacing Phase Control)**
-*   **Inhale (吸气/铺垫):** 引入新线索，建立悬念。允许较慢的节奏和丰富的环境描写。
-*   **Hold (憋气/张力):** 线索汇聚，风雨欲来。通过缩短句式和加快剪辑来制造紧张感。
-*   **Exhale (呼气/高潮):** 冲突爆发，情感宣泄。必须有高密度的动作和对话。
-*   **Pause (停顿/余韵):** 尘埃落定，日常回归。允许留白和无目的的闲聊。
-
-**3. 允许内容 (Content Permissions)**
-*   ✅ **纯氛围描写:** 可以花篇幅描写雨声、光影、废墟的质感（网文模式禁止）。
-*   ✅ **内心独白:** 允许角色进行深度的自我剖析和挣扎（网文模式需转化为口语）。
-*   ✅ **日常即内容:** 做饭、整理装备、擦拭武器本身就是有效的叙事，无需强制附加冲突。
-
-**4. 输出要求:**
-在 \`design_notes\` 中**必须**新增 \`classic_rpg_breath\`:
-\`\`\`json
-"classic_rpg_breath": {
-  "current_phase": "[Inhale/Hold/Exhale/Pause]",
-  "scene_sequel_type": "[Scene 或 Sequel]",
-  "pacing_rationale": "[为何选择此节奏？例如：'上章战斗太激烈，本章需要Sequel来处理角色的创伤应激反应']",
-  "atmospheric_focus": "[本章的氛围基调，如：'阴冷潮湿的压抑感']",
-  "silence_check_report": "[逐拍检查对话/声音来源，统计死人节拍数 (上限1)]"
-}
-\`\`\`
-`;
-
 export class ArchitectAgent extends Agent {
 
     constructor(...args) {
@@ -286,7 +200,6 @@ _getBasePromptTemplate() {
 /**
  * 动态生成JSON输出标准
  * @param {Object} config - 配置对象
- * @param {string} config.narrativeMode - 叙事模式 (classic_rpg/web_novel)
  * @param {string} config.beatCountRange - 节拍数量区间
  * @param {string} config.playerNarrativeFocus - 玩家叙事焦点
  * @param {boolean} config.hasImmersionMode - 是否启用沉浸模式
@@ -294,7 +207,7 @@ _getBasePromptTemplate() {
  * @returns {string} JSON输出标准的文本描述
  */
 _generateOutputSpecification(config) {
-    const { narrativeMode, beatCountRange, playerNarrativeFocus, hasImmersionMode, isEntityRecallEnabled } = config;
+    const { beatCountRange, playerNarrativeFocus, hasImmersionMode, isEntityRecallEnabled } = config;
 
     // 基础输出结构（所有模式共用）
     let outputSpec = `**【【【 JSON 输出结构 】】】**
@@ -322,31 +235,16 @@ _generateOutputSpecification(config) {
         "beat_allocation": { "S_tier_beats": 0, "A_tier_beats": 0, "B_tier_beats": 0, "total_beats": 0 }
     },
     "aesthetic_innovation_report": "[识别高频元素并提出创新替代方案]",
-`;
 
-    // 根据叙事模式添加对应字段
-    if (narrativeMode === 'web_novel') {
-        outputSpec += `
-    // ========== 网文模式专属字段 ==========
-    "satisfaction_blueprint": {
-      "core_pleasure_source": "[快感类型：打脸/升级/掉宝/情感共鸣等]",
-      "expectation_setup": "[预期差铺垫：如何压抑？]",
-      "climax_payoff": "[高潮反馈：如何爆发？]",
+    // ========== 多巴胺工程验证 ==========
+    "dopamine_blueprint": {
+      "contrast_ratio": "[压抑部分占X拍，爆发部分占Y拍]",
+      "exclusivity_justification": "[为什么只有主角能做到？基于什么独特性？]",
+      "trope_innovation": "[使用了什么套路？如何翻新？]",
       "tangible_rewards": "[实质奖励及即时价值]",
-      "hook_design": "[钩子类型及具体事件]"
+      "hook_design": "[抛出的新钩子]"
     },
 `;
-    } else {
-        outputSpec += `
-    // ========== 正剧模式专属字段 ==========
-    "classic_rpg_breath": {
-      "current_phase": "[Inhale/Hold/Exhale/Pause - 当前呼吸相位]",
-      "scene_sequel_type": "[Scene/Sequel - 章节类型]",
-      "pacing_rationale": "[节奏选择理由]",
-      "atmospheric_focus": "[氛围基调]"
-    },
-`;
-    }
 
     // 如果启用沉浸模式，添加沉浸模式字段
     if (hasImmersionMode) {
@@ -367,12 +265,13 @@ _generateOutputSpecification(config) {
 
     // 添加通用字段
     outputSpec += `
-    // ========== 零度校准逻辑自辩 ==========
+    // ========== 双层动机论 - 逻辑自辩 ==========
     "affinity_logic_audit": {
       "target_character": "[本章主要互动的NPC名]",
-      "current_affinity_stage": "[数值] (例如: 20-熟悉/中立)",
+      "current_affinity_stage": "[数值] (例如：20-熟悉/中立)",
       "planned_action": "[你设计的核心互动行为]",
-      "zero_degree_check": "[自辩：剥离性格后，为什么这个好感度数值足以支撑这个行为？好感度是否匹配了'生物引力'法则？例如：'好感度90+且独处，如果不发生肢体接触是不合理的，所以我设计了拥抱和亲吻。'']"
+      "biological_layer_check": "[第一层检验：剥离性格后，这个好感度数值是否足以支撑这个行为？是否符合生物引力法则？]",
+      "personality_layer_justification": "[第二层说明：性格如何修饰这个行为的表达方式？例如：'傲娇角色虽然关心，但会用反话表达']"
     },
 
     "new_entities_proposal": "[可选：NEW:前缀实体的定义说明]",
@@ -555,14 +454,8 @@ _createPrompt(context) {
         this.info("建筑师检测到开场白，已切换到'续写模式'。");
     }
 
-    // V7.0: 提取叙事模式配置
-    const narrativeMode = chapter?.meta?.narrative_control_tower?.narrative_mode || {
-        current_mode: 'classic_rpg'
-    };
-    const currentMode = narrativeMode.current_mode;
-
     let basePrompt = `
-# **指令：自省式叙事蓝图创作 (Self-Reflective Narrative Blueprinting) V11.0**
+# **指令：自省式叙事蓝图创作 (Self-Reflective Narrative Blueprinting) V13.0**
 
 **身份确认:** 你是一位顶级的、懂得"克制"与"聚焦"艺术的"**叙事建筑师**"。你的任务是设计一个**高度专注的、服务于单一核心情感体验的创作蓝图**。
 
@@ -584,7 +477,11 @@ _createPrompt(context) {
 3.  **物理法则 (Law of Physics):** 高好感度 = 物理距离缩短。相爱的人不会隔着两米远说话。让他们触碰、纠缠、感受彼此的体温。
 
  --- 【语言与细节规范 (MANDATORY)】 ---
-    1.  **语言协议**: 你的所有输出，包括 \`staticMatrices\` 内部的所有字符串值（characters, worldview, storylines），**必须完全使用【简体中文】**。这是一个绝对的要求，不得出现任何英文单词或短语，除非它们是专有名词的原文。
+    **语言铁律**:
+    1. 你的所有输出，包括 \`staticMatrices\` 内部的所有字符串**值**（characters, worldview, storylines），**必须完全使用【简体中文】**。
+    2. **特别注意**：不仅字段描述要用中文，**字段的值**也必须是中文。
+    3. 唯一允许英文的地方：字段名（field name）、ID标识符。
+    4. 所有节拍描述、地点名称、事件描述等**内容必须是简体中文**，除非是专有名词的原文。
 ---
 ## **第零章：故事线管理与反贪婪法则 (Storyline & Anti-Greed)**
 ---
@@ -595,15 +492,16 @@ _createPrompt(context) {
     *   **绝对禁令:** 严禁在一个章节内试图推进超过 **2条** 核心故事线。
     *   **最佳实践:** **1条主线 + 1条关系线**（或仅1条强相关线）。试图推进更多会导致节奏崩坏和焦点模糊。
 
-**1.5. 情感基调校准协议 (V12.0 新增核心):**
-*   **最高原则:** **情感和谐大于一切**。一章的核心体验必须是纯粹的。
+**1.5. 基调锚定协议 (Tonal Integrity Protocol - V13.0 核心升级):**
+*   **锚定法则:** 本章的情感基调是最高优先级的设计约束，一切元素必须服从或强化这个基调。
 *   **执行流程:**
-    1.  **定义核心基调:** 在选择故事线之前，从 \`playerNarrativeFocus\` 或最重要的主线任务中，提炼本章的**“核心情感基调”** (例如：“温馨治愈”、“紧张悬疑”)。
-    2.  **筛选相容弧光:** 然后，你**只能**选择那些与这个核心基调**“相容”**或能形成**“有效对比”**的次要故事线。
-*   **判断标准:**
-    *   ✅ **相容:** 情感方向一致 (例如: 核心基调是“温馨治愈”，搭配“友情升温”的关系线)。
-    *   ❌ **不相容 (绝对禁止):** 情感方向冲突且互相破坏 (例如: 核心基调是“温馨治愈”，却搭配一条“高压控制、充满对峙”的关系线)。
-*   **【强制输出要求：情感策略自辩】** 在 \`design_notes\` 中**必须**新增 \`emotional_tone_strategy\` 字段，解释你的情感调度逻辑。
+    1.  **提取情感锚点:** 从 \`playerNarrativeFocus\` 或最高优先级事件中，确定本章的**单一情感核心** (如：背叛的伤痛、胜利的狂喜、离别的惆怅)。
+    2.  **全要素校准:** 故事线、场景设计、NPC行为、环境描写，**全部**必须与这个情感锚点产生共鸣或对比增强。
+    3.  **污染检测:** 识别任何可能稀释核心基调的元素 (如：悲剧章节中插入无关的喜剧桥段)，**立即移除或延后**。
+*   **高维情感优先级 (Hierarchy of Affection):**
+    *   当多个关系线同时存在时，按**情感电压**排序：高压关系 (voltage ≥ 8) > 中压关系 > 低压日常。
+    *   **铁律:** 高压关系一旦触发，必须占据本章绝对主导地位。中低压关系只能作为**背景音**或**暂停**。
+*   **【输出验证】** \`design_notes.emotional_tone_strategy\` 必须包含：核心基调、选定故事线、污染元素清单 (及处理方式)。
 
 2.  **选择逻辑 (Selection Logic):**
     *   **优先:** \`current_status: "active"\` 且与 \`playerNarrativeFocus\` 高度相关的故事线。
@@ -630,34 +528,40 @@ _createPrompt(context) {
 *   **判据:** 电压≥8 或 存在认知差。
 *   **【核心法则：霸权与延后 (Supremacy or Deferral)】**
     *   **法则A：S级霸权 (Supremacy)**
-        *   一旦你决定在本章触发一个 S 级情感事件（如重逢），它**必须**占据本章至少 **50%** 的篇幅和权重。
-        *   **所有**其他的物理任务（如赶路、解谜、打怪）都必须沦为这个情感爆发的**背景板**。
-        *   *Example:* 如果要在暴雪中重逢，那么“暴雪”只是为了衬托“重逢”的艰难，绝不能让“怎么生火取暖”抢了“眼神交汇”的戏。
+        *   一旦你决定在本章触发一个 S 级情感事件，它**必须**占据本章至少 **50%** 的篇幅和权重。
+        *   **所有**其他的物理任务都必须沦为这个情感爆发的**背景板**。
     *   **法则B：原子化延后 (Atomic Deferral)**
-        *   如果本章的物理环境（如刚开场、正在逃命）实在无法承载这种高强度的情感爆发：
-        *   你**必须且只能**选择 **[完全延后]**。
-        *   **【绝对禁令】** 严禁为了“露个脸”而安排一次不痛不痒的见面（如：匆匆拥抱、简单打招呼）。这是对高压关系的**亵渎**。
-        *   **正确做法：** 让角色**根本不见面**，或者只给一个**远处的背影/声音**作为钩子（Cliffhanger），把真正的见面留给下一章做主菜。
+        *   如果本章的物理环境实在无法承载这种高强度的情感爆发，你**必须且只能**选择 **[完全延后]**。
+        *   **【绝对禁令】** 严禁为了"露个脸"而安排不痛不痒的见面。这是对高压关系的**亵渎**。
+        *   **正确做法：** 让角色**根本不见面**，或者只给一个**远处的信号**作为钩子，把真正的爆发留给下一章。
+    *   **场景相对论 (Scenario-Relative Tension):**
+        *   **张力不是绝对值，而是相对值。** 同样的对话，在不同场景下产生的张力完全不同。
+        *   **环境放大器:** 密闭空间/危险环境/时间压力 = 张力×3。空旷/安全/充裕 = 张力÷2。
+        *   **设计指令:** 高压关系的爆发**必须**选择能放大张力的场景，而不是消解张力的舒适区。
 
     **【决策检查】**
-    *   问自己：我设计的这个重逢，是否足够震撼？
-    *   如果答案是“还行”或“仅仅是见面了”，请立即执行 **法则B（延后）**，并在 \`deferred_events\` 中说明。
+    *   问自己：我设计的这个高压事件，场景是否在放大张力，还是在消解张力？
+    *   如果场景不匹配，要么改场景，要么延后事件。
     * **第三梯队：好感度逻辑底座 (Tier 3 - Affinity Logic Foundation)**
 *   **源头:** \`staticMatrices.characters\` 中的 \`affinity\` 数值及对应阶段。
-*   **【关键指令：零度校准 (Zero-Degree Calibration)】**
-    在设计角色的具体行动前，你必须进行一次**"剥离性格"**的逻辑检查：
-    1.  **剥离:** 暂时忘掉角色的"傲娇"、"疯批"或"圣母"标签，把他当做一个**普世的正常人类**。
-    2.  **比对:** 问自己——"一个正常人，在好感度为 [X] 的阶段，会做出 [Y] 行为吗？"
-    3.  **对照准则:** **向上翻阅本Prompt中的【好感度行为准则解读】章节**，确认角色当前好感度对应的"对话"、"行动"、"内在"三个维度的行为边界。你设计的剧情必须严格落在该阶段的行为范围内。
-    4.  **裁决（强制执行）:**
-        *   **好感过低但行为过激** → **绝对禁止！**
-            *   ❌ 0-40好感度就挡刀/自我牺牲/深夜独处（除非有极强的外部理由，如金钱交易、职业义务）
-            *   ❌ 0-10好感度就分享私密信息、主动肢体接触
-        *   **好感极高但行为冷漠** → **绝对禁止！**
-            *   ❌ 71+好感度却在对方受难时保持距离、冷漠旁观
-            *   ❌ 91+好感度却拒绝基本的情感回应（无论性格多傲娇，底层行为逻辑必须体现关心，哪怕是"嘴硬手软"）
-        *   **边界模糊时的判定原则:** 当不确定某行为是否越界时，**严格以行为准则为准**，宁可保守也不要越界。
-    5.  **重塑:** 只有通过了上述检查，才能再把"性格标签"穿回去，进行台词润色。
+*   **【关键指令：零度校准 + 双层动机论 (Zero-Degree + Dual-Layer Motivation)】**
+    在设计角色行动前，执行**双层检验**：
+
+    **第一层：生物底座 (Biological Layer)**
+    1.  **剥离性格标签:** 暂时忘掉"傲娇"、"疯批"等标签，把角色当做**普通人类**。
+    2.  **底层逻辑检查:** 问"一个正常人，在好感度 [X] 时，会做出 [Y] 行为吗？"
+    3.  **对照准则:** 翻阅【好感度行为准则解读】，确认行为是否在该阶段的合理范围内。
+    4.  **生物引力法则:**
+        *   好感度 < 40：本能上保持距离，需要外部动机才会深度互动。
+        *   好感度 ≥ 70：本能上寻求接近，需要外部阻碍才会保持距离。
+        *   好感度 ≥ 90：物理接触是自然反应，刻意回避才需要理由。
+
+    **第二层：性格表达 (Personality Layer)**
+    1.  **重新穿上性格:** 只有通过底层检查后，才能用性格标签修饰**表达方式**。
+    2.  **核心区别:** 性格改变的是**如何做**，而非**是否做**。
+        *   ✅ 傲娇角色在高好感度下仍会关心对方，但可能用"别多想，我只是顺路"来掩饰。
+        *   ❌ 傲娇角色在高好感度下完全不关心对方，冷漠旁观。(这违反了生物底座)
+    3.  **动机分层验证:** 在 \`design_notes.affinity_logic_audit\` 中，必须分别说明**生物层动机**(基于好感度的本能驱动)和**性格层表达**(如何用人设包装这个动机)。
 
 **第四梯队：环境与节奏 (Tier 4 - Atmosphere & Rhythm)**
 *   **源头:** \`narrative_rhythm_clock\` & \`storyline_progress\`
@@ -698,6 +602,26 @@ _createPrompt(context) {
 2.  **背景角色 (Support Char):** 本章出场但无故事线的角色。
     *   **禁令:** **严禁加戏！** 必须保持"基准人设"（Baseline Persona）。
     *   **任务:** 仅负责提供功能性协助或情绪反应（如震惊/吐槽），**严禁**流露复杂的内心戏或不为人知的阴暗面。
+
+---
+
+### **【多巴胺工程：快感设计协议 (Dopamine Engineering)】**
+**核心原则:** 拒绝平淡流水账。每章必须包含**可持续的快感**，但特权必须源于角色独特性。
+
+**1. 快感三要素 (Pleasure Trinity)**
+*   **落差 (Contrast):** 先压抑后爆发。压抑不足=爆发无力；压抑过长=读者流失。最佳比例 3:7。
+*   **即时性 (Immediacy):** 行动必须当场产生可见后果。延迟兑现=快感流失。
+*   **独占性 (Exclusivity):** 强调"只有主角能做到"的特权感。但特权必须源于角色独特性，而非世界观向主角低头。
+
+**2. 反套路协议 (Anti-Template Protocol)**
+*   **禁止通用解:** 打脸方式必须与当前世界观/角色能力/场景特性**深度绑定**。
+*   **套路翻新:** 每次使用经典套路时，必须加入**1个反常识转折**。
+    *   通用套路：被轻视 → 展示实力 → 对方震惊。
+    *   翻新：被轻视 → 故意配合对方的误判 → 让对方自己挖坑跳 → 反转。
+
+**3. 结构密度法则**
+*   每章必须包含：**起**(立目标) + **承**(遇阻) + **转**(反转爆发) + **合**(兑现奖励) + **钩**(新欲望)。
+*   **反默剧:** 整章最多1个无对话节拍。独处时引入内心对话/系统提示/回忆声音。
 
 ---
 
@@ -930,7 +854,6 @@ ${isEntityRecallEnabled ? `       * **3. 上下文预取 (Context Injection):**
     // V13.0: 动态生成JSON输出标准
     const isImmersionModeExplicit = playerNarrativeFocus.includes('[IMMERSION_MODE]');
     const dynamicOutputSpec = this._generateOutputSpecification({
-        narrativeMode: currentMode,
         beatCountRange: beatCountRange,
         playerNarrativeFocus: playerNarrativeFocus,
         hasImmersionMode: isImmersionModeExplicit,
@@ -943,20 +866,9 @@ ${isEntityRecallEnabled ? `       * **3. 上下文预取 (Context Injection):**
     let finalPrompt = basePrompt;
 
     // 【试验阶段】检测是否需要注入ABC情感沉浸流模块（只使用显式开关）
-    // 注意：isImmersionModeExplicit 已在上方动态输出标准生成时定义
-
     if (isImmersionModeExplicit) {
         this.info("💕 [试验] 检测到[IMMERSION_MODE]标记，正在挂载【ABC沉浸流】战术模块...");
         finalPrompt += '\n\n' + IMMERSION_MODE_PROMPT;
-    }
-
-    // V7.0 策略模式注入：根据叙事模式动态加载策略
-    if (currentMode === 'web_novel') {
-        this.info("🔥 叙事策略：网文模式");
-        finalPrompt += '\n\n' + WEB_NOVEL_STRATEGY_PROMPT;
-    } else if (currentMode === 'classic_rpg') {
-        this.info("🎭 叙事策略：正剧模式");
-        finalPrompt += '\n\n' + CLASSIC_RPG_STRATEGY_PROMPT;
     }
 
     // 在函数的最后，返回最终构建好的Prompt字符串

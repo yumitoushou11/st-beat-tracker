@@ -16,6 +16,7 @@
 import { DebugLogger } from '../utils/DebugLogger.js';
 import { TextSanitizer } from '../utils/TextSanitizer.js';
 import { deepmerge } from '../../utils/deepmerge.js';
+import { StorylineValidator } from '../../utils/storylineValidator.js';
 
 /**
  * 状态更新管理器
@@ -406,6 +407,29 @@ export class StateUpdateManager {
                 for (const item of flatUpdateQueue) {
                     const { id, data, aiSuggestedCat } = item;
 
+                    // 🔒 [架构优化 - 方案A] ID命名规范验证
+                    const validation = StorylineValidator.validateIdCategoryMatch(id, aiSuggestedCat);
+
+                    if (!validation.valid) {
+                        this.warn(`🚫 [ID验证失败] ${validation.reason}`);
+
+                        if (validation.suggestedCategory && validation.confidence > 0.7) {
+                            // 置信度高时，尝试自动纠正（但仅限已存在的ID）
+                            if (localIdRegistry[id] === validation.suggestedCategory) {
+                                this.warn(`   💡 自动纠正: ${aiSuggestedCat} → ${validation.suggestedCategory}`);
+                                item.aiSuggestedCat = validation.suggestedCategory; // 修正分类
+                            } else {
+                                this.warn(`   💡 建议分类: ${validation.suggestedCategory} (置信度: ${(validation.confidence * 100).toFixed(0)}%)`);
+                                this.warn(`   ❌ 拒绝处理，请AI使用正确的ID格式: ${StorylineValidator.getExampleId(aiSuggestedCat)}`);
+                                continue; // 丢弃不符合规范的数据
+                            }
+                        } else {
+                            this.warn(`   ❌ 无法推断正确分类，丢弃此条目`);
+                            this.warn(`   💡 期望格式: ${StorylineValidator.getExampleId(aiSuggestedCat)}`);
+                            continue;
+                        }
+                    }
+
                     // --- 核心修复：寻址逻辑 ---
                     let targetCategory = localIdRegistry[id];
                     let isNewCreation = false;
@@ -419,6 +443,21 @@ export class StateUpdateManager {
                         // Case B: ID 不存在 (这可能是一个真正的 New Creation，或者是彻底的幻觉)
                         // 只有当提供了 title 时，我们才认可它是创建操作，否则视为幻觉丢弃
                         if (data.title) {
+                            // 🛡️ [架构优化 - 方案C] 严格的创建/更新分离检查
+                            const RESTRICTED_CATEGORIES = ['personal_arcs', 'relationship_arcs'];
+                            if (RESTRICTED_CATEGORIES.includes(aiSuggestedCat)) {
+                                this.error(`🚫 [协议违规] 禁止在 updates 中创建受限分类故事线！`);
+                                this.error(`   分类: ${aiSuggestedCat}, ID: ${id}`);
+                                this.error(`   请AI改用: creations.staticMatrices.storylines.${aiSuggestedCat}["${id}"]`);
+                                continue; // 跳过此条目
+                            }
+
+                            // ⚠️ 允许在updates中创建main_quests和side_quests（用于突发事件）
+                            // 但记录警告，提醒最佳实践是使用creations
+                            this.warn(`⚠️ [最佳实践警告] 检测到在 updates 中创建新故事线`);
+                            this.warn(`   ID: ${id}, 分类: ${aiSuggestedCat}`);
+                            this.warn(`   建议: 应使用 creations.staticMatrices.storylines.${aiSuggestedCat} 创建新故事线`);
+
                             isNewCreation = true;
                             targetCategory = aiSuggestedCat; // 新建时，暂时信任 AI 的分类
                             this.info(`✨ [新线创建] 接纳新 ID: ${id} 归入 ${targetCategory}`);
@@ -438,6 +477,9 @@ export class StateUpdateManager {
                                 status: data.status || "active",
                                 type: targetCategory
                             };
+
+                            // 🔧 [关键修复] 立即更新注册表，防止后续队列项重复创建同一个ID
+                            localIdRegistry[id] = targetCategory;
                         } else {
                             this.warn(`🗑️ [幻觉过滤] 丢弃无效更新: ${id} (ID不存在且未提供title，无法创建)`);
                             continue; // 跳过此条目

@@ -3,6 +3,7 @@
 
 import { mapValueToHue } from '../../utils/colorUtils.js';
 import { clampAffinityValue } from '../../utils/affinityUtils.js';
+import { translateField } from '../../utils/fieldTranslator.js';
 import applicationFunctionManager from '../../manager.js';
 
 /**
@@ -102,7 +103,7 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
             // 紧凑的键值对显示
             let result = '<div class="sbt-compact-fields">';
             for (const [key, val] of Object.entries(value)) {
-                const displayName = key;
+                const displayName = translateField(key); // ✅ 翻译为中文
                 const valContent = safeText(val, key, currentPath, depth + 1, inEditMode);
                 result += `<div class="sbt-field-row"><span class="sbt-field-key">${displayName}:</span> ${valContent}</div>`;
             }

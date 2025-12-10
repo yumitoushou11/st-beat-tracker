@@ -1308,46 +1308,36 @@ export function updateDashboard(chapterState) {
                 }
             }
 
-            // 2. 情感基调与故事线 (紫色)
+            // 2. 情感基调与故事线 (紫色) - V13.0升级
             let toneHtml = '';
             if (notes.emotional_tone_strategy) {
                 const tone = notes.emotional_tone_strategy;
                 toneHtml = `
                     <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #9b59b6;">
-                        <h6 style="margin: 0 0 4px 0; color: #9b59b6; font-size: 0.95em;"><i class="fa-solid fa-palette fa-fw"></i> 基调与编织</h6>
-                        ${renderField('fa-solid fa-heart', '基调', tone.core_emotional_tone)}
-                        ${renderField('fa-solid fa-diagram-project', '故事线', tone.chosen_storylines_and_reasoning)}
-                        ${renderField('fa-solid fa-check-double', '相容性', tone.compatibility_check)}
+                        <h6 style="margin: 0 0 4px 0; color: #9b59b6; font-size: 0.95em;"><i class="fa-solid fa-palette fa-fw"></i> 基调锚定 (V13.0)</h6>
+                        ${renderField('fa-solid fa-heart', '核心基调', tone.core_emotional_tone)}
+                        ${renderField('fa-solid fa-diagram-project', '选定故事线', tone.chosen_storylines_and_reasoning)}
+                        ${renderField('fa-solid fa-check-double', '相容性检查', tone.compatibility_check)}
+                        ${tone.pollution_detection ? renderField('fa-solid fa-exclamation-triangle', '污染元素', tone.pollution_detection) : ''}
                         ${renderField('fa-solid fa-link', '编织逻辑', notes.storyline_weaving)}
                     </div>
                 `;
             }
 
-            // 3. 叙事模式专属 (网文-橙色 / 正剧-蓝色)
-            let modeHtml = '';
-            if (notes.satisfaction_blueprint?.core_pleasure_source) {
-                // 网文模式
-                const bp = notes.satisfaction_blueprint;
-                modeHtml = `
+            // 3. 多巴胺工程验证 (橙色) - V13.0统一
+            let dopamineHtml = '';
+            if (notes.dopamine_blueprint) {
+                const dp = notes.dopamine_blueprint;
+                dopamineHtml = `
                     <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-warning-color);">
-                        <h6 style="margin: 0 0 4px 0; color: var(--sbt-warning-color); font-size: 0.95em;"><i class="fa-solid fa-fire fa-fw"></i> 网文爽点蓝图</h6>
-                        ${renderField('fa-solid fa-bolt', '核心快感', bp.core_pleasure_source)}
-                        ${renderField('fa-solid fa-arrow-trend-down', '预期差', bp.expectation_setup)}
-                        ${renderField('fa-solid fa-explosion', '高潮反馈', bp.climax_payoff)}
-                        ${renderField('fa-solid fa-gift', '奖励', bp.tangible_rewards)}
-                        ${renderField('fa-solid fa-anchor', '钩子', bp.hook_design)}
-                    </div>
-                `;
-            } else if (notes.classic_rpg_breath?.current_phase) {
-                // 正剧模式
-                const breath = notes.classic_rpg_breath;
-                modeHtml = `
-                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-primary-accent);">
-                        <h6 style="margin: 0 0 4px 0; color: var(--sbt-primary-accent); font-size: 0.95em;"><i class="fa-solid fa-masks-theater fa-fw"></i> 正剧呼吸节奏</h6>
-                        ${renderField('fa-solid fa-wind', '相位', breath.current_phase)}
-                        ${renderField('fa-solid fa-film', '类型', breath.scene_sequel_type)}
-                        ${renderField('fa-solid fa-lightbulb', '理由', breath.pacing_rationale)}
-                        ${renderField('fa-solid fa-cloud', '氛围', breath.atmospheric_focus)}
+                        <h6 style="margin: 0 0 4px 0; color: var(--sbt-warning-color); font-size: 0.95em;"><i class="fa-solid fa-fire fa-fw"></i> 多巴胺工程</h6>
+                        ${renderField('fa-solid fa-arrows-up-down', '落差比例', dp.contrast_ratio)}
+                        ${renderField('fa-solid fa-bolt', '即时反馈', dp.immediacy_check)}
+                        ${renderField('fa-solid fa-star', '独占性', dp.exclusivity_justification)}
+                        ${renderField('fa-solid fa-wand-magic-sparkles', '套路翻新', dp.trope_innovation)}
+                        ${renderField('fa-solid fa-list-check', '结构检查', dp.structure_check)}
+                        ${renderField('fa-solid fa-gift', '实质奖励', dp.tangible_rewards)}
+                        ${renderField('fa-solid fa-anchor', '钩子设计', dp.hook_design)}
                     </div>
                 `;
             }
@@ -1366,7 +1356,7 @@ export function updateDashboard(chapterState) {
                 `;
             }
 
-            // 5. 逻辑与时空 (青色) - 扩容点
+            // 5. 逻辑与时空 (青色) - V13.0扩容
             let logicHtml = '';
             if (notes.chronology_compliance || notes.dual_horizon_analysis || notes.affinity_logic_audit) {
                 logicHtml = `
@@ -1376,10 +1366,11 @@ export function updateDashboard(chapterState) {
                         ${renderField('fa-solid fa-binoculars', '双地平线', notes.dual_horizon_analysis)}
                         ${notes.affinity_logic_audit ? `
                             <div style="margin-top: 4px; padding-top: 4px; border-top: 1px dashed rgba(255,255,255,0.1);">
-                                <div style="font-size:0.9em; font-weight:bold; color:#1abc9c; margin-bottom:2px;"><i class="fa-solid fa-scale-balanced"></i> 零度校准:</div>
+                                <div style="font-size:0.9em; font-weight:bold; color:#1abc9c; margin-bottom:2px;"><i class="fa-solid fa-scale-balanced"></i> 双层动机论:</div>
                                 ${renderField('fa-solid fa-user', '对象', notes.affinity_logic_audit.target_character)}
                                 ${renderField('fa-solid fa-chart-line', '阶段', notes.affinity_logic_audit.current_affinity_stage)}
-                                ${renderField('fa-solid fa-check', '自辩', notes.affinity_logic_audit.zero_degree_check)}
+                                ${renderField('fa-solid fa-dna', '生物层', notes.affinity_logic_audit.biological_layer_check)}
+                                ${renderField('fa-solid fa-masks-theater', '性格层', notes.affinity_logic_audit.personality_layer_justification)}
                             </div>
                         ` : ''}
                     </div>
@@ -1425,12 +1416,12 @@ export function updateDashboard(chapterState) {
                 `;
             }
 
-            // 组装
+            // 组装 - V13.0更新顺序
             const notesHtml = `
                 ${playerFocusHtml}
-                ${modeHtml}
-                ${immersionHtml}
                 ${toneHtml}
+                ${dopamineHtml}
+                ${immersionHtml}
                 ${priorityHtml}
                 ${logicHtml}
                 ${endingHtml}

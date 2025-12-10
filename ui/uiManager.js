@@ -7,7 +7,7 @@ import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { clampAffinityValue } from '../utils/affinityUtils.js';
 import { showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
-import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, populateNarrativeModeSelector, bindNarrativeModeSwitchHandler, bindPresetSelectorHandlers, loadSillyTavernPresets, populatePromptManagerUI, bindPromptManagerHandlers, bindModelRefreshHandlers } from './settings/settingsUI.js';
+import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, bindPresetSelectorHandlers, populatePromptManagerUI, bindPromptManagerHandlers, bindModelRefreshHandlers } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -256,7 +256,8 @@ $('#extensions-settings-button').after(html);
         $('#beat-tracker-content-panel').toggleClass('closedDrawer openDrawer');
             if ($('#beat-tracker-content-panel').hasClass('openDrawer')) {
                 populateSettingsUI(deps); // 传递 deps 参数
-                populateNarrativeModeSelector(deps); // V7.0: 填充叙事模式选择器（全局配置版）
+                // V13.0: 已移除叙事模式选择器 - 多巴胺工程已整合到主prompt中
+                // populateNarrativeModeSelector(deps);
                 populatePromptManagerUI(deps); // 填充提示词管理UI
 
                 // 【新增】加载并显示静态数据缓存（如果存在）
@@ -2130,8 +2131,8 @@ $('#extensions-settings-button').after(html);
     bindAPITestHandlers($wrapper, deps);
     bindPresetSelectorHandlers($wrapper, deps);
     bindModelRefreshHandlers($wrapper, deps); // 模型列表刷新处理器
-    // V7.0: 叙事模式切换 - 传入获取当前章节的函数
-    bindNarrativeModeSwitchHandler($wrapper, deps, () => getEffectiveChapterState());
+    // V13.0: 已移除叙事模式切换处理器 - 多巴胺工程已整合到主prompt中
+    // bindNarrativeModeSwitchHandler($wrapper, deps, () => getEffectiveChapterState());
     // 提示词管理处理器
     bindPromptManagerHandlers($wrapper, deps);
 

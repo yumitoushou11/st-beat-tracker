@@ -84,9 +84,11 @@ export class TurnConductorAgent extends Agent {
             console.group('[CONDUCTOR-V10-OUTPUT] 定位+基调纠正输出结构');
             logger.debug('✓ status:', decision.status);
             logger.debug('✓ current_beat_idx:', decision.current_beat_idx);
-            logger.debug('✓ narrative_hold:', decision.narrative_hold?.substring(0, 60) + '...');
-            logger.debug('✓ tone_correction:', decision.tone_correction ? decision.tone_correction.substring(0, 100) + '...' : 'null (无需纠正)');
-            logger.debug('✓ beat_completion_analysis:', decision.beat_completion_analysis?.substring(0, 60) + '...');
+            logger.debug('✓ narrative_hold:', typeof decision.narrative_hold === 'string' ? decision.narrative_hold.substring(0, 60) + '...' : decision.narrative_hold);
+            logger.debug('✓ tone_correction:', typeof decision.tone_correction === 'string'
+                ? decision.tone_correction.substring(0, 100) + '...'
+                : (decision.tone_correction ? JSON.stringify(decision.tone_correction).substring(0, 100) : 'null (无需纠正)'));
+            logger.debug('✓ beat_completion_analysis:', typeof decision.beat_completion_analysis === 'string' ? decision.beat_completion_analysis.substring(0, 60) + '...' : decision.beat_completion_analysis);
             logger.debug('✓ realtime_context_ids:', decision.realtime_context_ids);
             console.groupEnd();
 

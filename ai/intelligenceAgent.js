@@ -340,9 +340,9 @@ ${formattedWorldInfo}
           "relationship_label": "被谎言维系的守护",
           "emotional_weight": 8,
           "timeline": {
-            "meeting_status": "familiar",
+            "meeting_status": "熟识",
             "separation_state": true,
-            "last_interaction": "unknown",
+            "last_interaction": "未知",
             "reunion_pending": true
           },
           "tension_engine": {
@@ -367,7 +367,15 @@ ${formattedWorldInfo}
     2. 是否将任何【未来会发生】的关系，错误地当作了初始关系？
     如果存在错误，请立即修正。
     --- 【语言与细节规范 (MANDATORY)】 ---
-    1.  **语言协议**: 你的所有输出，包括 \`staticMatrices\` 内部的所有字符串值（characters, worldview, storylines），**必须完全使用【简体中文】**。这是一个绝对的要求，不得出现任何英文单词或短语，除非它们是专有名词的原文。
+    **语言铁律**:
+    1. 你的所有输出，包括 \`staticMatrices\` 内部的所有字符串**值**（characters, worldview, storylines, relationship_graph），**必须完全使用【简体中文】**。
+    2. **特别注意**：不仅字段描述要用中文，**字段的值**也必须是中文：
+       - ❌ 错误：\`"meeting_status": "first_encounter"\`
+       - ✅ 正确：\`"meeting_status": "初次相遇"\`
+       - ❌ 错误：\`"last_interaction": "unknown"\`
+       - ✅ 正确：\`"last_interaction": "未知"\`
+    3. 唯一允许英文的地方：字段名（field name）、ID标识符、\`type\`字段（用于系统识别）
+    4. 所有地点名称、人物名称、事件描述、关系标签等**内容必须是简体中文**，除非是专有名词的原文。
 现在，以数据库管理员的严谨，开始构建初始世界。
        ` ;
     }
