@@ -162,113 +162,97 @@ _createPrompt(context) {
 
     // V10.0 Prompt：GPS定位 + 基调纠正 + 严格顺序
     return BACKEND_SAFE_PASS_PROMPT + `
-# 指令：剧情定位与基调纠正 V10.0
+指令: 剧情定位与基调纠正 V10.0
 
-**任务**: 判断当前节拍位置，检测基调偏离。
+任务: 判断当前节拍位置，检测基调偏离
 
-## 1. 剧本流程
-\`\`\`json
+剧本流程:
+  节拍列表:
 ${JSON.stringify(beats.map((b, i) => ({
     index: i,
     event: b.physical_event || b.description,
     exit_condition: b.exit_condition,
     emotional_direction: b.state_change || "无"
 })), null, 2)}
-\`\`\`
-**终章信标:** ${endgameBeacon}
+  终章信标: ${endgameBeacon}
 
-## 2. 最新对话
+最新对话:
 ${lastExchange}
 
-## 3. 定位规则（严格顺序）
+定位规则_严格顺序:
+  禁止跳跃: 节拍推进必须逐级进行，从0开始逐个验证
 
-**禁止跳跃**：节拍推进必须逐级进行，从0开始逐个验证。
+  节拍完成标准_三个条件同时满足:
+    条件1: 核心事件已被详细描写，不是一笔带过
+    条件2: 有exit_condition时，玩家已做实质性回应
+    条件3: 情感基调符合预期，无偏离
 
-**节拍完成标准**（三个条件同时满足）：
-1. 核心事件已被详细描写（不是一笔带过）
-2. 有exit_condition时，玩家已做实质性回应
-3. 情感基调符合预期（无偏离）
+  伪完成判定_以下情况等于未完成:
+    情况1: AI只是提到该事件，未展开描写
+    情况2: AI刚开场，核心互动未发生
+    情况3: 玩家未回应，Dialogue Scene必需
+    情况4: 情感基调偏离
 
-**伪完成判定**（以下情况=未完成）：
-- AI只是"提到"该事件，未展开描写
-- AI刚开场，核心互动未发生
-- 玩家未回应（Dialogue Scene必需）
-- 情感基调偏离
+  设置current_beat_idx: 第一个未完成的节拍。有疑问时保持当前，不前进
 
-**设置current_beat_idx**：第一个未完成的节拍。有疑问时保持当前，不前进。
+基调纠正检查:
+  检查对象: 针对current_beat_idx节拍，对比剧本预期vs实际执行
 
-## 4. 基调纠正检查
+  偏离类型1_玩家抵触:
+    现象: 剧本预期玩家接受、原谅或同意，实际拒绝、冷淡或抵触
+    输出: 提供2个方案 - A让NPC更低姿态再次请求; B让AI通过玩家非语言信号暗示松动
 
-针对current_beat_idx节拍，对比【剧本预期】vs【实际执行】：
+  偏离类型2_NPC基调错误:
+    现象: 剧本要求脆弱、温柔或试探，实际威胁、强势或命令
+    输出: 指出错误，要求重新演绎该节拍
 
-**偏离类型1：玩家抵触**
-- 现象：剧本预期玩家【接受/原谅/同意】，实际【拒绝/冷淡/抵触】
-- 输出：提供2个方案 - A:让NPC更低姿态再次请求; B:让AI通过玩家非语言信号暗示松动
+  偏离类型3_情节跳跃:
+    现象: 当前节拍未完成，AI已描写下一节拍
+    输出: 要求回退，继续填充当前节拍
 
-**偏离类型2：NPC基调错误**
-- 现象：剧本要求【脆弱/温柔/试探】，实际【威胁/强势/命令】
-- 输出：指出错误，要求重新演绎该节拍
+  tone_correction格式:
+    结构: 检测到偏离类型，简述现象，纠正方案A，纠正方案B（如适用）
 
-**偏离类型3：情节跳跃**
-- 现象：当前节拍未完成，AI已描写下一节拍
-- 输出：要求回退，继续填充当前节拍
+章节转换判定:
+  触发条件: 本回合对话涉及终章信标内容
 
-**tone_correction格式**：
-\`\`\`
-检测到[偏离类型]：[简述现象]
-纠正方案A：[具体指令]
-纠正方案B：[具体指令]（如适用）
-\`\`\`
+  判定规则:
+    步骤1: 查看最新对话中AI和玩家的内容
+    步骤2: 判断对话是否涉及终章信标（${endgameBeacon}）中描述的事件
+    步骤3: 如果涉及终章信标内容，不管是开始、进行中还是完成，输出status为TRIGGER_TRANSITION
+    步骤4: 如果对话与终章信标无关，输出status为CONTINUE
 
-## 5. 章节转换判定
+  重要说明: 只要本回合触及终章信标的内容就立即切换，不需要等完全完成
 
-**触发条件**：本回合对话涉及终章信标内容
+  示例:
+    终章信标: 主角离开村庄
+    涉及情况: 主角告别村长、走向村口、踏出大门 → TRIGGER_TRANSITION
+    无关情况: 主角在酒馆闲聊 → CONTINUE
 
-**判定规则**：
-1. 查看"最新对话"中AI和玩家的内容
-2. 判断对话是否涉及终章信标（${endgameBeacon}）中描述的事件
-3. 如果涉及终章信标内容（不管是开始、进行中还是完成）→ \`"status": "TRIGGER_TRANSITION"\`
-4. 如果对话与终章信标无关 → \`"status": "CONTINUE"\`
+输出格式_JSON:
+  结构:
+    status: CONTINUE或TRIGGER_TRANSITION
+    current_beat_idx: 数值，表示当前节拍索引
+    narrative_hold: 描述严格禁止的后续内容
+    tone_correction: 纠正指令或null
+    beat_completion_analysis: 节拍完成度分析
+    realtime_context_ids: 实体ID数组${isEntityRecallEnabled ? '，需要填充规划外实体' : ''}
 
-**重要**：只要本回合触及终章信标的内容就立即切换，不需要等完全完成。
+${isEntityRecallEnabled ? `实体召回_规划外实体检索:
+  任务: 识别本回合涉及的规划外实体，不在chapter_context_ids中的实体
 
-**示例**：
-- 终章信标："主角离开村庄"
-- 对话涉及：主角告别村长/走向村口/踏出大门 → \`TRIGGER_TRANSITION\`
-- 对话不涉及：主角在酒馆闲聊 → \`CONTINUE\`
-
-## 6. 输出 (JSON)
-\`\`\`json
-{
-  "status": "CONTINUE或TRIGGER_TRANSITION",
-  "current_beat_idx": 0,
-  "narrative_hold": "严格禁止后续内容",
-  "tone_correction": "纠正指令或null",
-  "beat_completion_analysis": "节拍完成度分析",
-  "realtime_context_ids": [${isEntityRecallEnabled ? '...' : ''}]
-}
-\`\`\`
-${isEntityRecallEnabled ? `
-## 7. 实体召回 (Entity Recall - 规划外实体检索)
-
-**任务:** 识别本回合涉及的**规划外**实体（不在chapter_context_ids中的实体）
-
-**世界实体清单:**
-<entity_manifest>
+  世界实体清单:
 ${entityManifestContent}
-</entity_manifest>
 
-**本章规划内实体 (无需标记):**
-\`\`\`json
+  本章规划内实体_无需标记:
 ${JSON.stringify(chapterContextIds, null, 2)}
-\`\`\`
 
-**检索规则:**
-1. 从对话中提取所有实体关键词
-2. 与世界实体清单匹配ID
-3. **过滤掉**已在chapter_context_ids中的实体
-4. 将规划外的实体ID输出到 \`realtime_context_ids\`
-5. 如果本回合只涉及规划内实体，输出空数组 \`[]\`
+  检索规则:
+    步骤1: 从对话中提取所有实体关键词
+    步骤2: 与世界实体清单匹配ID
+    步骤3: 过滤掉已在chapter_context_ids中的实体
+    步骤4: 将规划外的实体ID输出到realtime_context_ids
+    步骤5: 如果本回合只涉及规划内实体，输出空数组
 ` : ''}
 `;
 }
