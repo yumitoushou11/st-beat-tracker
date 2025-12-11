@@ -25,6 +25,7 @@ import { StateUpdateManager } from './src/managers/StateUpdateManager.js';
 import { TransitionManager } from './src/managers/TransitionManager.js';
 import { UserInteractionHandler } from './src/handlers/UserInteractionHandler.js';
 import { CleanupHandler } from './src/handlers/CleanupHandler.js';
+import { showNarrativeFocusPopup } from './ui/popups/proposalPopup.js';
 
 export class StoryBeatEngine {
     constructor(dependencies) {
@@ -1355,23 +1356,59 @@ async rerollChapterBlueprint() {
         return;
     }
 
-    const userConfirmed = confirm("确定要重新分析当前章节的剧本吗？\n\n建筑师AI将使用相同的输入条件重新生成章节蓝图。\n\n注意：这不会影响已完成的对话，只会更新剧本计划。");
+    // 【第一步】显示焦点输入界面
+    this.info("💬 [重roll流程] 步骤1：显示焦点输入界面");
 
-    if (!userConfirmed) {
-        this.info("用户取消了重roll操作");
+    const previousFocus = this.currentChapter.playerNarrativeFocus || "由AI自主创新。";
+
+    let focusPopupResult;
+    try {
+        focusPopupResult = await showNarrativeFocusPopup(previousFocus);
+    } catch (error) {
+        this.warn("焦点弹窗异常:", error);
+        this.toastr.warning('焦点输入界面出错，操作已取消', '重roll中止');
         return;
     }
 
+    // 如果用户取消了焦点输入，中止重roll
+    if (!focusPopupResult || !focusPopupResult.confirmed) {
+        this.info("🚫 [重roll流程] 用户取消了焦点输入，重roll操作中止");
+        this.toastr.info('已取消重roll操作', '操作中止');
+        return;
+    }
+
+    // 提取焦点内容
+    let newFocus = focusPopupResult.value?.trim() || "由AI自主创新。";
+
+    // 【特殊模式处理】检查是否选择了特殊模式
+    if (focusPopupResult.isFreeRoam) {
+        this.toastr.warning('重roll不支持切换到自由章模式', '操作中止');
+        return;
+    }
+
+    // 处理ABC沉浸流标记
+    if (focusPopupResult.isABC && !newFocus.includes('[IMMERSION_MODE]')) {
+        newFocus = `[IMMERSION_MODE] ${newFocus}`;
+    }
+
+    // 更新焦点到当前章节
+    this.currentChapter.playerNarrativeFocus = newFocus;
+    this.info(`💡 [重roll流程] 步骤2：新焦点已设定 - "${newFocus}"`);
+
     try {
         this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
-        this.info("--- 开始重新分析章节剧本 ---");
+        this.info("🔧 [重roll流程] 步骤3：开始调用建筑师重新生成剧本");
 
         // 显示进度提示
-        const toastId = this.toastr.info('建筑师正在重新分析章节...', '剧本重roll中', {
-            timeOut: 0,
-            extendedTimeOut: 0,
-            closeButton: true
-        });
+        const toastId = this.toastr.info(
+            `建筑师正在基于新焦点重新规划章节...\n焦点：${newFocus.substring(0, 50)}${newFocus.length > 50 ? '...' : ''}`,
+            '🎨 剧本重roll中',
+            {
+                timeOut: 0,
+                extendedTimeOut: 0,
+                closeButton: true
+            }
+        );
 
         // 创建中止控制器
         this.currentTaskAbortController = new AbortController();
@@ -1385,7 +1422,7 @@ async rerollChapterBlueprint() {
             firstMessageContent: null // 重roll时不使用开场白
         };
 
-        this.info("准备传递给建筑师的上下文:");
+        this.info("📦 [重roll流程] 准备传递给建筑师的上下文:");
         this.logger.groupCollapsed("建筑师上下文（重roll）");
         console.dir(JSON.parse(JSON.stringify(contextForArchitect)));
         this.logger.groupEnd();
@@ -1396,9 +1433,40 @@ async rerollChapterBlueprint() {
         if (architectResult && architectResult.new_chapter_script && architectResult.design_notes) {
             this.info("✓ 建筑师成功生成新的剧本");
 
+            // 【诊断】记录重roll前的剧本快照
+            const oldBlueprintSnapshot = this.currentChapter.chapter_blueprint ? {
+                title: this.currentChapter.chapter_blueprint.title,
+                beatCount: this.currentChapter.chapter_blueprint.plot_beats?.length || 0,
+                checksum: this.currentChapter.checksum
+            } : null;
+
+            this.info("📋 [重roll诊断] 旧剧本快照:", oldBlueprintSnapshot);
+
             // 更新当前章节的蓝图和设计笔记
             this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
             this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
+
+            // 【关键】重新生成checksum，确保状态变化被检测到
+            this.currentChapter.checksum = simpleHash(JSON.stringify(this.currentChapter) + Date.now());
+
+            // 【诊断】记录重roll后的剧本快照
+            const newBlueprintSnapshot = {
+                title: this.currentChapter.chapter_blueprint.title,
+                beatCount: this.currentChapter.chapter_blueprint.plot_beats?.length || 0,
+                checksum: this.currentChapter.checksum
+            };
+
+            this.info("📋 [重roll诊断] 新剧本快照:", newBlueprintSnapshot);
+
+            // 【对比】检查是否真的改变了
+            const hasChanged = !oldBlueprintSnapshot ||
+                              oldBlueprintSnapshot.checksum !== newBlueprintSnapshot.checksum;
+
+            if (!hasChanged) {
+                this.warn("⚠️ [重roll诊断] 警告：新旧剧本的checksum相同，可能AI生成了相同内容");
+            } else {
+                this.info("✅ [重roll诊断] 确认：剧本已成功更新");
+            }
 
             // 保存到最后一条带有 leader 的消息中
             const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
@@ -1408,7 +1476,7 @@ async rerollChapterBlueprint() {
                 if (targetMessage) {
                     targetMessage.leader = this.currentChapter.toJSON();
                     this.USER.saveChat();
-                    this.info("剧本已更新到聊天记录中的章节状态");
+                    this.info("✅ 剧本已保存到聊天记录（消息索引: " + lastStateIndex + "）");
                 } else {
                     this.warn("找不到目标消息，无法保存章节状态");
                 }
@@ -1416,16 +1484,26 @@ async rerollChapterBlueprint() {
                 this.warn("找不到带有 leader 的消息，无法保存章节状态");
             }
 
-            // 触发UI刷新
+            // 【强制刷新】触发UI完全重新渲染
             this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+
+            // 【额外刷新】确保剧本区域立即更新
+            setTimeout(() => {
+                this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+                this.info("🔄 已触发延迟刷新，确保UI完全更新");
+            }, 100);
 
             // 关闭进度提示
             if (toastId) {
                 toastr.clear(toastId);
             }
 
-            this.toastr.success('章节剧本已重新生成！请在剧本区域查看。', '重roll成功');
-            this.info("剧本重roll完成，UI已刷新");
+            this.toastr.success(
+                `新剧本包含 ${newBlueprintSnapshot.beatCount} 个节拍。` +
+                `请在下方"当前小章剧本"区域查看完整内容。`,
+                '✅ 重roll成功'
+            );
+            this.info("🎉 剧本重roll完成，UI已刷新");
         } else {
             this.warn("建筑师未能返回有效的剧本");
             if (toastId) {
