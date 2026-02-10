@@ -368,18 +368,19 @@ ECI核心方法论_实体分类ID:
                 silentStreamCallback,  // 👈 使用静默流式回调
                 abortSignal
             );
-             let potentialJsonString;
-        const codeBlockMatch = responseText.match(/```json\s*([\sS]*?)\s*```/);
+            const cleanedResponseText = this._stripLogicCheckBlock(responseText);
+            let potentialJsonString;
+        const codeBlockMatch = cleanedResponseText.match(/```json\s*([\sS]*?)\s*```/);
         if (codeBlockMatch && codeBlockMatch[1]) {
             potentialJsonString = codeBlockMatch[1].trim();
         } else {
-            const firstBrace = responseText.indexOf('{');
-            const lastBrace = responseText.lastIndexOf('}');
+            const firstBrace = cleanedResponseText.indexOf('{');
+            const lastBrace = cleanedResponseText.lastIndexOf('}');
             if (firstBrace !== -1 && lastBrace > firstBrace) {
-                potentialJsonString = responseText.substring(firstBrace, lastBrace + 1);
+                potentialJsonString = cleanedResponseText.substring(firstBrace, lastBrace + 1);
             } else {
                 // 如果连大括号都找不到，就直接把整个返回给修复器试试
-                potentialJsonString = responseText;
+                potentialJsonString = cleanedResponseText;
             }
         }
            const initialData = repairAndParseJson(potentialJsonString, this);            if (!initialData || !initialData.staticMatrices ||

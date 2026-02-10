@@ -79,7 +79,7 @@ export class TurnConductorAgent extends Agent {
                 [{ role: 'user', content: prompt }]
             );
 
-            const decision = this.extractJsonFromString(responseText);
+            const decision = this.extractJsonFromString(this._stripLogicCheckBlock(responseText));
 
             console.group('[CONDUCTOR-V10-OUTPUT] 定位+基调纠正输出结构');
             logger.debug('✓ status:', decision.status);

@@ -61,17 +61,18 @@ export class HistorianAgent extends Agent {
         console.log(responseText);
         console.groupEnd();
 
+        const cleanedResponseText = this._stripLogicCheckBlock(responseText);
         let potentialJsonString;
-        const codeBlockMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+        const codeBlockMatch = cleanedResponseText.match(/```json\s*([\s\S]*?)\s*```/);
         if (codeBlockMatch && codeBlockMatch[1]) {
             potentialJsonString = codeBlockMatch[1].trim();
         } else {
-            const firstBrace = responseText.indexOf('{');
-            const lastBrace = responseText.lastIndexOf('}');
+            const firstBrace = cleanedResponseText.indexOf('{');
+            const lastBrace = cleanedResponseText.lastIndexOf('}');
             if (firstBrace !== -1 && lastBrace > firstBrace) {
-                potentialJsonString = responseText.substring(firstBrace, lastBrace + 1);
+                potentialJsonString = cleanedResponseText.substring(firstBrace, lastBrace + 1);
             } else {
-                potentialJsonString = responseText;
+                potentialJsonString = cleanedResponseText;
             }
         }
 

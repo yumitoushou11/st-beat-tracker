@@ -452,7 +452,7 @@ if (this.currentChapter.chapter_blueprint) {
     const toneCorrection = conductorDecision.tone_correction;
     let toneCorrectionContent = '';
 
-    if (toneCorrection && toneCorrection !== null && toneCorrection.trim() !== '' && toneCorrection !== 'null') {
+    if (toneCorrection && typeof toneCorrection === 'string' && toneCorrection.trim() !== '' && toneCorrection !== 'null') {
         toneCorrectionContent = [
             `# ⚠️ 【基调纠正 - 立即执行】`,
             ``,

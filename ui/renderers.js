@@ -1331,7 +1331,6 @@ export function updateDashboard(chapterState) {
                 dopamineHtml = `
                     <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid var(--sbt-warning-color);">
                         <h6 style="margin: 0 0 4px 0; color: var(--sbt-warning-color); font-size: 0.95em;"><i class="fa-solid fa-fire fa-fw"></i> 多巴胺工程</h6>
-                        ${renderField('fa-solid fa-arrows-up-down', '落差比例', dp.contrast_ratio)}
                         ${renderField('fa-solid fa-bolt', '即时反馈', dp.immediacy_check)}
                         ${renderField('fa-solid fa-star', '独占性', dp.exclusivity_justification)}
                         ${renderField('fa-solid fa-wand-magic-sparkles', '套路翻新', dp.trope_innovation)}

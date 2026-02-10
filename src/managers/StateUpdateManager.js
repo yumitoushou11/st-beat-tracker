@@ -225,6 +225,31 @@ export class StateUpdateManager {
                                     targetRel.history = targetRel.history.slice(-10);
                                 }
                             }
+
+                            // 🔧 [关键修复] 双向关系同步：确保目标角色的静态档案中也有对源角色的关系引用
+                            // 这样当查看目标角色档案时，也能看到这个关系
+                            if (workingChapter.staticMatrices.characters[targetCharId]) {
+                                // 确保目标角色有social.relationships结构
+                                if (!workingChapter.staticMatrices.characters[targetCharId].social) {
+                                    workingChapter.staticMatrices.characters[targetCharId].social = {};
+                                }
+                                if (!workingChapter.staticMatrices.characters[targetCharId].social.relationships) {
+                                    workingChapter.staticMatrices.characters[targetCharId].social.relationships = {};
+                                }
+
+                                // 如果目标角色的静态档案中没有对源角色的关系，自动创建一个
+                                if (!workingChapter.staticMatrices.characters[targetCharId].social.relationships[charId]) {
+                                    // 从源角色的静态关系中查找描述
+                                    const sourceStaticRel = workingChapter.staticMatrices.characters[charId]?.social?.relationships?.[targetCharId];
+
+                                    workingChapter.staticMatrices.characters[targetCharId].social.relationships[charId] = {
+                                        relation_type: sourceStaticRel?.relation_type || '相识',
+                                        description: sourceStaticRel?.description || '建立了关系',
+                                        affinity: relUpdate.current_affinity || 50
+                                    };
+                                    this.info(`  ✓ 自动创建反向关系引用: ${targetCharId} -> ${charId}`);
+                                }
+                            }
                         }
                     }
 
@@ -260,6 +285,27 @@ export class StateUpdateManager {
                                 // 限制history长度，只保留最近10条数值记录
                                 if (targetRel.history.length > 10) {
                                     targetRel.history = targetRel.history.slice(-10);
+                                }
+                            }
+
+                            // 🔧 [关键修复] 双向关系同步（旧版格式兼容）
+                            if (workingChapter.staticMatrices.characters[targetCharId]) {
+                                if (!workingChapter.staticMatrices.characters[targetCharId].social) {
+                                    workingChapter.staticMatrices.characters[targetCharId].social = {};
+                                }
+                                if (!workingChapter.staticMatrices.characters[targetCharId].social.relationships) {
+                                    workingChapter.staticMatrices.characters[targetCharId].social.relationships = {};
+                                }
+
+                                if (!workingChapter.staticMatrices.characters[targetCharId].social.relationships[charId]) {
+                                    const sourceStaticRel = workingChapter.staticMatrices.characters[charId]?.social?.relationships?.[targetCharId];
+
+                                    workingChapter.staticMatrices.characters[targetCharId].social.relationships[charId] = {
+                                        relation_type: sourceStaticRel?.relation_type || '相识',
+                                        description: sourceStaticRel?.description || '建立了关系',
+                                        affinity: relUpdate.current_affinity || 50
+                                    };
+                                    this.info(`  ✓ 自动创建反向关系引用(旧版): ${targetCharId} -> ${charId}`);
                                 }
                             }
                         }

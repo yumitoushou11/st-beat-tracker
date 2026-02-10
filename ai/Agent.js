@@ -25,4 +25,11 @@ export class Agent {
     async execute(context) {
         throw new Error("`execute` 方法必须在子类中被实现！");
     }
+
+    _stripLogicCheckBlock(text) {
+        if (!text || typeof text !== 'string') {
+            return text;
+        }
+        return text.replace(/<LOGIC_CHECK>[\s\S]*?<\/LOGIC_CHECK>\s*/g, '').trim();
+    }
 }

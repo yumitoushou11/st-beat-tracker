@@ -115,17 +115,18 @@ export class ArchitectAgent extends Agent {
             console.log('==================== 结束 ====================');
             console.groupEnd();
             
+            const cleanedResponseText = this._stripLogicCheckBlock(responseText);
             let potentialJsonString;
-            const codeBlockMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+            const codeBlockMatch = cleanedResponseText.match(/```json\s*([\s\S]*?)\s*```/);
             if (codeBlockMatch && codeBlockMatch[1]) {
                 potentialJsonString = codeBlockMatch[1].trim();
             } else {
-                const firstBrace = responseText.indexOf('{');
-                const lastBrace = responseText.lastIndexOf('}');
+                const firstBrace = cleanedResponseText.indexOf('{');
+                const lastBrace = cleanedResponseText.lastIndexOf('}');
                 if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
                     throw new Error("AI响应中未找到有效的JSON对象结构。");
                 }
-                potentialJsonString = responseText.substring(firstBrace, lastBrace + 1);
+                potentialJsonString = cleanedResponseText.substring(firstBrace, lastBrace + 1);
             }
             
             const result = repairAndParseJson(potentialJsonString, this);
@@ -242,7 +243,6 @@ _generateOutputSpecification(config) {
 
     // ========== 多巴胺工程验证 ==========
     "dopamine_blueprint": {
-      "contrast_ratio": "[压抑部分占X拍，爆发部分占Y拍]",
       "exclusivity_justification": "[为什么只有主角能做到？基于什么独特性？]",
       "trope_innovation": "[使用了什么套路？如何翻新？]",
       "tangible_rewards": "[实质奖励及即时价值]",
@@ -632,7 +632,6 @@ _createPrompt(context) {
   多巴胺工程_快感设计协议:
     核心原则: 拒绝平淡流水账，每章必须包含可持续的快感但特权必须源于角色独特性
     快感三要素:
-      要素1_落差: 先压抑后爆发，压抑不足等于爆发无力压抑过长等于读者流失，最佳比例3比7
       要素2_即时性: 行动必须当场产生可见后果，延迟兑现等于快感流失
       要素3_独占性: 强调只有主角能做到的特权感，但特权必须源于角色独特性而非世界观向主角低头
     反套路协议:
