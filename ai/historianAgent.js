@@ -5,6 +5,9 @@ const logger = createLogger('AI代理');
 import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js';
+import { buildHistorianReport } from '../src/utils/HistorianReportBuilder.js';
+import { parseSbtEdit } from '../src/utils/SbtEditParser.js';
+import { commandsToDelta } from '../src/utils/SbtEditToDelta.js';
 
 export class HistorianAgent extends Agent {
 
@@ -62,27 +65,61 @@ export class HistorianAgent extends Agent {
         console.groupEnd();
 
         const cleanedResponseText = this._stripLogicCheckBlock(responseText);
-        let potentialJsonString;
-        const codeBlockMatch = cleanedResponseText.match(/```json\s*([\s\S]*?)\s*```/);
-        if (codeBlockMatch && codeBlockMatch[1]) {
-            potentialJsonString = codeBlockMatch[1].trim();
-        } else {
-            const firstBrace = cleanedResponseText.indexOf('{');
-            const lastBrace = cleanedResponseText.lastIndexOf('}');
-            if (firstBrace !== -1 && lastBrace > firstBrace) {
-                potentialJsonString = cleanedResponseText.substring(firstBrace, lastBrace + 1);
+        const sbtEditResult = parseSbtEdit(cleanedResponseText);
+        if (sbtEditResult.errors.length > 0 && !(sbtEditResult.errors.length === 1 && sbtEditResult.errors[0] === 'missing_tag')) {
+            this.warn(`[Historian] SbtEdit parse warnings: ${sbtEditResult.errors.slice(0, 5).join(', ')}`);
+        }
+
+        let result = null;
+        if (sbtEditResult.commands.length > 0) {
+            result = commandsToDelta(sbtEditResult.commands, { warn: this.warn || console.warn });
+            if (!result || Object.keys(result).length === 0) {
+                this.warn("[Historian] <SbtEdit> 未生成有效增量，回退JSON解析");
+                result = null;
             } else {
-                potentialJsonString = cleanedResponseText;
+                this.info("[Historian] 使用 <SbtEdit> 指令解析路径");
             }
         }
 
-        const result = repairAndParseJson(potentialJsonString, this);
- if (!result || (result.creations === undefined && result.updates === undefined)) {
-                this.diagnose("史官AI返回的JSON结构不完整（缺少creations或updates块）。Raw Response:", responseText);
-                throw new Error("史官AI未能返回包含 'creations' 或 'updates' 的有效JSON Delta。");
+        if (!result) {
+            let potentialJsonString;
+            const codeBlockMatch = cleanedResponseText.match(/```json\s*([\s\S]*?)\s*```/);
+            if (codeBlockMatch && codeBlockMatch[1]) {
+                potentialJsonString = codeBlockMatch[1].trim();
+            } else {
+                const firstBrace = cleanedResponseText.indexOf('{');
+                const lastBrace = cleanedResponseText.lastIndexOf('}');
+                if (firstBrace !== -1 && lastBrace > firstBrace) {
+                    potentialJsonString = cleanedResponseText.substring(firstBrace, lastBrace + 1);
+                } else {
+                    potentialJsonString = cleanedResponseText;
+                }
             }
-            if (result.creations === undefined) result.creations = {};
-            if (result.updates === undefined) result.updates = {};
+
+            result = repairAndParseJson(potentialJsonString, this);
+            this.info("[Historian] 使用 JSON 修复解析路径");
+        }
+
+        const hasDeltaPayload = (data) => {
+            if (!data || typeof data !== 'object') return false;
+            return Boolean(
+                data.creations ||
+                data.updates ||
+                data.new_long_term_summary ||
+                data.new_handoff_memo ||
+                data.relationship_updates ||
+                data.chronology_update ||
+                data.stylistic_analysis_delta ||
+                data.rhythm_assessment
+            );
+        };
+
+        if (!hasDeltaPayload(result)) {
+            this.diagnose("史官AI返回的结构不完整（未包含有效增量）。Raw Response:", responseText);
+            throw new Error("史官AI未能返回包含有效增量的结果。");
+        }
+        if (result.creations === undefined) result.creations = {};
+        if (result.updates === undefined) result.updates = {};
 
             // 【探针】检查故事线更新
             console.group('[HISTORIAN-PROBE] 故事线更新检查');
@@ -130,10 +167,10 @@ export class HistorianAgent extends Agent {
 
         // V10.0: 提取必要数据（移除剧本和文体档案依赖）
         const staticMatrices = chapter.staticMatrices;
-        const dynamicState = chapter.dynamicState;
         const longTermStorySummary = chapter.meta.longTermStorySummary;
         const currentChapterNumber = chapter.meta.chapterNumber || 1;
         const currentTimestamp = new Date().toISOString();
+        const readonlyReport = buildHistorianReport(chapter);
 
         // V10.0: 提取叙事节奏环状态（用于节奏评估）
         const narrativeRhythmClock = chapter?.meta?.narrative_control_tower?.narrative_rhythm_clock || {
@@ -195,14 +232,13 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
   要求3: 地点名称、事件描述、关系标签等所有内容必须是中文
   要求4: 唯一允许英文的地方为字段名field name和ID标识符
 
-审计素材:
+  审计素材:
   录像: <chapter_transcript>${chapterTranscript}</chapter_transcript>
   当前章节: 第${currentChapterNumber}章，时间戳${currentTimestamp}
   世界档案: 第${chronology.day_count}天，${chronology.time_slot}
 ${existingEntityManifest}
-  完整数据:
-    静态矩阵: <static_matrices>${JSON.stringify(staticMatrices, null, 2)}</static_matrices>
-    动态状态: <dynamic_state>${JSON.stringify(dynamicState, null, 2)}</dynamic_state>
+  只读报告(ASCII keys):
+    <readonly_report>${readonlyReport}</readonly_report>
   全局故事总梗概_从第1章到第${currentChapterNumber - 1}章: ${longTermStorySummary}
   重要提示: 这是截至上一章结束的全局总梗概，包含了从故事开始到现在的所有重要情节。你需要在此基础上累加本章内容，而不是替换它
   节奏环: 当前相位${narrativeRhythmClock.current_phase}，已持续${narrativeRhythmClock.current_phase_duration}章，周期${narrativeRhythmClock.cycle_count}
@@ -345,8 +381,25 @@ ${existingEntityManifest}
     time_jump情况: 睡觉或剧本明确跳跃、加1天或更多、重置time_slot、更新生理状态包含fatigue和hunger
     输出: chronology_update包含transition_type、new_day_count、new_time_slot、new_weather、reasoning、npc_schedule_hint
 
+输出协议_SbtEdit:
+  你的回复必须包含 <SbtEdit> ... </SbtEdit> 标签
+  标签内每行一条函数调用指令，禁止输出原始JSON
+  参数必须是合法JSON（字符串必须使用双引号）
+  允许函数:
+    createEntity(category,id,data)
+    updateEntity(category,id,data)
+    updateStoryline(category,id,data)
+    appendRelationshipEdge(data)
+    updateRelationshipEdge(edgeId,updates)
+    updateCharacterRelationship(charId,targetId,data)
+    updateChronology(data)
+    setLongTermSummary(text)
+    setHandoffMemo(data)
+  category示例: characters, worldview.locations, storylines.main_quests
+
 最终输出格式:
-  格式: JSON
+  格式: SbtEdit指令
+  说明: 以下JSON结构仅用于字段参考，真实输出必须用<SbtEdit>函数指令表达
   结构示例:
     creations:
       staticMatrices:
