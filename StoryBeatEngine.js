@@ -433,6 +433,19 @@ const spoilerBlockPlaceholder = {
                 this.isTransitionPending = true;
                 this.pendingTransitionPayload = { decision: conductorDecision.status };
             }
+            // V10.1: 终章节拍触发（不依赖 LLM status）
+            const plotBeats = this.currentChapter.chapter_blueprint?.plot_beats || [];
+            const lastBeatIndex = plotBeats.length - 1;
+            const conductorBeatIdx = Number.isFinite(Number(conductorDecision.current_beat_idx))
+                ? Number(conductorDecision.current_beat_idx)
+                : 0;
+            if (plotBeats.length > 0 && conductorBeatIdx >= lastBeatIndex) {
+                if (!this.isTransitionPending) {
+                    this.info(`PROBE [PENDING-TRANSITION]: 检测到已进入最后节拍（index=${conductorBeatIdx}），将于本次回复后触发章节转换。`);
+                }
+                this.isTransitionPending = true;
+                this.pendingTransitionPayload = this.pendingTransitionPayload || { decision: 'LAST_BEAT_AUTO' };
+            }
 
             // V2.0: 处理实时上下文召回
             let dynamicContextInjection = '';
@@ -652,8 +665,6 @@ if (this.currentChapter.chapter_blueprint) {
         const visibility = beat.status === '【待解锁】' ? '(已屏蔽)' : '(完整可见)';
         this.logger.log(`  节拍${idx + 1}: ${beat.status} ${visibility} - ${contentPreview}...`);
     });
-    const beaconPreview = maskedBlueprint.endgame_beacon?.substring(0, 50) || maskedBlueprint.endgame_beacons?.[0]?.substring(0, 50) || '无';
-    this.logger.log('终章信标状态:', beaconPreview);
 
     // 【新增】验证高光设计掩码状态
     if (maskedBlueprint.chapter_core_and_highlight) {
@@ -671,7 +682,6 @@ if (this.currentChapter.chapter_blueprint) {
     this.logger.group('[ENGINE-V3-DEBUG] 第3层蓝图内容验证');
     this.logger.log('scriptContent 总长度:', scriptContent.length);
     this.logger.log('蓝图包含plot_beats:', scriptContent.includes('plot_beats'));
-    this.logger.log('蓝图包含endgame信标:', scriptContent.includes('endgame_beacon'));
     this.logger.groupEnd();
 
     // 【V3.2 重构】第4层：通用核心法则与关系指南
@@ -768,17 +778,6 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             };
         }
     });
-
-    // 屏蔽终章信标（除非已经到达终局）
-    const isEndgame = currentBeatIndex >= maskedBlueprint.plot_beats.length;
-    if (!isEndgame) {
-        if (maskedBlueprint.endgame_beacons) {
-            maskedBlueprint.endgame_beacons = ["【数据删除 - 仅在最后节拍解锁】"];
-        }
-        if (maskedBlueprint.endgame_beacon) {
-            maskedBlueprint.endgame_beacon = "【数据删除 - 仅在最后节拍解锁】";
-        }
-    }
 
     // 【修复】屏蔽 chapter_core_and_highlight 中的导演意图，避免影响AI自然演绎
     if (maskedBlueprint.chapter_core_and_highlight) {
@@ -1777,24 +1776,20 @@ async reanalyzeWorldbook() {
             this.warn("热重载警告: IntelligenceAgent未能返回完整的 staticMatrices，静态设定未更新。");
         }
 
-        const chat = this.USER.getContext().chat;
-        let lastAiMessageIndex = -1;
-        for (let i = chat.length - 1; i >= 0; i--) {
-            if (chat[i] && !chat[i].is_user) {
-                lastAiMessageIndex = i;
-                break;
+        const { piece: lastLeaderPiece, index: lastLeaderIndex } = this.USER.findLastMessageWithLeader();
+        if (lastLeaderPiece && lastLeaderIndex !== -1) {
+            const chat = this.USER.getContext().chat;
+            const anchorMessage = chat[lastLeaderIndex];
+            if (anchorMessage) {
+                anchorMessage.leader = this.currentChapter.toJSON();
+                anchorMessage.leader.lastUpdated = new Date().toISOString(); // 添加一个更新时间戳
+                this.USER.saveChat();
+                this.info(`热重载: 更新后的 Chapter 状态已成功锚定到消息索引 ${lastLeaderIndex}。`);
+            } else {
+                this.warn("热重载: 未找到目标 leader 消息，状态仅在内存中更新。");
             }
-        }
-        
-        if (lastAiMessageIndex !== -1) {
-            const anchorMessage = chat[lastAiMessageIndex];
-            delete anchorMessage.leader; 
-            anchorMessage.leader = this.currentChapter.toJSON();
-            anchorMessage.leader.lastUpdated = new Date().toISOString(); // 添加一个更新时间戳
-            this.USER.saveChat();
-            this.info(`热重载: 更新后的 Chapter 状态已成功锚定到消息索引 ${lastAiMessageIndex}。`);
         } else {
-            this.warn("热重载: 未找到可用的AI消息来锚定新状态，状态仅在内存中更新。");
+            this.warn("热重载: 未找到已有 leader 消息，已跳过锚定以避免新增 leader。");
         }
         this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
 
@@ -2139,31 +2134,31 @@ async forceChapterTransition() {
 
         try {
             // 查找最后一条AI消息作为锚点
+            const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
+            if (!lastStatePiece || lastStateIndex === -1) {
+                this.warn("????? leader ????????????? leader?");
+                this.currentChapter = updatedChapterState;
+                return;
+            }
+
             const chat = this.USER.getContext().chat;
-            let lastAiMessageIndex = -1;
-
-            for (let i = chat.length - 1; i >= 0; i--) {
-                if (chat[i] && !chat[i].is_user) {
-                    lastAiMessageIndex = i;
-                    break;
-                }
+            const anchorMessage = chat[lastStateIndex];
+            if (!anchorMessage) {
+                this.warn("????? leader ????????????? leader?");
+                this.currentChapter = updatedChapterState;
+                return;
             }
 
-            if (lastAiMessageIndex === -1) {
-                throw new Error("未找到可锚定的AI消息");
-            }
-
-            // 将更新后的状态锚定到消息上
-            const anchorMessage = chat[lastAiMessageIndex];
+            // ??????????? leader ??
             anchorMessage.leader = updatedChapterState.toJSON ? updatedChapterState.toJSON() : updatedChapterState;
 
-            // 保存聊天记录
+            // ??????
             this.USER.saveChat();
 
-            // 更新当前章节引用
+            // ????????
             this.currentChapter = updatedChapterState;
 
-            this.info(`角色 ${charId} 的编辑已成功保存到消息索引 ${lastAiMessageIndex}`);
+            this.info(`?? ${charId} ????????????? ${lastStateIndex}`);
 
         } catch (error) {
             this.diagnose("保存角色编辑失败:", error);

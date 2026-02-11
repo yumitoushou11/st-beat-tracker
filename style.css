@@ -768,18 +768,76 @@ input:checked + .sbt-slider:before {
 .sbt-header-indicators {
     display: flex;
     align-items: center;
-    gap: 15px; /* 在两个指示器之间增加间距 */
+    gap: 12px; /* 在指示器之间增加间距 */
+}
+
+.sbt-anchor-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 #sbt-chapter-anchor {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 4px 10px;
+    min-height: 26px;
+    padding: 0 10px;
     border-radius: 15px;
     background-color: var(--sbt-bg-dark);
     font-size: 0.9em;
     color: var(--sbt-text-medium);
+}
+
+#sbt-anchor-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    box-sizing: border-box;
+    border-radius: 6px;
+    border: none;
+    background-color: transparent;
+    color: var(--sbt-text-medium);
+    cursor: pointer;
+    line-height: 0;
+    align-self: center;
+}
+
+#sbt-anchor-refresh-btn i {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    font-size: 0.95em;
+    line-height: 1;
+    transform: translateY(-0.5px);
+}
+
+#sbt-anchor-refresh-btn i::before {
+    display: block;
+    line-height: 1;
+}
+
+#sbt-anchor-refresh-btn:hover {
+    color: var(--sbt-primary-accent);
+}
+
+#sbt-anchor-refresh-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+#sbt-anchor-refresh-btn.is-loading i {
+    animation: sbt-anchor-spin 0.9s linear infinite;
+}
+
+@keyframes sbt-anchor-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* --- [SECTION 12] 世界档案 - 图书馆式索引样式 --- */

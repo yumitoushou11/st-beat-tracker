@@ -19,8 +19,7 @@ export async function showNarrativeFocusPopup(previousFocus = '') {
         initialValue: previousFocus === defaultChoice ? '' : previousFocus,
         okText: '以此为焦点，开始规划',
         cancelText: '跳过 (由AI决定)',
-        freeRoamText: '🎲 自由章模式',
-        abcText: '💕 开启ABC沉浸流'
+        freeRoamText: '🎲 自由章模式'
     });
 
     return result;

@@ -226,11 +226,11 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 职责: 审计录像，记录如何改变世界状态
 禁令: 无剧本，只记录实际发生的事
 
-语言铁律:
-  要求1: 所有输出内容必须100%使用简体中文
-  要求2: 所有描述性字段的值必须是中文，例如meeting_status要填初次相遇而非first_encounter
-  要求3: 地点名称、事件描述、关系标签等所有内容必须是中文
-  要求4: 唯一允许英文的地方为字段名field name和ID标识符
+  语言铁律:
+    要求1: 所有输出内容必须100%使用简体中文
+    要求2: 所有描述性字段的值必须是中文，例如meeting_status要填初次相遇而非first_encounter
+    要求3: 地点名称、事件描述、关系标签等所有内容必须是中文
+    要求4: 唯一允许英文的地方为字段名field name和ID标识符；关系边的type_label与relationship_label必须是中文
 
   审计素材:
   录像: <chapter_transcript>${chapterTranscript}</chapter_transcript>
@@ -242,6 +242,24 @@ ${existingEntityManifest}
   全局故事总梗概_从第1章到第${currentChapterNumber - 1}章: ${longTermStorySummary}
   重要提示: 这是截至上一章结束的全局总梗概，包含了从故事开始到现在的所有重要情节。你需要在此基础上累加本章内容，而不是替换它
   节奏环: 当前相位${narrativeRhythmClock.current_phase}，已持续${narrativeRhythmClock.current_phase_duration}章，周期${narrativeRhythmClock.cycle_count}
+
+未完成事项捕捉协议_强制入网:
+  核心原则: 宁可过度建档，不可漏建。凡是未解决困境、难题、未完成目标、未闭环事件，必须进入故事线网络。
+  强制扫描范围:
+    - 未解决的困境/难题（卡住、僵局、缺失关键线索）
+    - 未完成目标/承诺（角色明确要做但尚未完成）
+    - 未闭环事件（线索/危机/威胁出现但未收束）
+    - 关系矛盾/误解未化解
+    - 资源/条件不满足导致的持续障碍
+  全部入网规则:
+    - 若可归入既有故事线，必须更新该线的history_entry与current_summary
+    - 若无法明确归属，必须创建side_quests记录
+  新建记录必填字段:
+    - title: 中文简短标题
+    - summary: 困境/目标 + 当前状态
+    - trigger: 本章触发场景或触发语句
+    - objectives: 1-3条“尚未完成的目标/解法”
+    - involved_entities: 可空，但优先填写
 
 核心方法论:
 
@@ -283,7 +301,7 @@ ${existingEntityManifest}
 
     关系边档案:
       触发条件: 发现两个角色首次建立联系时，创建新的relationship_graph.edges
-      完整字段: id、participants数组包含char1和char2、type、relationship_label、affinity、emotional_weight、narrative_voltage、cognitive_gap、conflict_source、personality_chemistry、timeline包含meeting_status、separation_state、last_interaction、narrative_status包含first_scene_together
+      完整字段: id、participants数组包含char1和char2、type、type_label、relationship_label、affinity、emotional_weight、narrative_voltage、cognitive_gap、conflict_source、personality_chemistry、timeline包含meeting_status、separation_state、last_interaction、narrative_status包含first_scene_together
       必填字段说明:
         affinity字段: 初始好感度0到100，根据首次互动的性质评估
         emotional_weight字段: 情感权重0到10，0等于陌生、5等于有意义、8以上等于高压关系
@@ -313,6 +331,8 @@ ${existingEntityManifest}
 
   方法M3_统一事件审计_Unified_Event_Auditing:
     原则: 将内容更新和进度更新合并为一个原子操作
+    强制规则: 只要本章出现未解决困境/难题/未完成目标/未闭环事件，updates.storylines必须包含至少一条更新或创建，否则视为审计失败
+    行动口令: 宁可多建，不可漏建
 
     故事线更新:
       输出: updates.storylines.cat.id包含current_status、current_summary、history_entry、advancement
@@ -444,6 +464,7 @@ ${existingEntityManifest}
               id: rel_protagonist_new_npc
               participants: [char_protagonist, char_new_npc]
               type: acquaintance
+              type_label: 初识关系
               relationship_label: 陌生人
               affinity: 15
               emotional_weight: 2
@@ -513,6 +534,9 @@ ${existingEntityManifest}
   项目10: 故事线体现逻辑链?
   项目11: 关系捕捉位阶变化?
   项目12: 只更新真实变化?
+  项目13: 是否识别并入网了未解决困境/难题/未完成目标/未闭环事件?
+  项目14: 是否为每个未完成事项提供storylines记录?
+  项目15: 是否避免只叙述不建档?
 
 现在，开始因果律审计。
 `;

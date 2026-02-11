@@ -3,6 +3,14 @@
 
 import { mapValueToHue } from '../../utils/colorUtils.js';
 
+const hasEnglishLetters = (value) => /[A-Za-z]/.test(value || '');
+const ensureChineseLabel = (value, fallback) => {
+    if (value === null || value === undefined) return fallback;
+    const text = String(value).trim();
+    if (!text) return fallback;
+    return hasEnglishLetters(text) ? fallback : text;
+};
+
 /**
  * 显示关系详情面板
  * @param {string} edgeId - 关系边ID
@@ -55,7 +63,7 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
 
     const participant1 = edge.participants[0] ? getCharName(edge.participants[0]) : '';
     const participant2 = edge.participants[1] ? getCharName(edge.participants[1]) : '';
-    const relationshipLabel = edge.relationship_label || '尚未命名的关系';
+    const relationshipLabel = ensureChineseLabel(edge.relationship_label, '尚未命名的关系');
     const meetingStatus = (edge.timeline?.meeting_status || '未知').trim();
     const rawSeparationState = edge.timeline?.separation_state;
     const isSeparated = typeof rawSeparationState === 'boolean'
@@ -75,7 +83,8 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
         'lovers': '恋人羁绊',
         'stranger_with_history': '陌路旧识'
     };
-    const typeText = edge.type_label || typeTranslations[edge.type] || edge.type || '未知关系';
+    const rawTypeText = edge.type_label || typeTranslations[edge.type] || edge.type || '';
+    const typeText = ensureChineseLabel(rawTypeText, relationshipLabel || '未知关系');
 
     // 计算情感权重等级
     const weight = edge.emotional_weight || 0;

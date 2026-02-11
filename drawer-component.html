@@ -18,9 +18,14 @@
         <div class="drawer-header">
             <h3><i class="fa-solid fa-rocket fa-fw"></i> 叙事流引擎 - 控制室</h3>
              <div class="sbt-header-indicators">
-                <div id="sbt-chapter-anchor" title="这是当前章节的起始消息楼层。&#10;为保证史官能正确分析历史，请在本章结束前，不要隐藏或删除此楼层之后的消息。">
-                    <i class="fa-solid fa-anchor fa-fw"></i>
-                    <span id="sbt-chapter-anchor-index">--</span>
+                <div class="sbt-anchor-group">
+                    <button id="sbt-anchor-refresh-btn" type="button" title="重新拉取聊天数据">
+                        <i class="fa-solid fa-rotate-right fa-fw"></i>
+                    </button>
+                    <div id="sbt-chapter-anchor" title="这是当前章节的起始消息楼层。&#10;为保证史官能正确分析历史，请在本章结束前，不要隐藏或删除此楼层之后的消息。">
+                        <i class="fa-solid fa-anchor fa-fw"></i>
+                        <span id="sbt-chapter-anchor-index">--</span>
+                    </div>
                 </div>
                 <div id="sbt-engine-status-indicator" title="引擎当前状态">
                     <i id="sbt-engine-status-icon" class="fa-solid fa-coffee"></i>

@@ -43,7 +43,7 @@ SBT 是一个面向 SillyTavern 的剧情优化与章节化叙事引擎。它通
 - IntelligenceAgent（情报官）
   - 创世纪时解析世界书与主角信息，生成 staticMatrices（静态数据库）。
 - ArchitectAgent（建筑师）
-  - 生成章节蓝图（plot beats、终章信标、设计笔记）。
+  - 生成章节蓝图（plot beats、设计笔记）。
 - HistorianAgent（史官）
   - 复盘本章文本，输出状态增量（creations / updates / summaries / rhythm）。
 - TurnConductorAgent（回合裁判）
@@ -182,7 +182,7 @@ TurnConductorAgent 的输出关键字段：
 - tone_correction：基调纠正指令（如偏离剧情）
 - narrative_hold：禁止剧透与推进禁令
 - realtime_context_ids：本回合需额外召回的实体
-- status：若命中终章信标 → 触发章节转换
+- status：若 current_beat_idx 为最后节拍 → 触发章节转换
 
 ---
 
@@ -217,7 +217,7 @@ TurnConductorAgent 的输出关键字段：
 
 触发来源：
 
-- TurnConductor 检测终章信标
+- TurnConductor 检测最后节拍
 - UI 手动触发（叙事罗盘按钮）
 
 ### 8.1 史官复盘（Historian）

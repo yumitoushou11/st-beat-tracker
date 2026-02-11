@@ -204,14 +204,15 @@ ECI核心方法论_实体分类ID:
 
   任务4_构建staticMatrices.relationship_graph:
     核心目标: 建立一个高压叙事线网络。不要记录琐碎的熟人关系，只记录那些具备戏剧张力、情感负荷极高或存在特殊互动机制的强关系
-    语言铁律: 除id和type外，所有描述性字段包括状态枚举必须完全使用简体中文
+    语言铁律: 除id和type外，所有描述性字段包括状态枚举必须完全使用简体中文；type_label和relationship_label为必填中文
 
     关系边结构规范:
       id字段: rel_角色A_角色B
       participants字段: [ID_A, ID_B]
       type字段: childhood_friends、enemies、lovers、stranger_with_history等，此字段保留英文下划线格式用于系统UI图标映射
       type_label字段: 必填中文，与type对应的中文短标签用于直接展示，如宿敌对峙、童年玩伴，保持2到6个汉字的凝练表达。此字段必须始终提供，若没有现成词请根据关系性质自行拟定一个中文标签
-      relationship_label字段: 必填中文，给这段关系一个文学性或影视化的定性，示例无法触及的白月光、欢喜冤家、假面下的死敌、拥有共同秘密的同谋
+    type_label字段: 必填中文，用于前端显示关系类型（如：分离恋人、捕食者与无觉猎物）
+    relationship_label字段: 必填中文，给这段关系一个文学性或影视化的定性，示例无法触及的白月光、欢喜冤家、假面下的死敌、拥有共同秘密的同谋
 
       emotional_weight字段: 0到10的叙事优先级
         范围0到5: 背景关系

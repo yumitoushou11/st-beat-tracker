@@ -147,7 +147,6 @@ _createPrompt(context) {
     // 极简模式：只提取必要数据
     const { lastExchange, chapterBlueprint, staticMatrices } = context;
     const beats = chapterBlueprint?.plot_beats || [];
-    const endgameBeacon = chapterBlueprint?.endgame_beacons?.[0] || chapterBlueprint?.endgame_beacon || "无";
 
     // 【实体召回开关检测】默认关闭
     const isEntityRecallEnabled = localStorage.getItem('sbt-entity-recall-enabled') === 'true';
@@ -174,7 +173,6 @@ ${JSON.stringify(beats.map((b, i) => ({
     exit_condition: b.exit_condition,
     emotional_direction: b.state_change || "无"
 })), null, 2)}
-  终章信标: ${endgameBeacon}
 
 最新对话:
 ${lastExchange}
@@ -238,20 +236,19 @@ ${lastExchange}
   核心原则: 保护主线节奏，严防次要内容滑坡失控
 
 章节转换判定:
-  触发条件: 本回合对话涉及终章信标内容
+  触发条件: current_beat_idx 已进入最后一个节拍（索引 = plot_beats.length - 1）
 
   判定规则:
-    步骤1: 查看最新对话中AI和玩家的内容
-    步骤2: 判断对话是否涉及终章信标（${endgameBeacon}）中描述的事件
-    步骤3: 如果涉及终章信标内容，不管是开始、进行中还是完成，输出status为TRIGGER_TRANSITION
-    步骤4: 如果对话与终章信标无关，输出status为CONTINUE
+    步骤1: 正常完成节拍定位流程，产出 current_beat_idx
+    步骤2: 若 current_beat_idx 为最后节拍，输出 status 为 TRIGGER_TRANSITION
+    步骤3: 否则输出 status 为 CONTINUE
 
-  重要说明: 只要本回合触及终章信标的内容就立即切换，不需要等完全完成
+  重要说明: 进入最后节拍即触发章节转换（本次回复完成后切换）
 
   示例:
-    终章信标: 主角离开村庄
-    涉及情况: 主角告别村长、走向村口、踏出大门 → TRIGGER_TRANSITION
-    无关情况: 主角在酒馆闲聊 → CONTINUE
+    plot_beats长度: 5（索引 0-4）
+    current_beat_idx = 4 → TRIGGER_TRANSITION
+    current_beat_idx = 3 → CONTINUE
 
 输出格式_JSON:
   结构:

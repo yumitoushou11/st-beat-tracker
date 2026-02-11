@@ -29,6 +29,14 @@ const debugWarn = (...args) => {
     }
 };
 
+const hasEnglishLetters = (value) => /[A-Za-z]/.test(value || '');
+const ensureChineseLabel = (value, fallback) => {
+    if (value === null || value === undefined) return fallback;
+    const text = String(value).trim();
+    if (!text) return fallback;
+    return hasEnglishLetters(text) ? fallback : text;
+};
+
 function buildFallbackChapterStateFromStaticCache() {
     try {
         if (!staticDataManager || typeof staticDataManager.getFullDatabase !== 'function') {
@@ -707,41 +715,6 @@ function renderRelationshipGraph(chapterState) {
         return char?.core?.name || char?.name || charId.replace('char_', '');
     };
 
-    // 统计信息
-    const separationCount = edges.filter(e => {
-        const timeline = e.timeline || {};
-        if (typeof timeline.separation_state === 'boolean') {
-            return timeline.separation_state;
-        }
-        return timeline.reunion_pending === true;
-    }).length;
-    const firstMeetingCount = edges.filter(e => {
-        const meetingStatus = (e.timeline?.meeting_status || '').trim();
-        if (meetingStatus) {
-            return unfamiliarStatuses.has(meetingStatus);
-        }
-        return e.narrative_status?.first_scene_together === false;
-    }).length;
-
-    // 渲染统计信息
-    const statsHtml = `
-        <div class="sbt-relationship-stats">
-            <div class="sbt-relationship-stat-item">
-                <i class="fa-solid fa-link"></i>
-                <span>关系总数: <span class="sbt-relationship-stat-value">${edges.length}</span></span>
-            </div>
-            <div class="sbt-relationship-stat-item">
-                <i class="fa-solid fa-clock-rotate-left" style="color: #f39c12;"></i>
-                <span>处于分离: <span class="sbt-relationship-stat-value">${separationCount}</span></span>
-            </div>
-            <div class="sbt-relationship-stat-item">
-                <i class="fa-solid fa-handshake" style="color: #3498db;"></i>
-                <span>待熟识: <span class="sbt-relationship-stat-value">${firstMeetingCount}</span></span>
-            </div>
-        </div>
-    `;
-    container.append(statsHtml);
-
     // 渲染每条关系边
     edges.forEach((edge, index) => {
         const participant1 = getCharName(edge.participants[0]);
@@ -754,9 +727,9 @@ function renderRelationshipGraph(chapterState) {
             'lovers': '恋人羁绊',
             'stranger_with_history': '陌路旧识'
         };
-        const typeText = edge.type_label || typeTranslations[edge.type] || edge.type || '未知关系';
-
-        const relationshipLabel = edge.relationship_label || '尚未命名的关系';
+        const rawTypeText = edge.type_label || typeTranslations[edge.type] || edge.type || '';
+        const relationshipLabel = ensureChineseLabel(edge.relationship_label, '尚未命名的关系');
+        const typeText = ensureChineseLabel(rawTypeText, relationshipLabel || '未知关系');
         const meetingStatus = (edge.timeline?.meeting_status || '未知').trim();
         const rawSeparationState = edge.timeline?.separation_state;
         const isSeparated = typeof rawSeparationState === 'boolean'
@@ -1060,18 +1033,18 @@ function renderChapterBlueprint(blueprint) {
     // === 第2层：情节节拍列表 ===
     if (blueprint.plot_beats && Array.isArray(blueprint.plot_beats) && blueprint.plot_beats.length > 0) {
         html += '<div class="sbt-blueprint-section">';
-        html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
-        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon collapsed"></i>';
+        html += '<div class="sbt-blueprint-section-title">';
         html += '<i class="fa-solid fa-list-ol"></i> 情节节拍';
         html += `<span class="sbt-beat-count">${blueprint.plot_beats.length} 个节拍</span>`;
         html += '</div>';
-        html += '<div class="sbt-blueprint-section-content collapsed">';
+        html += '<div class="sbt-blueprint-section-content">';
 
         blueprint.plot_beats.forEach((beat, index) => {
             const beatNum = index + 1;
             const beatType = beat.type || 'Action';
-            const beatTypeChinese = beatTypeMap[beatType] || beatType;
-            const beatTypeClass = beatTypeClassMap[beatType] || 'action';
+            const normalizedBeatType = typeof beatType === 'string' ? beatType.replace(/_/g, ' ').trim() : beatType;
+            const beatTypeChinese = beatTypeMap[normalizedBeatType] || beatTypeMap[beatType] || normalizedBeatType || '未知';
+            const beatTypeClass = beatTypeClassMap[normalizedBeatType] || beatTypeClassMap[beatType] || 'action';
             const isHighlight = beat.is_highlight || false;
 
             html += `<div class="sbt-beat-card ${isHighlight ? 'highlight' : ''}" data-beat-index="${index}">`;
@@ -1169,35 +1142,6 @@ function renderChapterBlueprint(blueprint) {
         html += '</div>'; // 结束section
     }
 
-    // === 第4层：终章信标 ===
-    // 兼容两种格式：endgame_beacon (单数字符串) 和 endgame_beacons (复数数组)
-    let beacons = [];
-    if (blueprint.endgame_beacon && typeof blueprint.endgame_beacon === 'string') {
-        beacons = [blueprint.endgame_beacon];
-    } else if (blueprint.endgame_beacons && Array.isArray(blueprint.endgame_beacons)) {
-        beacons = blueprint.endgame_beacons;
-    }
-
-    if (beacons.length > 0) {
-        html += '<div class="sbt-blueprint-section">';
-        html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
-        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon collapsed"></i>';
-        html += '<i class="fa-solid fa-flag-checkered"></i> 终章信标';
-        html += `<span class="sbt-beat-count">${beacons.length} 个信标</span>`;
-        html += '</div>';
-        html += '<div class="sbt-blueprint-section-content collapsed">';
-
-        beacons.forEach((beacon, index) => {
-            html += `<div class="sbt-beacon-item">
-                <i class="fa-solid fa-circle-dot"></i>
-                <span contenteditable="true" data-beacon-index="${index}">${beacon}</span>
-            </div>`;
-        });
-
-        html += '</div>'; // 结束section-content
-        html += '</div>'; // 结束section
-    }
-
     return html;
 }
 
@@ -1214,7 +1158,6 @@ export function updateDashboard(chapterState) {
 // V4.2 调试：验证UI收到的章节数据
     debugGroup('[RENDERERS-V4.2-DEBUG] updateDashboard 收到数据');
     debugLog('章节UID:', chapterState.uid);
-    debugLog('终章信标:', chapterState.chapter_blueprint?.endgame_beacons);
     debugLog('章节衔接点:', chapterState.meta?.lastChapterHandoff);
     debugGroupEnd();
 

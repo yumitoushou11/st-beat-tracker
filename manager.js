@@ -1,4 +1,4 @@
-import { saveSettingsDebounced, saveSettings, getSlideToggleOptions, generateRaw, saveChat, eventSource, event_types, getRequestHeaders } from '/script.js';
+import { saveSettingsDebounced, saveSettings, getSlideToggleOptions, generateRaw, saveChat, eventSource, event_types, getRequestHeaders, reloadCurrentChat } from '/script.js';
 import { DOMPurify, Bowser, slideToggle } from '/lib.js';
 import { extension_settings, getContext, renderExtensionTemplateAsync } from '/scripts/extensions.js';
 import { POPUP_TYPE, Popup, callGenericPopup } from '/scripts/popup.js';
@@ -22,6 +22,7 @@ const applicationFunctionManager = {
     eventSource,
     event_types,
     getRequestHeaders,
+    reloadCurrentChat,
 
     // lib.js 模块
     DOMPurify,

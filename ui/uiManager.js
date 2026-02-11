@@ -304,6 +304,30 @@ $('#extensions-settings-button').after(html);
                 loadAndDisplayCachedStaticData();
             }
     });
+
+    // -- Anchor refresh button --
+    $wrapper.on('click', '#sbt-anchor-refresh-btn', async function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const $btn = $(this);
+        if ($btn.prop('disabled')) return;
+        $btn.prop('disabled', true).addClass('is-loading');
+        try {
+            const reloadChat = applicationFunctionManager.reloadCurrentChat;
+            if (typeof reloadChat !== 'function') {
+                throw new Error('reloadCurrentChat_not_available');
+            }
+            await reloadChat(); // 完全模拟重新进入聊天
+            await loadAndDisplayCachedStaticData();
+            deps.toastr?.success?.('已重新拉取聊天数据', '刷新完成');
+        } catch (error) {
+            deps.diagnose?.('[UIManager] 刷新数据失败:', error);
+            deps.toastr?.error?.('刷新失败，请重试', '刷新异常');
+        } finally {
+            $btn.prop('disabled', false).removeClass('is-loading');
+        }
+    });
+
     
         $wrapper.on('click', '#sbt-tab-nav .sbt-tab-btn', function() {
         const $button = $(this);
@@ -469,45 +493,6 @@ $('#extensions-settings-button').after(html);
             }
 
             deps.toastr.success(`已更新节拍 ${beatIndex + 1} 的退出条件`, '保存成功');
-        }
-    });
-
-    // 处理终章信标编辑
-    $wrapper.on('blur', '.sbt-beacon-item span[contenteditable="true"]', async function() {
-        const $field = $(this);
-        const beaconIndex = parseInt($field.data('beacon-index'), 10);
-        const newValue = $field.text().trim();
-        const effectiveState = getEffectiveChapterState();
-
-        if (!effectiveState || isNaN(beaconIndex)) return;
-
-        const blueprint = effectiveState.chapter_blueprint;
-        if (!blueprint) return;
-
-        // 兼容单数和复数格式
-        let beacons;
-        if (blueprint.endgame_beacons && Array.isArray(blueprint.endgame_beacons)) {
-            beacons = blueprint.endgame_beacons;
-        } else if (blueprint.endgame_beacon && typeof blueprint.endgame_beacon === 'string') {
-            // 转换为数组格式
-            beacons = [blueprint.endgame_beacon];
-            blueprint.endgame_beacons = beacons;
-            delete blueprint.endgame_beacon;
-        }
-
-        if (beacons && beacons[beaconIndex] !== newValue) {
-            beacons[beaconIndex] = newValue;
-
-            // 保存并触发更新
-            if (typeof deps.onSaveCharacterEdit === 'function') {
-                await deps.onSaveCharacterEdit('blueprint_updated', effectiveState);
-            }
-
-            if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
-            }
-
-            deps.toastr.success(`已更新终章信标 ${beaconIndex + 1}`, '保存成功');
         }
     });
 
