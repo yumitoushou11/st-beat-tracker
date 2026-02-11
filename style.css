@@ -43,21 +43,22 @@ html {
     color: var(--sbt-primary-accent); 
 }
 #beat-tracker-component-wrapper #beat-tracker-content-panel {
-    display: none; 
-    position: fixed; /* <--- 修改：使用 fixed 定位以获得全屏能力 */
-    top: var(--topBarBlockSize, 38px); /* <--- 修改：使用SillyTavern的顶栏高度变量，如果变量不存在则回退到38px */
-    left: 0; 
+    display: none;
+    position: absolute;
+    top: var(--topBarBlockSize, 38px); /* 使用SillyTavern的顶栏高度变量，如果变量不存在则回退到38px */
+    left: 0;
     right: 0;
-    
-    max-height: 90vh; 
+    margin: 0 auto;
+    max-height: calc(100vh - calc(var(--topBarBlockSize, 38px) + var(--bottomFormBlockSize, 0px)));
+    max-height: calc(100dvh - calc(var(--topBarBlockSize, 38px) + var(--bottomFormBlockSize, 0px)));
     background-color: var(--sbt-bg-darker);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.5); 
-    z-index: 1049; 
+    box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+    z-index: 1049;
     color: var(--sbt-text-light);
-    flex-direction: column;
 }
-#beat-tracker-component-wrapper #beat-tracker-content-panel.openDrawer { 
-    display: flex; 
+#beat-tracker-component-wrapper #beat-tracker-content-panel.openDrawer {
+    display: block;
+    overflow-y: auto;
 }
 #beat-tracker-component-wrapper .drawer-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: var(--sbt-bg-dark); border-bottom: 1px solid var(--sbt-border-color); }
 #beat-tracker-component-wrapper .drawer-header h3 { margin: 0; font-size: 1.1em; }
@@ -70,8 +71,7 @@ html {
 .sbt-tab-btn i { margin-right: 6px; }
 .sbt-panels-wrapper {
     padding: 15px;
-    overflow-y: auto;
-    flex-grow: 1;
+    overflow: visible;
     scrollbar-gutter: stable;
 }
 .sbt-tab-panel { display: none; }
@@ -474,8 +474,6 @@ input:checked + .sbt-slider:before {
 
 /* --- [SECTION 11D] 数据库管理样式 (Database Management) --- */
 .sbt-db-list {
-    max-height: 500px;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -601,6 +599,68 @@ input:checked + .sbt-slider:before {
 .sbt-db-entity-tag:hover {
     background-color: var(--sbt-bg-medium);
     border-color: var(--sbt-primary-accent);
+}
+
+/* Dynamic anchor display */
+.sbt-db-dynamic-chat-block {
+    margin-top: 10px;
+    padding: 8px 10px;
+    border: 1px dashed var(--sbt-border-color);
+    border-radius: 6px;
+    background-color: var(--sbt-bg-dark);
+}
+
+.sbt-db-dynamic-chat-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+}
+
+.sbt-db-dynamic-chat-name {
+    font-weight: 600;
+    color: var(--sbt-text-light);
+}
+
+.sbt-db-dynamic-chat-badge {
+    padding: 2px 6px;
+    border-radius: 10px;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    font-size: 0.75em;
+    color: var(--sbt-text-dim);
+}
+
+.sbt-db-anchor-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.sbt-db-anchor-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    background-color: var(--sbt-bg-medium);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 12px;
+    font-size: 0.8em;
+    color: var(--sbt-text-light);
+}
+
+.sbt-db-anchor-delete {
+    border: none;
+    background: transparent;
+    color: var(--sbt-text-dim);
+    cursor: pointer;
+    padding: 0;
+}
+
+.sbt-db-anchor-delete:hover {
+    color: #ff6464;
 }
 
 .sbt-danger-btn {

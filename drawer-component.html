@@ -798,10 +798,10 @@
                 <!-- 数据库管理 - 大分区 -->
                 <div class="sbt-library-section">
                     <h4 class="sbt-library-title">
-                        <i class="fa-solid fa-database fa-fw"></i> 静态数据库管理
+                        <i class="fa-solid fa-database fa-fw"></i> 数据库管理
                     </h4>
                     <p class="sbt-instructions">
-                        管理各角色卡的静态数据缓存。如果某个角色的世界观数据出现问题，可以在此删除后重新分析。
+                        管理各角色卡的静态数据缓存与动态 leader 锚点。如果某个角色的世界观/动态数据出现问题，可以在此删除后重新分析。
                     </p>
 
                     <div class="sbt-settings-card">
@@ -812,6 +812,12 @@
                         <div class="sbt-db-actions" style="margin-top: 15px; display: flex; gap: 10px;">
                             <button id="sbt-refresh-db-btn" class="sbt-secondary-btn">
                                 <i class="fa-solid fa-sync fa-fw"></i> 刷新列表
+                            </button>
+                            <button id="sbt-export-current-role-btn" class="sbt-secondary-btn">
+                                <i class="fa-solid fa-download fa-fw"></i> 导出当前角色
+                            </button>
+                            <button id="sbt-import-current-role-btn" class="sbt-secondary-btn">
+                                <i class="fa-solid fa-upload fa-fw"></i> 导入当前角色
                             </button>
                             <button id="sbt-clear-all-db-btn" class="sbt-danger-btn">
                                 <i class="fa-solid fa-trash fa-fw"></i> 清空全部数据

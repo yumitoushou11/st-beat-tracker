@@ -92,6 +92,35 @@ export function saveStaticData(characterId, staticData) {
 }
 
 /**
+ * 导出指定角色的静态数据
+ * @param {string|number} characterId - 角色ID
+ * @returns {object|null} 静态数据对象
+ */
+export function exportStaticData(characterId) {
+    return loadStaticData(characterId);
+}
+
+/**
+ * 导入指定角色的静态数据
+ * @param {string|number} characterId - 角色ID
+ * @param {object} staticData - 静态数据对象
+ * @param {object} [options]
+ * @param {boolean} [options.replace=true] - 是否覆盖保存
+ * @returns {boolean} 是否导入成功
+ */
+export function importStaticData(characterId, staticData, options = {}) {
+    const { replace = true } = options;
+    if (characterId === undefined || characterId === null || characterId === '' || !staticData) return false;
+    if (replace) {
+        saveStaticData(characterId, staticData);
+        return true;
+    }
+    // 默认行为仍是覆盖，避免误合并污染
+    saveStaticData(characterId, staticData);
+    return true;
+}
+
+/**
  * 获取所有已缓存的角色ID列表。
  * @returns {string[]} - 角色ID数组。
  */

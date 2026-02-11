@@ -21,6 +21,12 @@ const deps = {
     onForceEndSceneClick: () => logger.warn("onForceEndSceneClick not injected"),
     onSetNarrativeFocus: () => logger.warn("onSetNarrativeFocus not injected"),
     onSaveCharacterEdit: () => logger.warn("onSaveCharacterEdit not injected"),
+    getLeaderAnchorsForCurrentChat: () => [],
+    applyLeaderAnchors: () => ({ applied: 0, skipped: 0, lastAppliedIndex: -1 }),
+    getLeaderAnchorsByChatForCharacter: () => [],
+    removeLeaderAnchor: () => ({ removed: false, reason: 'not_injected' }),
+    removeAllLeaderAnchorsForCharacter: () => ({ chatsProcessed: 0, anchorsRemoved: 0, metadataCleared: 0, chatsFailed: 0 }),
+    removeAllLeaderAnchorsForAllCharacters: () => ({ charactersProcessed: 0, chatsProcessed: 0, anchorsRemoved: 0, metadataCleared: 0, chatsFailed: 0 }),
     mainLlmService: null,
     conductorLlmService: null,
     eventBus: null,
@@ -2227,7 +2233,7 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
                             <span class="sbt-db-item-name">${charId}</span>
                             <span class="sbt-db-item-stats">共 ${totalCount} 个实体</span>
                         </div>
-                        <button class="sbt-db-item-delete sbt-icon-btn" title="删除此角色数据">
+                        <button class="sbt-db-item-delete sbt-icon-btn" title="\u5220\u9664\u6b64\u89d2\u8272\u52a8\u9759\u6001\u6570\u636e">
                             <i class="fa-solid fa-trash"></i>
                         </button>
                     </div>
@@ -2325,6 +2331,14 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
                         </div>
                         ` : ''}
                         ${totalCount === 0 ? '<p class="sbt-instructions">此角色暂无缓存数据</p>' : ''}
+                        <div class="sbt-db-category sbt-db-dynamic-category" data-char-id="${charId}">
+                            <div class="sbt-db-category-title">
+                                <i class="fa-solid fa-anchor"></i> \u52a8\u6001\u951a\u70b9
+                            </div>
+                            <div class="sbt-db-dynamic-body">
+                                <p class="sbt-instructions">\u5c55\u5f00\u540e\u52a0\u8f7d\u52a8\u6001\u951a\u70b9...</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             `;
@@ -2333,99 +2347,360 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
         $list.html(html);
     }
 
-    // 展开/折叠详情
-    $wrapper.find('#sbt-static-db-list').on('click', '.sbt-db-item-header', function(e) {
-        // 如果点击的是删除按钮，不展开
-        if ($(e.target).closest('.sbt-db-item-delete').length > 0) return;
+    const downloadJsonFile = (obj, filename) => {
+        const json = JSON.stringify(obj, null, 2);
+        const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = filename;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
 
+    const uploadJsonFile = () => new Promise((resolve, reject) => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.json';
+        input.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) {
+                resolve(null);
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                try {
+                    const data = JSON.parse(event.target.result);
+                    resolve(data);
+                } catch (error) {
+                    reject(new Error('JSON解析失败'));
+                }
+            };
+            reader.onerror = () => reject(new Error('文件读取失败'));
+            reader.readAsText(file, 'UTF-8');
+        };
+        input.click();
+    });
+
+    const getActiveCharacterId = () => {
+        const context = applicationFunctionManager.getContext ? applicationFunctionManager.getContext() : null;
+        return context?.characterId;
+    };
+
+    
+        const normalizeChatFileName = (name) => String(name || '').replace(/\.jsonl$/i, '');
+
+    const renderDynamicAnchorsForCharacter = async (charId, $item) => {
+        const $dynamicBody = $item.find('.sbt-db-dynamic-body');
+        if ($dynamicBody.length === 0) return;
+
+        $dynamicBody.html('<p class="sbt-instructions">\u6b63\u5728\u8bfb\u53d6\u52a8\u6001\u6570\u636e...</p>');
+
+        if (typeof deps.getLeaderAnchorsByChatForCharacter !== 'function') {
+            $dynamicBody.html('<p class="sbt-instructions">\u672a\u6ce8\u5165\u52a8\u6001\u951a\u70b9\u8bfb\u53d6\u51fd\u6570\u3002</p>');
+            return;
+        }
+
+        try {
+            const payload = await deps.getLeaderAnchorsByChatForCharacter(charId);
+            const chats = Array.isArray(payload?.chats) ? payload.chats : [];
+            const currentChatId = normalizeChatFileName(payload?.currentChatId);
+
+            if (chats.length === 0 || chats.every(chat => !chat.anchors || chat.anchors.length === 0)) {
+                $dynamicBody.html('<p class="sbt-instructions">\u6682\u65e0\u52a8\u6001\u951a\u70b9\u3002</p>');
+                return;
+            }
+
+            const html = chats.map(chat => {
+                const anchors = Array.isArray(chat.anchors) ? chat.anchors : [];
+                if (anchors.length === 0) return '';
+
+                const chatFile = String(chat.fileName || '');
+                const displayName = normalizeChatFileName(chatFile) || chatFile || '\u672a\u547d\u540d\u4f1a\u8bdd';
+                const isCurrent = currentChatId && normalizeChatFileName(chatFile) === currentChatId;
+                const header = `
+                    <div class="sbt-db-dynamic-chat-header">
+                        <span class="sbt-db-dynamic-chat-name">${displayName}</span>
+                        ${isCurrent ? '<span class="sbt-db-dynamic-chat-badge">\u5f53\u524d\u4f1a\u8bdd</span>' : ''}
+                    </div>
+                `;
+
+                const chips = anchors.map(index => `
+                    <span class="sbt-db-anchor-chip" data-chat-file="${chatFile}" data-anchor-index="${index}" data-char-id="${charId}">
+                        #${index}
+                        <button class="sbt-db-anchor-delete" title="\u5220\u9664\u8be5\u951a\u70b9">
+                            <i class="fa-solid fa-xmark"></i>
+                        </button>
+                    </span>
+                `).join('');
+
+                return `
+                    <div class="sbt-db-dynamic-chat-block" data-chat-file="${chatFile}">
+                        ${header}
+                        <div class="sbt-db-anchor-list">${chips}</div>
+                    </div>
+                `;
+            }).filter(Boolean).join('');
+
+            $dynamicBody.html(html || '<p class="sbt-instructions">\u6682\u65e0\u52a8\u6001\u951a\u70b9\u3002</p>');
+        } catch (error) {
+            $dynamicBody.html('<p class="sbt-instructions">\u52a8\u6001\u951a\u70b9\u52a0\u8f7d\u5931\u8d25\u3002</p>');
+            deps.diagnose('[UIManager] Failed to load dynamic anchors:', error);
+        }
+    };
+
+    // Expand/collapse database item
+    $wrapper.find('#sbt-static-db-list').on('click', '.sbt-db-item-header', function(e) {
+        if ($(e.target).closest('.sbt-db-item-delete').length) return;
         const $item = $(this).closest('.sbt-db-item');
         const $details = $item.find('.sbt-db-item-details');
         const $icon = $item.find('.sbt-db-expand-icon');
+        const isOpen = $details.is(':visible');
 
-        if ($details.is(':visible')) {
-            $details.slideUp(200);
-            $icon.removeClass('expanded');
-        } else {
-            $details.slideDown(200);
-            $icon.addClass('expanded');
+        if (isOpen) {
+            $details.hide();
+            $icon.removeClass('fa-chevron-down').addClass('fa-chevron-right');
+            return;
+        }
+
+        $details.show();
+        $icon.removeClass('fa-chevron-right').addClass('fa-chevron-down');
+        const charId = $item.data('char-id');
+        if (charId !== undefined && charId !== null) {
+            renderDynamicAnchorsForCharacter(charId, $item);
         }
     });
 
-    // 初始加载
-    refreshDatabaseList();
-
-    // 刷新按钮
+    // Refresh database list
     $wrapper.find('#sbt-refresh-db-btn').on('click', () => {
         refreshDatabaseList();
-        deps.toastr.info('数据库列表已刷新', '刷新');
+        deps.toastr.success('\u5217\u8868\u5df2\u5237\u65b0', '\u5237\u65b0\u6210\u529f');
     });
 
-    // 清空全部按钮
+    // Export current character (static + dynamic anchors)
+    $wrapper.find('#sbt-export-current-role-btn').on('click', () => {
+        const characterId = getActiveCharacterId();
+        if (characterId === undefined || characterId === null || characterId === '') {
+            deps.toastr.warning('\u8bf7\u5148\u6253\u5f00\u89d2\u8272\u804a\u5929\u754c\u9762', '\u65e0\u6cd5\u5bfc\u51fa');
+            return;
+        }
+
+        const staticMatrices = staticDataManager.exportStaticData(characterId);
+        if (!staticMatrices) {
+            deps.toastr.warning('\u672a\u627e\u5230\u8be5\u89d2\u8272\u7684\u9759\u6001\u6570\u636e', '\u65e0\u6cd5\u5bfc\u51fa');
+            return;
+        }
+
+        const leaderAnchors = typeof deps.getLeaderAnchorsForCurrentChat === 'function'
+            ? deps.getLeaderAnchorsForCurrentChat()
+            : [];
+
+        const payload = {
+            schemaVersion: 2,
+            exportedAt: new Date().toISOString(),
+            characterId: String(characterId),
+            staticMatrices,
+            leaderAnchors
+        };
+
+        downloadJsonFile(payload, `sbt-${characterId}-snapshot.json`);
+        deps.toastr.success('\u5df2\u5bfc\u51fa\u5f53\u524d\u89d2\u8272\u6570\u636e', '\u5bfc\u51fa\u6210\u529f');
+    });
+
+    // Import current character (static + dynamic anchors)
+    $wrapper.find('#sbt-import-current-role-btn').on('click', async () => {
+        const characterId = getActiveCharacterId();
+        if (characterId === undefined || characterId === null || characterId === '') {
+            deps.toastr.warning('\u8bf7\u5148\u6253\u5f00\u89d2\u8272\u804a\u5929\u754c\u9762', '\u65e0\u6cd5\u5bfc\u5165');
+            return;
+        }
+
+        let payload;
+        try {
+            payload = await uploadJsonFile();
+        } catch (error) {
+            deps.toastr.error('\u6587\u4ef6\u8bfb\u53d6\u5931\u8d25', '\u5bfc\u5165\u5931\u8d25');
+            return;
+        }
+
+        if (!payload) return;
+
+        if (payload.schemaVersion !== 2) {
+            deps.toastr.error('\u4e0d\u652f\u6301\u7684\u6587\u4ef6\u683c\u5f0f', '\u5bfc\u5165\u5931\u8d25');
+            return;
+        }
+
+        const staticMatrices = payload.staticMatrices;
+        if (staticMatrices && typeof staticMatrices === 'object') {
+            staticDataManager.importStaticData(characterId, staticMatrices, { replace: true });
+        }
+
+        const leaderAnchors = Array.isArray(payload.leaderAnchors) ? payload.leaderAnchors : [];
+        if (leaderAnchors.length > 0) {
+            if (typeof deps.applyLeaderAnchors === 'function') {
+                deps.applyLeaderAnchors(leaderAnchors, { mapToCharacterId: characterId, setCurrentChapter: true });
+            } else {
+                deps.toastr.warning('\u672a\u6ce8\u5165\u5bfc\u5165\u951a\u70b9\u5904\u7406\u51fd\u6570', '\u52a8\u6001\u5bfc\u5165\u5931\u8d25');
+            }
+        }
+
+        refreshDatabaseList();
+        if (typeof onStaticDbChanged === 'function') {
+            onStaticDbChanged();
+        }
+        deps.toastr.success('\u5bfc\u5165\u5b8c\u6210', '\u5bfc\u5165\u6210\u529f');
+    });
+
+    // Initial load
+    refreshDatabaseList();
+
+        // Clear all data button
     $wrapper.find('#sbt-clear-all-db-btn').on('click', async () => {
         const confirmed = await simpleConfirm(
-            '确认清空',
-            '确定要清空所有角色的静态数据吗？\n\n此操作不可撤销，所有角色的世界观数据都将被删除。\n下次启动章节时将重新分析世界书。',
-            '清空全部',
-            '取消'
+            '\u786e\u8ba4\u6e05\u7a7a',
+            '\u786e\u5b9a\u8981\u6e05\u7a7a\u6240\u6709\u89d2\u8272\u7684\u52a8\u9759\u6001\u6570\u636e\u5417\uff1f\n\n\u6b64\u64cd\u4f5c\u4e0d\u53ef\u64a4\u9500\uff0c\u6240\u6709\u89d2\u8272\u7684\u4e16\u754c\u89c2\u4e0e\u52a8\u6001 leader \u90fd\u5c06\u88ab\u5220\u9664\u3002\n\u4e0b\u6b21\u542f\u52a8\u7ae0\u8282\u65f6\u5c06\u91cd\u65b0\u5206\u6790\u4e16\u754c\u4e66\u3002',
+            '\u6e05\u7a7a\u5168\u90e8',
+            '\u53d6\u6d88'
         );
 
-        logger.debug('[SBT-DB] 清空全部确认结果:', confirmed);
+        logger.debug('[SBT-DB] Clear all confirm:', confirmed);
 
         if (confirmed) {
-            logger.debug('[SBT-DB] 执行清空全部静态数据...');
+            logger.debug('[SBT-DB] Clearing all dynamic + static data...');
+            if (typeof deps.removeAllLeaderAnchorsForAllCharacters === 'function') {
+                try {
+                    const result = await deps.removeAllLeaderAnchorsForAllCharacters();
+                    logger.debug('[SBT-DB] Dynamic cleanup result:', result);
+                } catch (error) {
+                    logger.warn('[SBT-DB] Dynamic cleanup failed:', error);
+                }
+            }
             const success = staticDataManager.clearAllStaticData();
-            logger.debug('[SBT-DB] 清空结果:', success);
+            logger.debug('[SBT-DB] Clear result:', success);
 
-            // 验证清空是否成功
+            // Verify cleanup
             const db = staticDataManager.getFullDatabase();
-            logger.debug('[SBT-DB] 清空后的数据库:', db);
-            logger.debug('[SBT-DB] 数据库是否为空?', Object.keys(db).length === 0);
+            logger.debug('[SBT-DB] Database after clear:', db);
+            logger.debug('[SBT-DB] Database empty:', Object.keys(db).length === 0);
 
             refreshDatabaseList();
             if (typeof onStaticDbChanged === 'function') {
                 onStaticDbChanged();
             }
-            deps.toastr.success('所有静态数据已清空', '清空成功');
+            deps.toastr.success('\u6240\u6709\u52a8\u9759\u6001\u6570\u636e\u5df2\u6e05\u7a7a', '\u6e05\u7a7a\u6210\u529f');
         } else {
-            logger.debug('[SBT-DB] 用户取消了清空操作');
+            logger.debug('[SBT-DB] Clear all canceled');
         }
     });
 
+
+
     // 单个删除按钮（事件委托）
+        // Delete one character (static + dynamic)
     $wrapper.find('#sbt-static-db-list').on('click', '.sbt-db-item-delete', async function() {
         const $item = $(this).closest('.sbt-db-item');
         const charId = $item.data('char-id');
 
-        logger.debug('[SBT-DB] 准备删除角色:', charId);
+        logger.debug('[SBT-DB] Preparing delete:', charId);
 
         const confirmed = await simpleConfirm(
-            '确认删除',
-            `确定要删除角色 "${charId}" 的静态数据吗？\n\n下次启动该角色的章节时将重新分析其世界书。`,
-            '删除',
-            '取消'
+            '\u786e\u8ba4\u5220\u9664',
+            `\u786e\u5b9a\u8981\u5220\u9664\u89d2\u8272 "${charId}" \u7684\u52a8\u9759\u6001\u6570\u636e\u5417\uff1f\n\n\u8fd9\u4f1a\u6e05\u7a7a\u8be5\u89d2\u8272\u6240\u6709\u4f1a\u8bdd\u4e2d\u7684\u52a8\u6001 leader\u3002\n\u4e0b\u6b21\u542f\u52a8\u8be5\u89d2\u8272\u7684\u7ae0\u8282\u65f6\u5c06\u91cd\u65b0\u5206\u6790\u5176\u4e16\u754c\u4e66\u3002`,
+            '\u5220\u9664\u52a8\u9759\u6001',
+            '\u53d6\u6d88'
         );
 
-        logger.debug('[SBT-DB] 删除确认结果:', confirmed);
+        logger.debug('[SBT-DB] Delete confirm:', confirmed);
 
         if (confirmed) {
-            logger.debug('[SBT-DB] 执行删除角色数据:', charId);
+            logger.debug('[SBT-DB] Deleting character data:', charId);
+            if (typeof deps.removeAllLeaderAnchorsForCharacter === 'function') {
+                try {
+                    const result = await deps.removeAllLeaderAnchorsForCharacter(charId);
+                    logger.debug('[SBT-DB] Dynamic cleanup result:', result);
+                } catch (error) {
+                    logger.warn('[SBT-DB] Dynamic cleanup failed:', error);
+                }
+            }
             const success = staticDataManager.deleteStaticData(charId);
-            logger.debug('[SBT-DB] 删除结果:', success);
+            logger.debug('[SBT-DB] Static delete result:', success);
 
-            // 验证删除是否成功
+            // Verify delete
             const db = staticDataManager.getFullDatabase();
-            logger.debug('[SBT-DB] 删除后的数据库内容:', db);
-            logger.debug('[SBT-DB] 角色是否还存在?', charId in db);
+            logger.debug('[SBT-DB] Database after delete:', db);
+            logger.debug('[SBT-DB] Character still exists:', charId in db);
 
             refreshDatabaseList();
             if (typeof onStaticDbChanged === 'function') {
                 onStaticDbChanged();
             }
-            deps.toastr.success(`角色 "${charId}" 的数据已删除`, '删除成功');
+            deps.toastr.success(`\u89d2\u8272 "${charId}" \u7684\u52a8\u9759\u6001\u6570\u636e\u5df2\u5220\u9664`, '\u5220\u9664\u6210\u529f');
         } else {
-            logger.debug('[SBT-DB] 用户取消了删除操作');
+            logger.debug('[SBT-DB] Delete canceled');
         }
     });
+
+    // Delete a single dynamic anchor (delegated)
+$wrapper.find('#sbt-static-db-list').on('click', '.sbt-db-anchor-delete', async function(e) {
+        e.stopPropagation();
+        const $chip = $(this).closest('.sbt-db-anchor-chip');
+        const charId = $chip.data('char-id');
+        const chatFile = $chip.data('chat-file');
+        const anchorIndex = Number($chip.data('anchor-index'));
+
+        if (!Number.isInteger(anchorIndex) || charId === undefined || chatFile === undefined) {
+            deps.toastr.warning('\u65e0\u6548\u7684\u951a\u70b9\u53c2\u6570', '\u5220\u9664\u5931\u8d25');
+            return;
+        }
+
+        const confirmed = await simpleConfirm(
+            '\u786e\u8ba4\u5220\u9664',
+            `\u786e\u5b9a\u8981\u5220\u9664\u8be5\u951a\u70b9 #${anchorIndex} \u5417\uff1f`,
+            '\u5220\u9664',
+            '\u53d6\u6d88'
+        );
+
+        if (!confirmed) return;
+
+        if (typeof deps.removeLeaderAnchor !== 'function') {
+            deps.toastr.error('\u672a\u6ce8\u5165\u52a8\u6001\u5220\u9664\u51fd\u6570', '\u5220\u9664\u5931\u8d25');
+            return;
+        }
+
+        try {
+            const result = await deps.removeLeaderAnchor({
+                characterId: charId,
+                fileName: chatFile,
+                messageIndex: anchorIndex
+            });
+
+            if (!result?.removed) {
+                deps.toastr.warning('\u8be5\u951a\u70b9\u672a\u88ab\u5220\u9664', '\u63d0\u793a');
+            } else {
+                deps.toastr.success('\u951a\u70b9\u5df2\u5220\u9664', '\u5220\u9664\u6210\u529f');
+            }
+        } catch (error) {
+            deps.toastr.error('\u5220\u9664\u951a\u70b9\u5931\u8d25', '\u9519\u8bef');
+            deps.diagnose('[UIManager] Failed to delete anchor:', error);
+        }
+
+        const $item = $chip.closest('.sbt-db-item');
+        const itemCharId = $item.data('char-id');
+        if (itemCharId !== undefined && itemCharId !== null) {
+            renderDynamicAnchorsForCharacter(itemCharId, $item);
+        }
+    });
+
+
+
+
+    
+
+            
+
 }
 
 export { populateSettingsUI };

@@ -175,6 +175,12 @@ export class StoryBeatEngine {
         onForceChapterTransition: this.forceChapterTransition.bind(this),
         onStartGenesis: this.startGenesisProcess.bind(this),
         onRerollChapterBlueprint: this.rerollChapterBlueprint.bind(this),
+        getLeaderAnchorsForCurrentChat: this.getLeaderAnchorsForCurrentChat.bind(this),
+        applyLeaderAnchors: this.applyLeaderAnchors.bind(this),
+        getLeaderAnchorsByChatForCharacter: this.getLeaderAnchorsByChatForCharacter.bind(this),
+        removeLeaderAnchor: this.removeLeaderAnchor.bind(this),
+        removeAllLeaderAnchorsForCharacter: this.removeAllLeaderAnchorsForCharacter.bind(this),
+        removeAllLeaderAnchorsForAllCharacters: this.removeAllLeaderAnchorsForAllCharacters.bind(this),
             mainLlmService: this.mainLlmService,
             conductorLlmService: this.conductorLlmService,
         onSetNarrativeFocus: this.setNarrativeFocus.bind(this),
@@ -1105,6 +1111,477 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
 
 /**创世纪流程启动器。*/
+
+    getLeaderAnchorsForCurrentChat() {
+        try {
+            const context = this.USER.getContext();
+            const chat = context?.chat || [];
+            const currentCharId = context?.characterId;
+            const anchors = [];
+
+            chat.forEach((message, index) => {
+                if (!message || message.is_user) return;
+                const leader = message.leader;
+                if (!leader || !Chapter.isValidStructure(leader)) return;
+                if (currentCharId !== undefined && currentCharId !== null && leader.characterId != currentCharId) return;
+
+                const snapshot = JSON.parse(JSON.stringify(leader));
+                delete snapshot.__source;
+                anchors.push({ messageIndex: index, leader: snapshot });
+            });
+
+            return anchors;
+        } catch (error) {
+            this.diagnose('Failed to export leader anchors:', error);
+            return [];
+        }
+    }
+
+    applyLeaderAnchors(anchors = [], options = {}) {
+        const { mapToCharacterId, setCurrentChapter = true } = options;
+        const context = this.USER.getContext();
+        const chat = context?.chat || [];
+        let applied = 0;
+        let skipped = 0;
+        let lastAppliedLeader = null;
+        let lastAppliedIndex = -1;
+
+        if (!Array.isArray(anchors) || anchors.length === 0) {
+            return { applied, skipped, lastAppliedIndex };
+        }
+
+        anchors.forEach((anchor) => {
+            const messageIndex = Number(anchor?.messageIndex);
+            if (!Number.isInteger(messageIndex) || messageIndex < 0 || messageIndex >= chat.length) {
+                skipped += 1;
+                return;
+            }
+
+            const targetMessage = chat[messageIndex];
+            if (!targetMessage || targetMessage.is_user) {
+                skipped += 1;
+                return;
+            }
+
+            const leader = anchor?.leader;
+            if (!leader || typeof leader !== 'object') {
+                skipped += 1;
+                return;
+            }
+
+            const snapshot = JSON.parse(JSON.stringify(leader));
+            if (mapToCharacterId !== undefined && mapToCharacterId !== null) {
+                snapshot.characterId = mapToCharacterId;
+            }
+            delete snapshot.__source;
+
+            targetMessage.leader = snapshot;
+            applied += 1;
+            if (messageIndex > lastAppliedIndex) {
+                lastAppliedIndex = messageIndex;
+                lastAppliedLeader = snapshot;
+            }
+        });
+
+        if (applied > 0) {
+            this.USER.saveChat();
+            if (setCurrentChapter && lastAppliedLeader) {
+                this.currentChapter = Chapter.fromJSON(lastAppliedLeader);
+                this.narrativeControlTowerManager.syncStorylineProgressWithStorylines(this.currentChapter);
+                if (typeof window !== 'undefined') {
+                    window.__sbtLiveLeaderAvailable = true;
+                }
+                this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+                updateDashboard(this.currentChapter);
+                const appManager = this.deps?.applicationFunctionManager;
+                const chatId = context?.chatId;
+                if (appManager?.eventSource?.emit && appManager?.event_types?.CHAT_CHANGED && chatId !== undefined && chatId !== null) {
+                    appManager.eventSource.emit(appManager.event_types.CHAT_CHANGED, chatId);
+                }
+                setTimeout(() => {
+                    this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+                    updateDashboard(this.currentChapter);
+                }, 100);
+            }
+        }
+
+        if (skipped > 0 && this.toastr) {
+            this.toastr.warning(`有 ${skipped} 个锚点未能写入（楼层不存在或是用户消息）`, '导入提示');
+        } else if (applied > 0 && this.toastr) {
+            this.toastr.success(`已写入 ${applied} 个锚点`, '导入成功');
+        }
+
+        return { applied, skipped, lastAppliedIndex };
+    }
+
+    _normalizeChatFileName(name) {
+        return String(name || '').replace(/\.jsonl$/i, '');
+    }
+
+    _getCharacterRecord(characterId) {
+        const context = this.USER.getContext();
+        const characters = context?.characters || {};
+        if (characters[characterId]) return characters[characterId];
+        const numericId = typeof characterId === 'string' ? Number(characterId) : characterId;
+        if (!Number.isNaN(numericId) && characters[numericId]) return characters[numericId];
+        return null;
+    }
+
+    _getRequestHeaders() {
+        const headersFn = this.deps?.applicationFunctionManager?.getRequestHeaders;
+        return typeof headersFn === 'function'
+            ? headersFn()
+            : { 'Content-Type': 'application/json' };
+    }
+
+    _extractChatPayload(chatPayload) {
+        if (!Array.isArray(chatPayload)) {
+            return { metadata: null, messages: [] };
+        }
+        const messages = chatPayload.slice();
+        let metadata = null;
+        if (messages[0] && (messages[0].chat_metadata || messages[0].user_name || messages[0].character_name || messages[0].create_date)) {
+            metadata = messages.shift();
+        }
+        return { metadata, messages };
+    }
+
+    _findLatestLeaderForCharacterInChat(messages, characterId) {
+        if (!Array.isArray(messages)) return { leader: null, index: -1 };
+        for (let i = messages.length - 1; i >= 0; i--) {
+            const message = messages[i];
+            if (!message || message.is_user) continue;
+            const leader = message.leader;
+            if (!leader || !Chapter.isValidStructure(leader)) continue;
+            if (characterId !== undefined && characterId !== null && leader.characterId != characterId) continue;
+            return { leader, index: i };
+        }
+        return { leader: null, index: -1 };
+    }
+
+    _applyCurrentChapterAfterLeaderChange(characterId, messages) {
+        const { leader } = this._findLatestLeaderForCharacterInChat(messages, characterId);
+        if (leader) {
+            this.currentChapter = Chapter.fromJSON(leader);
+            this.narrativeControlTowerManager.syncStorylineProgressWithStorylines(this.currentChapter);
+            if (typeof window !== 'undefined') {
+                window.__sbtLiveLeaderAvailable = true;
+            }
+        } else {
+            let fallbackChapter = this._buildChapterPreviewFromStaticCache();
+            if (!fallbackChapter) {
+                fallbackChapter = new Chapter({ characterId: characterId ?? this.USER.getContext()?.characterId });
+            }
+            this.currentChapter = fallbackChapter;
+            if (typeof window !== 'undefined') {
+                window.__sbtLiveLeaderAvailable = false;
+            }
+        }
+
+        this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+        updateDashboard(this.currentChapter);
+        setTimeout(() => {
+            this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+            updateDashboard(this.currentChapter);
+        }, 100);
+    }
+
+    async _fetchCharacterChatFiles(characterId) {
+        try {
+            const character = this._getCharacterRecord(characterId);
+            if (!character?.avatar) return [];
+            const response = await fetch('/api/characters/chats', {
+                method: 'POST',
+                headers: this._getRequestHeaders(),
+                body: JSON.stringify({ avatar_url: character.avatar }),
+                cache: 'no-cache',
+            });
+            if (!response.ok) return [];
+            const data = await response.json();
+            if (data && typeof data === 'object' && data.error === true) return [];
+            return Object.values(data);
+        } catch (error) {
+            this.warn('[SBT-DB] Failed to fetch character chats:', error);
+            return [];
+        }
+    }
+
+    async _fetchChatPayload(characterId, fileName) {
+        try {
+            const character = this._getCharacterRecord(characterId);
+            if (!character) return null;
+            const response = await fetch('/api/chats/get', {
+                method: 'POST',
+                headers: this._getRequestHeaders(),
+                body: JSON.stringify({
+                    ch_name: character.name || characterId,
+                    file_name: this._normalizeChatFileName(fileName),
+                    avatar_url: character.avatar,
+                }),
+                cache: 'no-cache',
+            });
+            if (!response.ok) return null;
+            return await response.json();
+        } catch (error) {
+            this.warn('[SBT-DB] Failed to fetch chat payload:', error);
+            return null;
+        }
+    }
+
+    async _saveChatPayload(characterId, fileName, metadata, messages, options = {}) {
+        try {
+            const { force = false } = options;
+            const character = this._getCharacterRecord(characterId);
+            if (!character) return false;
+            const context = this.USER.getContext();
+            const meta = metadata || {
+                user_name: context?.name1 || '',
+                character_name: context?.name2 || character.name || '',
+                create_date: new Date().toISOString(),
+                chat_metadata: context?.chatMetadata || {},
+            };
+            const chatToSave = [meta, ...(messages || [])];
+
+            const response = await fetch('/api/chats/save', {
+                method: 'POST',
+                headers: this._getRequestHeaders(),
+                body: JSON.stringify({
+                    ch_name: character.name || characterId,
+                    file_name: this._normalizeChatFileName(fileName),
+                    chat: chatToSave,
+                    avatar_url: character.avatar,
+                    force: force,
+                }),
+                cache: 'no-cache',
+            });
+            return response.ok;
+        } catch (error) {
+            this.warn('[SBT-DB] Failed to save chat payload:', error);
+            return false;
+        }
+    }
+
+    async getLeaderAnchorsByChatForCharacter(characterId) {
+        const context = this.USER.getContext();
+        const currentChatId = context?.chatId ? this._normalizeChatFileName(context.chatId) : null;
+        const chats = [];
+
+        const chatFiles = await this._fetchCharacterChatFiles(characterId);
+        if (chatFiles.length === 0 && Array.isArray(context?.chat)) {
+            const anchors = [];
+            context.chat.forEach((message, index) => {
+                if (!message || message.is_user) return;
+                const leader = message.leader;
+                if (!leader || !Chapter.isValidStructure(leader)) return;
+                if (characterId !== undefined && characterId !== null && leader.characterId != characterId) return;
+                anchors.push(index);
+            });
+            return {
+                currentChatId,
+                chats: [{
+                    fileName: context?.chatId || '',
+                    anchors,
+                    anchorCount: anchors.length,
+                }],
+            };
+        }
+        for (const chatMeta of chatFiles) {
+            const fileName = chatMeta?.file_name || chatMeta?.fileName || '';
+            const normalized = this._normalizeChatFileName(fileName);
+            let messages = [];
+
+            if (currentChatId && normalized === currentChatId && Array.isArray(context?.chat)) {
+                messages = context.chat;
+            } else {
+                const payload = await this._fetchChatPayload(characterId, fileName);
+                if (!payload) {
+                    chats.push({ fileName, anchors: [], anchorCount: 0 });
+                    continue;
+                }
+                const extracted = this._extractChatPayload(payload);
+                messages = extracted.messages;
+            }
+
+            const anchors = [];
+            messages.forEach((message, index) => {
+                if (!message || message.is_user) return;
+                const leader = message.leader;
+                if (!leader || !Chapter.isValidStructure(leader)) return;
+                if (characterId !== undefined && characterId !== null && leader.characterId != characterId) return;
+                anchors.push(index);
+            });
+
+            chats.push({ fileName, anchors, anchorCount: anchors.length });
+        }
+
+        return { currentChatId, chats };
+    }
+
+    async removeLeaderAnchor({ characterId, fileName, messageIndex }) {
+        const context = this.USER.getContext();
+        const normalized = this._normalizeChatFileName(fileName);
+        const currentChatId = context?.chatId ? this._normalizeChatFileName(context.chatId) : null;
+        const numericIndex = Number(messageIndex);
+
+        if (!Number.isInteger(numericIndex) || numericIndex < 0) {
+            return { removed: false, reason: 'invalid_index' };
+        }
+
+        if (currentChatId && normalized === currentChatId && Array.isArray(context?.chat)) {
+            const chat = context.chat;
+            const targetMessage = chat[numericIndex];
+            if (!targetMessage || targetMessage.is_user) return { removed: false, reason: 'invalid_message' };
+            if (!targetMessage.leader || typeof targetMessage.leader !== 'object') {
+                return { removed: false, reason: 'no_leader' };
+            }
+            if (characterId !== undefined && characterId !== null && targetMessage.leader.characterId != characterId) {
+                return { removed: false, reason: 'character_mismatch' };
+            }
+            delete targetMessage.leader;
+            if (!this._findLatestLeaderForCharacterInChat(chat, characterId).leader && context?.chatMetadata?.leader?.characterId == characterId) {
+                context.chatMetadata.leader = {};
+            }
+            this.USER.saveChat();
+            this._applyCurrentChapterAfterLeaderChange(characterId, chat);
+            return { removed: true };
+        }
+
+        const payload = await this._fetchChatPayload(characterId, fileName);
+        if (!payload) return { removed: false, reason: 'fetch_failed' };
+        const { metadata, messages } = this._extractChatPayload(payload);
+        if (numericIndex >= messages.length) return { removed: false, reason: 'invalid_index' };
+        const targetMessage = messages[numericIndex];
+        if (!targetMessage || targetMessage.is_user) return { removed: false, reason: 'invalid_message' };
+        if (!targetMessage.leader || typeof targetMessage.leader !== 'object') {
+            return { removed: false, reason: 'no_leader' };
+        }
+        if (characterId !== undefined && characterId !== null && targetMessage.leader.characterId != characterId) {
+            return { removed: false, reason: 'character_mismatch' };
+        }
+        delete targetMessage.leader;
+        if (!this._findLatestLeaderForCharacterInChat(messages, characterId).leader && metadata?.chat_metadata?.leader?.characterId == characterId) {
+            metadata.chat_metadata.leader = {};
+        }
+        const saved = await this._saveChatPayload(characterId, fileName, metadata, messages);
+        return { removed: !!saved };
+    }
+
+    async removeAllLeaderAnchorsForCharacter(characterId) {
+        const context = this.USER.getContext();
+        const currentChatId = context?.chatId ? this._normalizeChatFileName(context.chatId) : null;
+        const chatFiles = await this._fetchCharacterChatFiles(characterId);
+
+        let chatsProcessed = 0;
+        let anchorsRemoved = 0;
+        let metadataCleared = 0;
+        let chatsFailed = 0;
+        let currentChatTouched = false;
+
+        if (chatFiles.length === 0 && Array.isArray(context?.chat)) {
+            const chat = context.chat;
+            chat.forEach((message) => {
+                if (!message || message.is_user || !message.leader) return;
+                if (characterId !== undefined && characterId !== null && message.leader.characterId != characterId) return;
+                delete message.leader;
+                anchorsRemoved += 1;
+                currentChatTouched = true;
+            });
+            if (context?.chatMetadata?.leader && context.chatMetadata.leader.characterId == characterId) {
+                context.chatMetadata.leader = {};
+                metadataCleared += 1;
+                currentChatTouched = true;
+            }
+            this.USER.saveChat();
+            chatsProcessed += 1;
+            if (currentChatTouched) {
+                this._applyCurrentChapterAfterLeaderChange(characterId, chat);
+            }
+            return { chatsProcessed, anchorsRemoved, metadataCleared, chatsFailed };
+        }
+
+        for (const chatMeta of chatFiles) {
+            const fileName = chatMeta?.file_name || chatMeta?.fileName || '';
+            const normalized = this._normalizeChatFileName(fileName);
+
+            if (currentChatId && normalized === currentChatId && Array.isArray(context?.chat)) {
+                const chat = context.chat;
+                chat.forEach((message) => {
+                    if (!message || message.is_user || !message.leader) return;
+                    if (characterId !== undefined && characterId !== null && message.leader.characterId != characterId) return;
+                    delete message.leader;
+                    anchorsRemoved += 1;
+                    currentChatTouched = true;
+                });
+                if (context?.chatMetadata?.leader && context.chatMetadata.leader.characterId == characterId) {
+                    context.chatMetadata.leader = {};
+                    metadataCleared += 1;
+                    currentChatTouched = true;
+                }
+                this.USER.saveChat();
+                chatsProcessed += 1;
+                continue;
+            }
+
+            const payload = await this._fetchChatPayload(characterId, fileName);
+            if (!payload) {
+                chatsFailed += 1;
+                continue;
+            }
+
+            const { metadata, messages } = this._extractChatPayload(payload);
+            let changed = false;
+
+            messages.forEach((message) => {
+                if (!message || message.is_user || !message.leader) return;
+                if (characterId !== undefined && characterId !== null && message.leader.characterId != characterId) return;
+                delete message.leader;
+                anchorsRemoved += 1;
+                changed = true;
+            });
+
+            if (metadata?.chat_metadata?.leader && metadata.chat_metadata.leader.characterId == characterId) {
+                metadata.chat_metadata.leader = {};
+                metadataCleared += 1;
+                changed = true;
+            }
+
+            if (changed) {
+                const saved = await this._saveChatPayload(characterId, fileName, metadata, messages);
+                if (!saved) {
+                    chatsFailed += 1;
+                    continue;
+                }
+            }
+            chatsProcessed += 1;
+        }
+
+        if (currentChatTouched && Array.isArray(context?.chat)) {
+            this._applyCurrentChapterAfterLeaderChange(characterId, context.chat);
+        }
+
+        return { chatsProcessed, anchorsRemoved, metadataCleared, chatsFailed };
+    }
+
+    async removeAllLeaderAnchorsForAllCharacters() {
+        const characterIds = staticDataManager.getAllCharacterIds();
+        let charactersProcessed = 0;
+        let chatsProcessed = 0;
+        let anchorsRemoved = 0;
+        let metadataCleared = 0;
+        let chatsFailed = 0;
+
+        for (const charId of characterIds) {
+            const result = await this.removeAllLeaderAnchorsForCharacter(charId);
+            charactersProcessed += 1;
+            chatsProcessed += result.chatsProcessed || 0;
+            anchorsRemoved += result.anchorsRemoved || 0;
+            metadataCleared += result.metadataCleared || 0;
+            chatsFailed += result.chatsFailed || 0;
+        }
+
+        return { charactersProcessed, chatsProcessed, anchorsRemoved, metadataCleared, chatsFailed };
+    }
+
 
 async reanalyzeWorldbook() {
     // 【总开关保护】检查引擎是否已启用
