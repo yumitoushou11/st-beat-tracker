@@ -728,12 +728,12 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
     const maskedBlueprint = JSON.parse(JSON.stringify(blueprint));
 
     // 【V9.0 简化】直接使用数字索引，不再解析字符串
-    // 【修复】默认减一回合，避免AI多看一个节拍
-    const currentBeatIndex = Math.max(0, (currentBeatIdx || 0) - 1);
+    // 【调整】不再减一，直接使用当前节拍索引
+    const currentBeatIndex = Math.max(0, (currentBeatIdx || 0));
 
     console.group('[信息迷雾] 剧本动态掩码处理');
     console.log('原始节拍索引:', currentBeatIdx);
-    console.log('调整后索引（减1）:', currentBeatIndex);
+    console.log('调整后索引（无偏移）:', currentBeatIndex);
 
     // 遍历节拍并应用掩码
     maskedBlueprint.plot_beats = maskedBlueprint.plot_beats.map((beat, index) => {
@@ -1379,15 +1379,54 @@ async rerollChapterBlueprint() {
 
     // 提取焦点内容
     let newFocus = focusPopupResult.value?.trim() || "由AI自主创新。";
+    const isFreeRoam = !!(focusPopupResult.freeRoam || focusPopupResult.isFreeRoam);
+    const isABC = !!(focusPopupResult.abc || focusPopupResult.isABC);
 
-    // 【特殊模式处理】检查是否选择了特殊模式
-    if (focusPopupResult.isFreeRoam) {
-        this.toastr.warning('重roll不支持切换到自由章模式', '操作中止');
+    // Free-roam selection: skip architect reroll.
+    if (isFreeRoam) {
+        const freeRoamFocus = focusPopupResult.value?.trim() || "Free roam";
+        newFocus = `[FREE_ROAM] ${freeRoamFocus}`;
+        this.currentChapter.playerNarrativeFocus = newFocus;
+        if (!this.currentChapter.meta) this.currentChapter.meta = {};
+        this.currentChapter.meta.freeRoamMode = true;
+        this.currentChapter.chapter_blueprint = {
+            title: "Free Roam",
+            emotional_arc: "Freeform",
+            plot_beats: []
+        };
+        this.currentChapter.activeChapterDesignNotes = null;
+        this.currentChapter.checksum = simpleHash(JSON.stringify(this.currentChapter) + Date.now());
+
+        const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
+        if (lastStatePiece && lastStateIndex !== -1) {
+            const chat = this.USER.getContext().chat;
+            const targetMessage = chat[lastStateIndex];
+            if (targetMessage) {
+                targetMessage.leader = this.currentChapter.toJSON();
+                this.USER.saveChat();
+                this.info("[FreeRoam] Saved to chat (message index: " + lastStateIndex + ")");
+            } else {
+                this.warn("No target message; cannot save chapter state");
+            }
+        } else {
+            this.warn("No leader message; cannot save chapter state");
+        }
+
+        this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+        setTimeout(() => {
+            this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+            this.info("[FreeRoam] Delayed refresh fired to ensure UI update");
+        }, 100);
+
+        this.toastr.success('Switched to free-roam mode; architect reroll skipped', 'Reroll complete');
         return;
     }
 
-    // 处理ABC沉浸流标记
-    if (focusPopupResult.isABC && !newFocus.includes('[IMMERSION_MODE]')) {
+    if (this.currentChapter?.meta) {
+        this.currentChapter.meta.freeRoamMode = false;
+    }
+
+    if (isABC && !newFocus.includes('[IMMERSION_MODE]')) {
         newFocus = `[IMMERSION_MODE] ${newFocus}`;
     }
 

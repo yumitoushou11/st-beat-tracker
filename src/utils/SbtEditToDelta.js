@@ -70,6 +70,35 @@ const flattenToDotPaths = (obj, prefix = '', output = {}) => {
     return output;
 };
 
+const expandDotPaths = (obj) => {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) {
+        return obj;
+    }
+    const result = {};
+    Object.entries(obj).forEach(([key, value]) => {
+        if (key.includes('.')) {
+            const parts = key.split('.');
+            let cursor = result;
+            for (let i = 0; i < parts.length; i++) {
+                const part = parts[i];
+                if (i === parts.length - 1) {
+                    cursor[part] = value;
+                } else {
+                    if (!cursor[part] || typeof cursor[part] !== 'object' || Array.isArray(cursor[part])) {
+                        cursor[part] = {};
+                    }
+                    cursor = cursor[part];
+                }
+            }
+        } else if (value && typeof value === 'object' && !Array.isArray(value)) {
+            result[key] = expandDotPaths(value);
+        } else {
+            result[key] = value;
+        }
+    });
+    return result;
+};
+
 export const commandsToDelta = (commands = [], options = {}) => {
     const warn = options.warn || (() => {});
     const delta = {};
@@ -122,14 +151,15 @@ export const commandsToDelta = (commands = [], options = {}) => {
                     warn(`updateEntity skipped: invalid args`);
                     return;
                 }
+                const normalizedData = expandDotPaths(data);
                 const updates = ensureUpdates();
                 if (normalized === 'characters') {
-                    ensurePath(updates, ['characters'])[id] = data;
+                    ensurePath(updates, ['characters'])[id] = normalizedData;
                     return;
                 }
                 const worldCategory = normalizeWorldviewCategory(normalized);
                 if (worldCategory) {
-                    ensurePath(updates, ['worldview', worldCategory])[id] = data;
+                    ensurePath(updates, ['worldview', worldCategory])[id] = normalizedData;
                     return;
                 }
                 warn(`updateEntity skipped: unknown category ${normalized}`);
@@ -222,4 +252,3 @@ export const commandsToDelta = (commands = [], options = {}) => {
 
     return delta;
 };
-

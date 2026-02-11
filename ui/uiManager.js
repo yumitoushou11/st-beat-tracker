@@ -178,6 +178,37 @@ $('#extensions-settings-button').after(html);
     };
 
     // -- 加载缓存的静态数据并显示 (V9.1 重构为异步轮询) --
+    const buildEmptyChapterState = (characterId) => ({
+        uid: 'sbt-empty-state',
+        characterId: characterId || '',
+        staticMatrices: {
+            characters: {},
+            worldview: { locations: {}, items: {}, factions: {}, concepts: {}, events: {}, races: {} },
+            storylines: { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} },
+            relationship_graph: { edges: [] }
+        },
+        dynamicState: {
+            characters: {},
+            worldview: { locations: {}, items: {}, factions: {}, concepts: {}, events: {}, races: {} },
+            storylines: { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} }
+        },
+        meta: { longTermStorySummary: '', lastChapterHandoff: null },
+        chapter_blueprint: {},
+        activeChapterDesignNotes: null
+    });
+
+    const resetStaleStaticView = (reason, characterId) => {
+        if (!isStaticArchiveState(currentChapterState)) return;
+        const resolvedId = characterId || resolveStaticCharacterId(currentChapterState);
+        currentChapterState = buildEmptyChapterState(resolvedId);
+        isLockedInStaticMode = false;
+        updateDashboard(currentChapterState);
+        refreshStaticModeBanner();
+        if (reason) {
+            deps.info(`[UIManager] ${reason}`);
+        }
+    };
+
     async function loadAndDisplayCachedStaticData() {
         try {
             const liveState = await getDynamicStateWithRetry();
@@ -201,11 +232,13 @@ $('#extensions-settings-button').after(html);
             const activeCharId = context?.characterId;
 
             if (!activeCharId) {
+                resetStaleStaticView('No active character id; cleared stale static view.');
                 deps.info('[UIManager] 未检测到当前角色ID，静态档案预览跳过。');
                 return;
             }
 
             if (!db || Object.keys(db).length === 0) {
+                resetStaleStaticView('Static database is empty; cleared stale static view.', activeCharId);
                 deps.info('[UIManager] 静态数据库为空，无缓存数据可加载');
                 return;
             }
@@ -213,6 +246,7 @@ $('#extensions-settings-button').after(html);
             const cachedData = db[activeCharId];
 
             if (!cachedData || !cachedData.characters || !cachedData.worldview) {
+                resetStaleStaticView(`No cached static data for ${activeCharId}; cleared stale static view.`, activeCharId);
                 deps.info(`[UIManager] 角色 ${activeCharId} 暂无静态缓存数据，跳过加载`);
                 return;
             }
@@ -2137,7 +2171,7 @@ $('#extensions-settings-button').after(html);
     bindPromptManagerHandlers($wrapper, deps);
 
     // -- 数据库管理: 绑定数据库管理相关处理器 --
-    bindDatabaseManagementHandlers($wrapper, deps);
+    bindDatabaseManagementHandlers($wrapper, deps, loadAndDisplayCachedStaticData);
 
     deps.info("[UIManager] 所有UI事件已成功绑定。");
 
@@ -2157,7 +2191,7 @@ $('#extensions-settings-button').after(html);
 /**
  * 绑定数据库管理相关的事件处理器
  */
-function bindDatabaseManagementHandlers($wrapper, deps) {
+function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
     // 刷新数据库列表
     function refreshDatabaseList() {
         const $list = $wrapper.find('#sbt-static-db-list');
@@ -2348,6 +2382,9 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
             logger.debug('[SBT-DB] 数据库是否为空?', Object.keys(db).length === 0);
 
             refreshDatabaseList();
+            if (typeof onStaticDbChanged === 'function') {
+                onStaticDbChanged();
+            }
             deps.toastr.success('所有静态数据已清空', '清空成功');
         } else {
             logger.debug('[SBT-DB] 用户取消了清空操作');
@@ -2381,6 +2418,9 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
             logger.debug('[SBT-DB] 角色是否还存在?', charId in db);
 
             refreshDatabaseList();
+            if (typeof onStaticDbChanged === 'function') {
+                onStaticDbChanged();
+            }
             deps.toastr.success(`角色 "${charId}" 的数据已删除`, '删除成功');
         } else {
             logger.debug('[SBT-DB] 用户取消了删除操作');
@@ -2389,4 +2429,3 @@ function bindDatabaseManagementHandlers($wrapper, deps) {
 }
 
 export { populateSettingsUI };
-
