@@ -1061,11 +1061,11 @@ function renderChapterBlueprint(blueprint) {
     if (blueprint.plot_beats && Array.isArray(blueprint.plot_beats) && blueprint.plot_beats.length > 0) {
         html += '<div class="sbt-blueprint-section">';
         html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
-        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon"></i>';
+        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon collapsed"></i>';
         html += '<i class="fa-solid fa-list-ol"></i> 情节节拍';
         html += `<span class="sbt-beat-count">${blueprint.plot_beats.length} 个节拍</span>`;
         html += '</div>';
-        html += '<div class="sbt-blueprint-section-content">';
+        html += '<div class="sbt-blueprint-section-content collapsed">';
 
         blueprint.plot_beats.forEach((beat, index) => {
             const beatNum = index + 1;
@@ -1134,10 +1134,10 @@ function renderChapterBlueprint(blueprint) {
         const highlight = blueprint.highlight_moment_design;
         html += '<div class="sbt-blueprint-section">';
         html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
-        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon"></i>';
+        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon collapsed"></i>';
         html += '<i class="fa-solid fa-star"></i> 高光时刻设计';
         html += '</div>';
-        html += '<div class="sbt-blueprint-section-content">';
+        html += '<div class="sbt-blueprint-section-content collapsed">';
         html += '<div class="sbt-highlight-card">';
 
         // 高光类型
@@ -1181,11 +1181,11 @@ function renderChapterBlueprint(blueprint) {
     if (beacons.length > 0) {
         html += '<div class="sbt-blueprint-section">';
         html += '<div class="sbt-blueprint-section-title sbt-collapsible">';
-        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon"></i>';
+        html += '<i class="fa-solid fa-chevron-down sbt-collapse-icon collapsed"></i>';
         html += '<i class="fa-solid fa-flag-checkered"></i> 终章信标';
         html += `<span class="sbt-beat-count">${beacons.length} 个信标</span>`;
         html += '</div>';
-        html += '<div class="sbt-blueprint-section-content">';
+        html += '<div class="sbt-blueprint-section-content collapsed">';
 
         beacons.forEach((beacon, index) => {
             html += `<div class="sbt-beacon-item">

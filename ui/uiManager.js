@@ -1513,6 +1513,12 @@ $('#extensions-settings-button').after(html);
     });
 
     // -- V3.1: 流式显示回合裁判 --
+    const updateMonitorLayout = () => {
+        const $grid = $('.sbt-panel-grid-monitor');
+        const hasVisibleStream = $('#sbt-conductor-stream-panel').is(':visible');
+        $grid.toggleClass('sbt-monitor-has-stream', hasVisibleStream);
+    };
+
     const $conductorStreamToggle = $('#sbt-enable-conductor-stream-toggle');
     const isConductorStreamEnabled = localStorage.getItem('sbt-conductor-stream-enabled') !== 'false';
     $conductorStreamToggle.prop('checked', isConductorStreamEnabled);
@@ -1520,6 +1526,10 @@ $('#extensions-settings-button').after(html);
     $wrapper.on('change', '#sbt-enable-conductor-stream-toggle', function() {
         const isChecked = $(this).is(':checked');
         localStorage.setItem('sbt-conductor-stream-enabled', isChecked);
+        if (!isChecked) {
+            $('#sbt-conductor-stream-panel').hide();
+        }
+        updateMonitorLayout();
         deps.toastr.info(`显示回合裁判分析已 ${isChecked ? '开启' : '关闭'}`, "设置已更新");
     });
 
@@ -1588,6 +1598,7 @@ $('#extensions-settings-button').after(html);
             $panel.show().removeClass('collapsed');
             $content.empty();
             $status.text('正在分析...').addClass('streaming');
+            updateMonitorLayout();
 
             deps.info('[StreamUI] 回合裁判流式输出已开始');
         });
@@ -1617,6 +1628,8 @@ $('#extensions-settings-button').after(html);
             deps.info('[StreamUI] 回合裁判流式输出已结束');
         });
     }
+
+    updateMonitorLayout();
 
     // -- V8.0: 故事线追踪 - 查看故事线详情 --
     $wrapper.on('click', '.sbt-storyline-card', function(e) {

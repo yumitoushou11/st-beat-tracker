@@ -13,7 +13,15 @@
     --sbt-warning-color: #FF9F0A; 
     --sbt-danger-color: #FF453A;  
     --sbt-danger-accent: #FF453A;
-    --sbt-danger-hover: #D9362E;}
+    --sbt-danger-hover: #D9362E;
+
+    --sbt-space-4: 4px;
+    --sbt-space-8: 8px;
+    --sbt-space-12: 12px;
+    --sbt-space-16: 16px;
+    --sbt-space-24: 24px;
+    --sbt-space-32: 32px;
+}
 
 /* ---  基础抽屉布局与框架  --- */
 
@@ -70,12 +78,53 @@ html {
 .sbt-tab-btn.active { color: var(--sbt-primary-accent); border-bottom: 3px solid var(--sbt-primary-accent); }
 .sbt-tab-btn i { margin-right: 6px; }
 .sbt-panels-wrapper {
-    padding: 15px;
+    padding: var(--sbt-space-16);
     overflow: visible;
     scrollbar-gutter: stable;
 }
 .sbt-tab-panel { display: none; }
 .sbt-tab-panel.active { display: block; }
+
+.sbt-panel-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--sbt-space-16);
+    align-items: start;
+}
+
+.sbt-panel-col {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--sbt-space-16);
+}
+
+.sbt-panel-col > .sbt-library-section,
+.sbt-panel-col > .sbt-library-category {
+    margin-bottom: 0;
+}
+
+.sbt-panel-col #sbt-conductor-stream-panel {
+    margin-top: 0;
+}
+
+@media (min-width: 1200px) {
+    .sbt-panel-grid.sbt-panel-grid-monitor.sbt-monitor-has-stream {
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
+    }
+
+    .sbt-panel-grid.sbt-panel-grid-archive {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+
+    .sbt-panel-grid.sbt-panel-grid-settings {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    }
+}
+
+.sbt-panel-grid-monitor:not(.sbt-monitor-has-stream) .sbt-col-side {
+    display: none;
+}
 
 /* --- [SECTION 5] 内容面板通用样式 (Content Panel Components) --- */
 
@@ -399,19 +448,42 @@ html {
 
 /* 控制卡片容器 */
 .sbt-control-card {
-    background-color: var(--sbt-bg-dark);
+    background-color: var(--sbt-bg-medium);
     border: 1px solid var(--sbt-border-color);
-    border-radius: 4px;
-    padding: 3px;
-    margin-bottom: 8px;
+    border-radius: 6px;
+    padding: 4px;
+    margin-bottom: var(--sbt-space-8);
+}
+
+.sbt-control-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sbt-space-8);
+    margin-bottom: var(--sbt-space-12);
+}
+
+.sbt-control-group:last-child {
+    margin-bottom: 0;
+}
+
+.sbt-control-group-title {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--sbt-text-medium);
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+}
+
+.sbt-control-group .sbt-control-card {
+    margin-bottom: 0;
 }
 
 .sbt-toggle-switch-container {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 8px 12px;
-    border-radius: 4px;
+    padding: var(--sbt-space-8) var(--sbt-space-12);
+    border-radius: 6px;
 }
 .sbt-toggle-label {
     display: flex;
@@ -420,7 +492,7 @@ html {
     cursor: pointer;
 }
 .sbt-toggle-text {
-    font-weight: bold;
+    font-weight: 600;
     color: var(--sbt-text-light);
 }
 .sbt-toggle-label i {
@@ -466,10 +538,10 @@ input:checked + .sbt-slider:before {
 
 /* --- [SECTION 11C] 设置卡片样式 (Settings Cards) --- */
 .sbt-settings-card {
-    background-color: var(--sbt-bg-dark);
+    background-color: var(--sbt-bg-medium);
     border: 1px solid var(--sbt-border-color);
-    border-radius: 4px;
-    padding: 15px;
+    border-radius: 6px;
+    padding: var(--sbt-space-16);
 }
 
 /* --- [SECTION 11D] 数据库管理样式 (Database Management) --- */
@@ -477,6 +549,21 @@ input:checked + .sbt-slider:before {
     display: flex;
     flex-direction: column;
     gap: 10px;
+}
+
+.sbt-db-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sbt-space-8);
+    align-items: center;
+}
+
+.sbt-db-actions .sbt-secondary-btn,
+.sbt-db-actions .sbt-danger-btn {
+    width: auto;
+    padding: 8px 12px;
+    font-size: 0.85em;
+    min-height: 34px;
 }
 
 .sbt-db-item {
@@ -699,21 +786,28 @@ input:checked + .sbt-slider:before {
 
 /* 图书馆大分区 */
 .sbt-library-section {
-    margin-bottom: 20px;
-    padding-bottom: 15px;
-    border-bottom: 2px solid var(--sbt-border-color);
+    margin-bottom: var(--sbt-space-16);
+    padding: var(--sbt-space-16);
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 8px;
 }
 
 .sbt-library-section:last-child {
-    border-bottom: none;
+    margin-bottom: 0;
 }
 
 .sbt-library-title {
-    font-size: 1.05em;
-    color: var(--sbt-primary-accent);
-    margin: 0 0 12px 0;
-    padding-bottom: 8px;
+    font-size: 1em;
+    font-weight: 600;
+    color: var(--sbt-text-light);
+    margin: 0 0 var(--sbt-space-12) 0;
+    padding-bottom: var(--sbt-space-8);
     border-bottom: 1px solid var(--sbt-border-color);
+}
+
+.sbt-library-title i {
+    color: var(--sbt-primary-accent);
 }
 
 /* 书架（用于角色档案） */
@@ -726,22 +820,28 @@ input:checked + .sbt-slider:before {
 
 /* 分类标签 - 可折叠 */
 .sbt-library-category {
-    margin-bottom: 10px;
+    margin-bottom: var(--sbt-space-12);
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .sbt-category-header {
     font-size: 0.95em;
+    font-weight: 600;
     color: var(--sbt-text-light);
-    background-color: var(--sbt-bg-dark);
-    padding: 6px 10px;
+    background-color: var(--sbt-bg-medium);
+    padding: var(--sbt-space-8) var(--sbt-space-12);
     margin: 0;
-    border-left: 3px solid var(--sbt-primary-accent);
+    border-left: 2px solid rgba(10, 132, 255, 0.45);
+    border-radius: 6px;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
     user-select: none;
     gap: 10px;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .sbt-category-header:hover {
@@ -769,9 +869,15 @@ input:checked + .sbt-slider:before {
 
 /* 物品列表容器 - 可折叠 */
 .sbt-library-items {
-    padding: 10px 15px;
+    padding: var(--sbt-space-12) var(--sbt-space-16);
     max-height: 500px;
     overflow-y: auto;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#sbt-settings-panel .sbt-library-items {
+    max-height: none;
 }
 
 .sbt-library-items.collapsed {
@@ -3009,6 +3115,18 @@ input:checked + .sbt-slider:before {
     transition: all 0.2s ease;
 }
 
+.sbt-blueprint-section-content.collapsed {
+    display: none;
+}
+
+.sbt-collapse-icon {
+    transition: transform 0.2s ease;
+}
+
+.sbt-collapse-icon.collapsed {
+    transform: rotate(-90deg);
+}
+
 .sbt-blueprint-field-value:focus {
     outline: none;
     border-color: var(--sbt-primary-accent);
@@ -4332,6 +4450,13 @@ input:checked + .sbt-slider:before {
     border: 1px solid var(--sbt-border-color);
 }
 
+.sbt-console-toolbar-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    gap: var(--sbt-space-12);
+    align-items: center;
+}
+
 .sbt-console-filters {
     display: flex;
     flex-wrap: wrap;
@@ -4370,6 +4495,8 @@ input:checked + .sbt-slider:before {
     flex-wrap: wrap;
     align-items: center;
     gap: 10px;
+    justify-content: flex-end;
+    justify-self: end;
 }
 
 .sbt-console-enable-label {
@@ -4380,6 +4507,7 @@ input:checked + .sbt-slider:before {
     font-size: 0.9em;
     cursor: pointer;
     user-select: none;
+    justify-self: center;
 }
 
 .sbt-console-enable-label input[type="checkbox"] {
@@ -4509,6 +4637,11 @@ input:checked + .sbt-slider:before {
         padding: 10px;
     }
 
+    .sbt-console-toolbar-row {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
     .sbt-console-filters {
         gap: 6px;
     }
@@ -4521,10 +4654,12 @@ input:checked + .sbt-slider:before {
     .sbt-console-controls {
         flex-direction: column;
         align-items: stretch;
+        justify-self: start;
     }
 
     .sbt-console-enable-label {
         justify-content: center;
+        justify-self: start;
     }
 
     .sbt-console-content {
