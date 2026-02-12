@@ -171,7 +171,8 @@ export class HistorianAgent extends Agent {
         const currentChapterNumber = chapter.meta.chapterNumber || 1;
         const currentTimestamp = new Date().toISOString();
         const readonlyReport = buildHistorianReport(chapter);
-        const fullArchiveContent = this._buildFullArchive(chapter);
+        const isFullArchiveEnabled = localStorage.getItem('sbt-historian-full-inject-enabled') === 'true';
+        const fullArchiveContent = isFullArchiveEnabled ? this._buildFullArchive(chapter) : '';
         const customFieldList = formatDossierSchemaForPrompt(context?.dossierSchema);
 
         // V10.0: 提取叙事节奏环状态（用于节奏评估）
@@ -241,8 +242,8 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 ${existingEntityManifest}
   只读报告(ASCII keys):
     <readonly_report>${readonlyReport}</readonly_report>
-  全量档案:
-    <full_archive>${fullArchiveContent || '（空）'}</full_archive>
+  全量档案(可选):
+    <full_archive>${fullArchiveContent || '（未开启全量注入）'}</full_archive>
   全局故事总梗概_从第1章到第${currentChapterNumber - 1}章: ${longTermStorySummary}
   重要提示: 这是截至上一章结束的全局总梗概，包含了从故事开始到现在的所有重要情节。你需要在此基础上累加本章内容，而不是替换它
   节奏环: 当前相位${narrativeRhythmClock.current_phase}，已持续${narrativeRhythmClock.current_phase_duration}章，周期${narrativeRhythmClock.cycle_count}
@@ -379,14 +380,13 @@ ${customFieldList}
     输出字段: new_long_term_summary
     目标: 章节梗概改为“按章条状追加”的短句列表
     格式:
-      - 多行文本，每行一条梗概（建议不大于50字）
+      - 多行文本，每行一条梗概
       - 不要编号，不要前缀，顺序即章节顺序
     更新规则:
       - 读取上文 longTermStorySummary 作为既有条目
       - 当前章只追加一行新条目，旧条目必须原样保留，不得改写
     字数上限:
       - 每条尽量控制在50字以内
-      - 如果确实需要超过50字，也允许略超，禁止为了硬卡字数而粗暴截断
     示例:
       旧:
         深夜酒馆爆发冲突，主角被迫接下护送任务
@@ -496,7 +496,7 @@ ${customFieldList}
                 current_affinity: 78
                 history_entry:
                   change: 5
-                  reasoning: Yumi对Theo的控制欲感到不安
+                  reasoning: A对B的控制欲感到不安
                 narrative_advancement:
                   weight: 7
                   significance: major_tension
@@ -504,7 +504,7 @@ ${customFieldList}
       storylines:
         main_quests:
           quest_main_01:
-            current_summary: Yumi到达了Theo家，控制塔的第一个谜题摆在她面前
+            current_summary: A到达了B家，控制塔的第一个谜题摆在她面前
             history_entry:
               summary: 抵达新地点
             advancement:
@@ -520,7 +520,7 @@ ${customFieldList}
             separation_duration: none
           narrative_status:
             major_events: [本章发生的重要事件]
-    new_long_term_summary: 完整故事摘要文本（每行建议不大于50字）
+    new_long_term_summary: 完整故事摘要文本
     chronology_update:
       transition_type: same_slot或next_slot或time_jump
       其他字段: 根据情况填写
