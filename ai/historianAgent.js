@@ -171,8 +171,7 @@ export class HistorianAgent extends Agent {
         const currentChapterNumber = chapter.meta.chapterNumber || 1;
         const currentTimestamp = new Date().toISOString();
         const readonlyReport = buildHistorianReport(chapter);
-        const isFullArchiveEnabled = localStorage.getItem('sbt-historian-full-inject-enabled') === 'true';
-        const fullArchiveContent = isFullArchiveEnabled ? this._buildFullArchive(chapter) : '';
+        const fullArchiveContent = this._buildFullArchive(chapter);
         const customFieldList = formatDossierSchemaForPrompt(context?.dossierSchema);
 
         // V10.0: 提取叙事节奏环状态（用于节奏评估）
@@ -242,8 +241,8 @@ ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 ${existingEntityManifest}
   只读报告(ASCII keys):
     <readonly_report>${readonlyReport}</readonly_report>
-  全量档案(可选):
-    <full_archive>${fullArchiveContent || '（未开启全量注入）'}</full_archive>
+  全量档案:
+    <full_archive>${fullArchiveContent || '（空）'}</full_archive>
   全局故事总梗概_从第1章到第${currentChapterNumber - 1}章: ${longTermStorySummary}
   重要提示: 这是截至上一章结束的全局总梗概，包含了从故事开始到现在的所有重要情节。你需要在此基础上累加本章内容，而不是替换它
   节奏环: 当前相位${narrativeRhythmClock.current_phase}，已持续${narrativeRhythmClock.current_phase_duration}章，周期${narrativeRhythmClock.cycle_count}
