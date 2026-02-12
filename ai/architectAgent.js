@@ -232,7 +232,7 @@ _generateOutputSpecification(config) {
         "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的]"
     },
     "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
-    "interaction_self_check": "[如何避免在某个节点中使玩家陷入独角戏/如何调动玩家主动与剧情互动]",
+    "interaction_self_check": "[如何保证每个节点都没有让玩家陷入独角戏/如何调动玩家主动与剧情互动]",
 
     "event_priority_report": {
         "S_tier_events": ["[本章的绝对核心，占据主导地位]"],      "A_tier_events": ["[核心物理目标]"],
