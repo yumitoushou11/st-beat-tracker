@@ -369,10 +369,6 @@ getCompleteDefaultPrompt() {
             },
             meta: {
                 longTermStorySummary: "故事摘要示例",
-                lastChapterHandoff: {
-                    ending_snapshot: "故事从这里开始",
-                    action_handoff: "开始讲述故事"
-                },
                 narrative_control_tower: {
                     narrative_mode: { current_mode: 'classic_rpg' }
                 }
@@ -380,7 +376,8 @@ getCompleteDefaultPrompt() {
             playerNarrativeFocus: '示例玩家焦点',
             chapter_blueprint: {}
         },
-        firstMessageContent: null
+        firstMessageContent: null,
+        leaderMessageContent: null
     };
 
     // 调用_createPrompt生成完整模板（带示例数据）
@@ -419,7 +416,7 @@ _createPrompt(context) {
     logger.debug(`[建筑师] 实体召回模式: ${isEntityRecallEnabled ? '启用' : '关闭（默认）'}`);
 
     // 【默认流程】使用系统默认提示词（带动态数据注入）
-    const { chapter, firstMessageContent } = context;
+    const { chapter, firstMessageContent, leaderMessageContent } = context;
             const currentWorldState = deepmerge(
             chapter.staticMatrices,
             chapter.dynamicState
@@ -448,17 +445,12 @@ _createPrompt(context) {
             last_rest_chapter: null
         };
         let openingSceneContext = "无指定的开场白，请自由创作开篇。";
-        let handoffToUse = chapter?.meta?.lastChapterHandoff || { 
-            ending_snapshot: "故事从零开始。",
-            action_handoff: "为故事创作一个引人入胜的开端。"
-        };
+        const safeLeaderMessageContent = typeof leaderMessageContent === 'string' && leaderMessageContent.trim()
+            ? leaderMessageContent.trim()
+            : null;
 
     if (firstMessageContent) {
         openingSceneContext = firstMessageContent;
-        handoffToUse = { 
-            ending_snapshot: "故事从这个场景正式开始。",
-            action_handoff: "请直接续写或响应这个开场白所描述的情境。"
-        };
         this.info("建筑师检测到开场白，已切换到'续写模式'。");
     }
 
@@ -726,7 +718,8 @@ ${(() => {
 
   数据2_全局摘要: ${longTermStorySummary}
 
-  数据3_交接备忘录: ${JSON.stringify(handoffToUse, null, 2)}
+  数据3_上章锚点正文:
+${safeLeaderMessageContent ? `    内容:\n${safeLeaderMessageContent}` : "    内容: （未找到锚点正文）"}
 
   数据4_节奏控制塔:
     数据: ${JSON.stringify(chapter?.meta?.narrative_control_tower || {}, null, 2)}

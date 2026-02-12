@@ -958,7 +958,6 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 },
                 meta: {
                     longTermStorySummary: cachedData.longTermStorySummary || '（静态数据预览）',
-                    lastChapterHandoff: cachedData.lastChapterHandoff || null,
                     narrative_control_tower: cachedData.narrative_control_tower || { storyline_progress: {} }
                 },
                 chapter_blueprint: cachedData.chapter_blueprint || {},
@@ -1930,7 +1929,11 @@ async rerollChapterBlueprint() {
             system_confidence: 0.5,
             player_profile: { description: "暂无画像。" },
             chapter: this.currentChapter,
-            firstMessageContent: null // 重roll时不使用开场白
+            firstMessageContent: null, // 重roll时不使用开场白
+            leaderMessageContent: (() => {
+                const { piece: lastLeaderPiece } = this.USER.findLastMessageWithLeader();
+                return lastLeaderPiece?.mes || null;
+            })()
         };
 
         this.info("📦 [重roll流程] 准备传递给建筑师的上下文:");

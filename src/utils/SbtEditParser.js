@@ -12,8 +12,7 @@ export const DEFAULT_ALLOWED_FUNCTIONS = new Set([
     'appendRelationshipEdge',
     'updateCharacterRelationship',
     'updateChronology',
-    'setLongTermSummary',
-    'setHandoffMemo'
+    'setLongTermSummary'
 ]);
 
 const parseArgs = (argsText) => {

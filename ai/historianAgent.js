@@ -106,7 +106,6 @@ export class HistorianAgent extends Agent {
                 data.creations ||
                 data.updates ||
                 data.new_long_term_summary ||
-                data.new_handoff_memo ||
                 data.relationship_updates ||
                 data.chronology_update ||
                 data.stylistic_analysis_delta ||
@@ -368,21 +367,24 @@ ${existingEntityManifest}
     可更新字段: core包含identity身份、外貌、personality包含性格特质、价值观、说话风格、goals、capabilities包含战斗技能、社交技能、特殊能力、弱点、equipment包含武器、护甲、物品、experiences包含到访地点、参与事件、人生里程碑
     禁令: 不使用operation、values、append等操作符，数组必须输出完整的更新后数组
 
-  方法M5_剪辑师双轨摘要:
-    第一轨_new_long_term_summary_200到400字宏观故事摘要:
-      维护逻辑: 这是一个累积式全局总梗概，记录从第1章到第${currentChapterNumber}章的完整故事。以上文提供的全局故事总梗概为底稿，在其基础上补充本章新增的情节，形成截至本章结束的完整故事概览
-      严禁操作: 禁止只写本章内容而丢弃之前的总梗概，禁止让已有的重要线索、角色、事件在新梗概中消失
-      结构建议: 已有格局回顾保留之前章节的核心事件1到2句、本章造成的结构性变化2到3句、新的威胁或希望或悬念1句
-      禁令: 禁止出现本章或这一章字样，不得只描述眼前场景，必须保持故事连续性
-      示例对比:
-        错误示例: 主角在酒馆和NPC聊天，然后接了一个任务，只有本章内容
-        正确示例: 主角离开村庄后，经历了森林遇袭和神秘商人的警告。如今抵达王都，在酒馆意外卷入一场暗杀阴谋，不得不接下保护商队的任务以换取情报，包含之前加本章
-
-    第二轨_new_handoff_memo包含ending_snapshot、transition_mode、action_handoff:
-      seamless模式: 下一章从结束瞬间的下一秒开始，高张力时刻
-      jump_cut模式: 跳过垃圾时间洗澡或睡觉或赶路，直接跳到下一个有意义节点
-      scene_change模式: 切换到不同时空
-      垃圾时间定义: 纯生理循环、无意义移动、睡眠过程、等待，使用jump_cut跳过
+  方法M5_条状章节梗概:
+    输出字段: new_long_term_summary
+    目标: 章节梗概改为“按章条状追加”的短句列表
+    格式:
+      - 多行文本，每行一条梗概
+      - 不要编号，不要前缀，顺序即章节顺序
+    更新规则:
+      - 读取上文 longTermStorySummary 作为既有条目
+      - 当前章只追加一行新条目，旧条目必须原样保留，不得改写
+    字数上限:
+      - 每条最多40字，严格不得超过
+      - 必须压缩为短句，宁可简略也不超字
+    示例:
+      旧:
+        深夜酒馆爆发冲突，主角被迫接下护送任务
+      新:
+        深夜酒馆爆发冲突，主角被迫接下护送任务
+        途中遇伏击，主角识破伪装救下关键线人
 
   方法M6_关系图谱状态更新:
     新关系创建: 两个角色首次建立联系，加入creations.staticMatrices.relationship_graph.edges
@@ -414,7 +416,6 @@ ${existingEntityManifest}
     updateCharacterRelationship(charId,targetId,data)
     updateChronology(data)
     setLongTermSummary(text)
-    setHandoffMemo(data)
   category示例: characters, worldview.locations, storylines.main_quests
 
 最终输出格式:
@@ -512,10 +513,6 @@ ${existingEntityManifest}
           narrative_status:
             major_events: [本章发生的重要事件]
     new_long_term_summary: 完整故事摘要文本
-    new_handoff_memo:
-      ending_snapshot: 结束快照
-      transition_mode: jump_cut或seamless或scene_change
-      action_handoff: 交接描述
     chronology_update:
       transition_type: same_slot或next_slot或time_jump
       其他字段: 根据情况填写

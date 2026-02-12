@@ -855,13 +855,16 @@ export class TransitionManager {
         this._setStatus(ENGINE_STATUS.BUSY_PLANNING);
         const action = isGenesis ? "开篇章节" : "下一章节";
         this.info(`--- 启动“章节建筑师”规划${action}...`);
-    
+
         const chapterContext = chapterForPlanning || this.currentChapter;
+        const { piece: lastLeaderPiece } = this.USER.findLastMessageWithLeader();
+        const leaderMessageContent = lastLeaderPiece?.mes || null;
         const contextForArchitect = {
             system_confidence: isGenesis ? 0.1 : 0.5,
             player_profile: { description: "暂无画像。" },
             chapter: chapterContext,
-            firstMessageContent: firstMessageContent
+            firstMessageContent: firstMessageContent,
+            leaderMessageContent: leaderMessageContent
         };
     
         this.logger.group(`BRIDGE-PROBE [PLAN-CHAPTER]`);

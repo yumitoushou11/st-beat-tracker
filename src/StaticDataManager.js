@@ -12,7 +12,6 @@ const ALLOWED_STATIC_FIELDS = [
     'storylines',
     'relationship_graph',
     'longTermStorySummary',      // meta.longTermStorySummary 的兼容保存
-    'lastChapterHandoff',         // meta.lastChapterHandoff 的兼容保存
     'narrative_control_tower'     // meta.narrative_control_tower 的兼容保存
 ];
 

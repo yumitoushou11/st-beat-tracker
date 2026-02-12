@@ -1,5 +1,6 @@
 import { USER } from './src/engine-adapter.js';
 import { createLogger } from './utils/logger.js';
+import { getDefaultDossierSchema, normalizeDossierSchema } from './utils/dossierSchema.js';
 
 const logger = createLogger('StateManager');
 const EXTENSION_NAME = 'st-beat-tracker';
@@ -14,6 +15,20 @@ let apiSettings = {
 let narrativeModeSettings = {
     default_mode: 'classic_rpg' // 默认为正剧模式
 };
+
+const getCurrentCharacterRef = () => {
+    const context = USER.getContext();
+    if (!context || !Array.isArray(context.characters)) {
+        return { id: null, character: null };
+    }
+    const currentCharId = context.characterId;
+    if (currentCharId === undefined || currentCharId === null) {
+        return { id: null, character: null };
+    }
+    const character = context.characters[currentCharId] || null;
+    return { id: currentCharId, character };
+};
+
 
 /**
  * 保存 API 设置到 SillyTavern 的 extension_settings（用户云端存储）

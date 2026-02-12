@@ -605,10 +605,6 @@ export class StateUpdateManager {
             this.info(" -> 正在更新长篇故事摘要...");
             workingChapter.meta.longTermStorySummary = delta.new_long_term_summary; // 已经在顶部清理过
         }
-        if (delta.new_handoff_memo) {
-            this.info(" -> 正在更新章节交接备忘录...");
-            workingChapter.meta.lastChapterHandoff = delta.new_handoff_memo;
-        }
 
         // V6.0 步骤三B：更新年表时间
         if (delta.chronology_update) {

@@ -73,7 +73,6 @@ Chapter 是整个系统的“世界快照”，每章为一份完整状态树。
   - stylistic_archive：文体消耗记录（避免重复意象）
 - meta：全局叙事控制层
   - longTermStorySummary：累积故事摘要
-  - lastChapterHandoff：章节交接点
   - narrative_control_tower：节奏控制塔数据
   - freeRoamMode：自由章模式开关
 - chapter_blueprint：建筑师生成的本章“剧本蓝图”
@@ -106,6 +105,7 @@ Chapter 是整个系统的“世界快照”，每章为一份完整状态树。
 
 - onCommitState 在消息渲染后执行锚定。
 - 这使得剧情状态随聊天记录保存，实现跨会话持久记忆。
+- 章节规划时，建筑师读取最近一条带 leader 的消息正文作为衔接参考。
 
 ### 4.2 全局临时状态（LEADER）
 
@@ -258,8 +258,7 @@ StateUpdateManager 负责 Delta 应用，具备多层防线：
 
 同时自动更新：
 
-- longTermStorySummary
-- lastChapterHandoff
+- longTermStorySummary（按章条状摘要，每行一条，单条不超过40字）
 - chronology（时间推进）
 
 ---
@@ -309,7 +308,7 @@ UI 支持直接编辑：
 
 - 蓝图节拍内容
 - 故事线历史记录
-- 章节摘要 / 交接备忘录
+- 章节摘要
 - 角色档案与世界观条目
 
 ---

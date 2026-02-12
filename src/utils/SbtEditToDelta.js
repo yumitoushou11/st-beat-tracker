@@ -236,15 +236,6 @@ export const commandsToDelta = (commands = [], options = {}) => {
                 delta.new_long_term_summary = text;
                 return;
             }
-            case 'setHandoffMemo': {
-                const [data] = args;
-                if (!data || typeof data !== 'object') {
-                    warn(`setHandoffMemo skipped: invalid args`);
-                    return;
-                }
-                delta.new_handoff_memo = data;
-                return;
-            }
             default:
                 warn(`unknown_command:${name}`);
         }

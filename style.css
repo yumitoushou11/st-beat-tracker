@@ -777,6 +777,13 @@ input:checked + .sbt-slider:before {
     gap: 8px;
 }
 
+.sbt-anchor-refresh-label {
+    font-size: 0.85em;
+    color: var(--sbt-text-dim);
+    white-space: nowrap;
+    letter-spacing: 0.2px;
+}
+
 #sbt-chapter-anchor {
     display: flex;
     align-items: center;
@@ -3575,6 +3582,48 @@ input:checked + .sbt-slider:before {
     line-height: 1.8;
     font-size: 0.95em;
     white-space: pre-wrap;
+}
+
+/* 条状章节梗概列表 */
+.sbt-summary-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.sbt-summary-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid var(--sbt-border-color);
+    background: var(--sbt-bg-darker);
+    color: var(--sbt-text-medium);
+    font-size: 0.92em;
+    line-height: 1.5;
+}
+
+.sbt-summary-index {
+    min-width: 18px;
+    height: 18px;
+    border-radius: 9px;
+    background: rgba(73, 147, 255, 0.18);
+    color: var(--sbt-text-bright);
+    font-size: 0.75em;
+    font-weight: 600;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+}
+
+.sbt-summary-text {
+    flex: 1;
+    color: var(--sbt-text-medium);
 }
 
 /* 章节交接区块（特殊样式） */

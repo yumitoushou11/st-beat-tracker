@@ -93,7 +93,6 @@ function buildFallbackChapterStateFromStaticCache() {
             },
             meta: {
                 longTermStorySummary: cachedData.longTermStorySummary || '（静态数据预览）',
-                lastChapterHandoff: cachedData.lastChapterHandoff || null,
                 narrative_control_tower: cachedData.narrative_control_tower || { storyline_progress: {} }
             },
             chapter_blueprint: cachedData.chapter_blueprint || {},
@@ -1158,14 +1157,12 @@ export function updateDashboard(chapterState) {
 // V4.2 调试：验证UI收到的章节数据
     debugGroup('[RENDERERS-V4.2-DEBUG] updateDashboard 收到数据');
     debugLog('章节UID:', chapterState.uid);
-    debugLog('章节衔接点:', chapterState.meta?.lastChapterHandoff);
     debugGroupEnd();
 
-    // --- 1. 【V3.6 革新】渲染双轨制故事摘要（编年史+衔接点） ---
+    // --- 1. 【V3.6 革新】渲染故事摘要 ---
     const summaryContainer = $('#sbt-story-summary-content');
     if(summaryContainer.length > 0) {
         const longTermSummary = chapterState.meta?.longTermStorySummary || "暂无故事摘要。";
-        const handoffMemo = chapterState.meta?.lastChapterHandoff;
 
         let html = '';
 
@@ -1175,36 +1172,26 @@ export function updateDashboard(chapterState) {
         html += '<i class="fa-solid fa-book"></i> 故事梗概';
         html += '<button class="sbt-edit-summary-btn" data-field="longTermStorySummary" title="编辑故事梗概"><i class="fa-solid fa-pen-to-square"></i></button>';
         html += '</div>';
-        html += `<div class="sbt-summary-content" id="sbt-summary-display">${longTermSummary}</div>`;
-        html += '</div>';
+        const summaryLines = String(longTermSummary)
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter(Boolean);
 
-        // 第二部分：章节交接备忘录（衔接点）
-        if (handoffMemo && typeof handoffMemo === 'object') {
-            html += '<div class="sbt-summary-section sbt-handoff-section">';
-            html += '<div class="sbt-summary-section-title">';
-            html += '<i class="fa-solid fa-link"></i> 章节衔接点';
-            html += '<span class="sbt-handoff-badge">关键</span>';
-            html += '<button class="sbt-edit-summary-btn" data-field="lastChapterHandoff" title="编辑章节衔接点"><i class="fa-solid fa-pen-to-square"></i></button>';
-            html += '</div>';
-
-            // 结束快照
-            if (handoffMemo.ending_snapshot) {
-                html += '<div class="sbt-handoff-block">';
-                html += '<div class="sbt-handoff-block-title"><i class="fa-solid fa-camera"></i> 结束快照</div>';
-                html += `<div class="sbt-handoff-content" id="sbt-handoff-ending-display">${handoffMemo.ending_snapshot}</div>`;
-                html += '</div>';
-            }
-
-            // 动作交接
-            if (handoffMemo.action_handoff) {
-                html += '<div class="sbt-handoff-block">';
-                html += '<div class="sbt-handoff-block-title"><i class="fa-solid fa-arrow-right"></i> 下章起点</div>';
-                html += `<div class="sbt-handoff-content sbt-action-handoff" id="sbt-handoff-action-display">${handoffMemo.action_handoff}</div>`;
-                html += '</div>';
-            }
-
-            html += '</div>'; // 结束handoff-section
+        if (summaryLines.length === 0) {
+            html += `<div class="sbt-summary-content" id="sbt-summary-display">暂无故事摘要。</div>`;
+        } else {
+            html += '<ol class="sbt-summary-list" id="sbt-summary-display">';
+            summaryLines.forEach((line, idx) => {
+                const displayLine = line.length > 40 ? line.slice(0, 40) : line;
+                html += `
+                    <li class="sbt-summary-item">
+                        <span class="sbt-summary-index">${idx + 1}</span>
+                        <span class="sbt-summary-text">${displayLine}</span>
+                    </li>`;
+            });
+            html += '</ol>';
         }
+        html += '</div>';
 
         summaryContainer.html(html);
     }

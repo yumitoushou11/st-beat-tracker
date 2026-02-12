@@ -198,7 +198,7 @@ $('#extensions-settings-button').after(html);
             worldview: { locations: {}, items: {}, factions: {}, concepts: {}, events: {}, races: {} },
             storylines: { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} }
         },
-        meta: { longTermStorySummary: '', lastChapterHandoff: null },
+        meta: { longTermStorySummary: '' },
         chapter_blueprint: {},
         activeChapterDesignNotes: null
     });
@@ -270,7 +270,7 @@ $('#extensions-settings-button').after(html);
                     relationship_graph: cachedData.relationship_graph || { edges: [] }
                 },
                 dynamicState: { characters: {}, worldview: {}, storylines: { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} } },
-                meta: { longTermStorySummary: '（缓存数据预览）', lastChapterHandoff: null },
+                meta: { longTermStorySummary: '（缓存数据预览）' },
                 chapter_blueprint: {},
                 activeChapterDesignNotes: null
             };
@@ -2094,7 +2094,7 @@ $('#extensions-settings-button').after(html);
         deps.toastr.success('历史记录已更新', '保存成功');
     });
 
-    // -- V5.2: 故事梗概和章节衔接点编辑功能 --
+    // -- V5.2: 故事梗概编辑功能 --
     $wrapper.on('click', '.sbt-edit-summary-btn', function() {
         const field = $(this).data('field');
         const effectiveState = getEffectiveChapterState();
@@ -2108,7 +2108,7 @@ $('#extensions-settings-button').after(html);
             // 编辑故事梗概
             const currentValue = effectiveState.meta?.longTermStorySummary || '';
 
-            const newValue = prompt('编辑故事梗概:\n(这是史官维护的故事概要,会随着章节推进自动更新)', currentValue);
+            const newValue = prompt('编辑故事梗概:\n(按章条状追加，每行一条，单条不超过40字)', currentValue);
 
             if (newValue !== null && newValue.trim() !== currentValue) {
                 effectiveState.meta.longTermStorySummary = newValue.trim();
@@ -2125,41 +2125,6 @@ $('#extensions-settings-button').after(html);
 
                 deps.toastr.success('故事梗概已更新', '保存成功');
             }
-        } else if (field === 'lastChapterHandoff') {
-            // 编辑章节衔接点
-            const handoffMemo = effectiveState.meta?.lastChapterHandoff || {};
-
-            // 创建一个简单的表单来编辑两个字段
-            const endingSnapshot = handoffMemo.ending_snapshot || '';
-            const actionHandoff = handoffMemo.action_handoff || '';
-
-            const newEndingSnapshot = prompt('编辑【结束快照】:\n(描述上一章节结束时的场景和状态)', endingSnapshot);
-
-            if (newEndingSnapshot === null) return; // 用户取消
-
-            const newActionHandoff = prompt('编辑【下章起点】:\n(描述下一章节应该从哪里开始)', actionHandoff);
-
-            if (newActionHandoff === null) return; // 用户取消
-
-            // 更新数据
-            if (!effectiveState.meta.lastChapterHandoff) {
-                effectiveState.meta.lastChapterHandoff = {};
-            }
-
-            effectiveState.meta.lastChapterHandoff.ending_snapshot = newEndingSnapshot.trim();
-            effectiveState.meta.lastChapterHandoff.action_handoff = newActionHandoff.trim();
-
-            // 保存
-            if (typeof deps.onSaveCharacterEdit === 'function') {
-                deps.onSaveCharacterEdit('handoff_updated', effectiveState);
-            }
-
-            // 触发更新
-            if (deps.eventBus) {
-                deps.eventBus.emit('CHAPTER_UPDATED', effectiveState);
-            }
-
-            deps.toastr.success('章节衔接点已更新', '保存成功');
         }
     });
 
