@@ -1965,6 +1965,14 @@ async rerollChapterBlueprint() {
             this.currentChapter.chapter_blueprint = architectResult.new_chapter_script;
             this.currentChapter.activeChapterDesignNotes = architectResult.design_notes;
 
+            // Promote static-cache preview to a real chapter so UI doesn't ignore it
+            if (this.currentChapter.__source === 'static_cache' || (this.currentChapter.uid && this.currentChapter.uid.startsWith('static_cache_'))) {
+                delete this.currentChapter.__source;
+                if (this.currentChapter.uid && this.currentChapter.uid.startsWith('static_cache_')) {
+                    this.currentChapter.uid = `chapter_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                }
+            }
+
             // 【关键】重新生成checksum，确保状态变化被检测到
             this.currentChapter.checksum = simpleHash(JSON.stringify(this.currentChapter) + Date.now());
 
