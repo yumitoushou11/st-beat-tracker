@@ -167,6 +167,50 @@ export class StateUpdateManager {
                 }
             }
 
+            // 关系图谱: 合并新增边，避免覆盖旧图谱
+            const createdRelationshipGraph = delta.creations.staticMatrices.relationship_graph;
+            if (createdRelationshipGraph && Array.isArray(createdRelationshipGraph.edges)) {
+                const existingGraph = workingChapter.staticMatrices.relationship_graph || { edges: [] };
+                const existingEdges = Array.isArray(existingGraph.edges) ? existingGraph.edges : [];
+                const incomingEdges = createdRelationshipGraph.edges;
+                const mergedEdges = [...existingEdges];
+
+                const buildParticipantsKey = (edge) => {
+                    const participants = Array.isArray(edge?.participants) ? edge.participants.slice() : [];
+                    if (participants.length < 2) return null;
+                    return participants.sort().join('|');
+                };
+
+                for (const incomingEdge of incomingEdges) {
+                    if (!incomingEdge || typeof incomingEdge !== 'object') continue;
+                    const incomingId = incomingEdge.id;
+                    let index = -1;
+                    if (incomingId) {
+                        index = mergedEdges.findIndex(edge => edge?.id === incomingId);
+                    }
+                    if (index === -1) {
+                        const key = buildParticipantsKey(incomingEdge);
+                        if (key) {
+                            index = mergedEdges.findIndex(edge => buildParticipantsKey(edge) === key);
+                        }
+                    }
+                    if (index === -1) {
+                        mergedEdges.push(incomingEdge);
+                    } else {
+                        mergedEdges[index] = deepmerge(mergedEdges[index], incomingEdge);
+                    }
+                }
+
+                workingChapter.staticMatrices.relationship_graph = deepmerge(existingGraph, {
+                    ...createdRelationshipGraph,
+                    edges: mergedEdges
+                });
+
+                // 防止 deepmerge 再次覆盖已合并的关系图谱
+                delete delta.creations.staticMatrices.relationship_graph;
+                this.info(` -> 已合并关系图谱新增边: +${incomingEdges.length}, 总计 ${mergedEdges.length}`);
+            }
+
             // 使用深度合并，将新创建的静态档案安全地并入现有的staticMatrices中
             workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, delta.creations.staticMatrices);
             this.diagnose(" -> 新的静态实体档案已合并。", delta.creations.staticMatrices);
