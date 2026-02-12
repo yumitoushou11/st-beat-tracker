@@ -803,6 +803,7 @@ ${JSON.stringify(chronology, null, 2)}
 
   规范1_节拍构造规范:
     类型Type: Action或Dialogue_Scene或Transition或Internal_Transition时空跳跃或Reflection仅正剧
+    硬性限制: 全章最多允许 1 个 Action 类型节拍，其余必须使用 Dialogue_Scene / Transition / Internal_Transition / Reflection
     物理事件physical_event: 必须是情景设置加交互主题加情感方向的引导性框架而非具体台词
       错误示例1: 两人进行对话以交换情报，太干缺乏引导
       错误示例2: A一边整理装备一边向B抱怨任务的艰难以此试探B对任务的态度，过于具体侵犯了正文AI的创作空间

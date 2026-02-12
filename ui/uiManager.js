@@ -1467,6 +1467,9 @@ $('#extensions-settings-button').after(html);
     // -- 叙事罗盘: 功能开关 --
       const $masterToggle = $('#sbt-master-enable-toggle');
         // 默认设置为开启 (true)。只有当localStorage明确存为'false'时才关闭。
+        if (localStorage.getItem('sbt-engine-enabled') === null) {
+            localStorage.setItem('sbt-engine-enabled', 'true');
+        }
         const isEngineEnabled = localStorage.getItem('sbt-engine-enabled') !== 'false';
         $masterToggle.prop('checked', isEngineEnabled);
 
