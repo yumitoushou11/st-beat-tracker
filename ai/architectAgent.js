@@ -232,7 +232,7 @@ _generateOutputSpecification(config) {
         "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的]"
     },
     "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
-    "interaction_self_check": "[如何保证每个节点都没有让玩家陷入独角戏/如何调动玩家主动与剧情互动]",
+    "interaction_self_check": "[如何保证每个节点都没有让玩家陷入独角戏/如何调动玩家主动与剧情互动] [Self-check: list per-beat interaction target + player choice; if any beat lacks interaction, mark FAIL and propose a rewrite; environment-only does not count]",
 
     "event_priority_report": {
         "S_tier_events": ["[本章的绝对核心，占据主导地位]"],      "A_tier_events": ["[核心物理目标]"],
@@ -807,6 +807,7 @@ ${JSON.stringify(chronology, null, 2)}
     类型Type: Action或Dialogue_Scene或Transition或Internal_Transition时空跳跃或Reflection仅正剧
     硬性限制: 全章最多允许 1 个 Action 类型节拍，其余必须使用 Dialogue_Scene / Transition / Internal_Transition / Reflection
     互动优先: 每个节拍必须设置明确的互动口子（让玩家有反应或选择空间），严禁写成‘角色长时间独白、自我结论、无回应的独角戏’
+    interaction_check: must include an external target/feedback the player can respond to or choose; environment-only or self-action alone is invalid solo.
     物理事件physical_event: 必须是情景设置加交互主题加情感方向的引导性框架而非具体台词
       错误示例1: 两人进行对话以交换情报，太干缺乏引导
       错误示例2: A一边整理装备一边向B抱怨任务的艰难以此试探B对任务的态度，过于具体侵犯了正文AI的创作空间

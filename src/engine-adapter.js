@@ -52,16 +52,16 @@ export const EDITOR = {
 // 3. 构建并导出【USER】对象 (包含聊天记录操作方法)
 function findLastMessageWithLeaderImpl({ deep = 0, cutoff = 1000 } = {}) {
     const chat = this.getContext().chat;
-    if (!chat || !chat.length || deep >= chat.length) return { piece: null, deep: -1 };
+    if (!chat || !chat.length || deep >= chat.length) return { piece: null, deep: -1, index: -1 };
     const startIndex = chat.length - 1 - deep;
     for (let i = startIndex; i >= 0 && i >= startIndex - cutoff; i--) {
         const piece = chat[i];
         if (piece?.is_user === true) continue;
         if (piece?.leader) {
-            return { piece, deep: i };
+            return { piece, deep: i, index: i };
         }
     }
-    return { piece: null, deep: -1 };
+    return { piece: null, deep: -1, index: -1 };
 }
 
 function getChatPieceImpl(deep = 0) {
