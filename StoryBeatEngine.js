@@ -343,8 +343,8 @@ const spoilerBlockPlaceholder = {
             return;
         }
 
-        // 读取开关状态，默认为 true (开启)
-        const isConductorEnabled = localStorage.getItem('sbt-conductor-enabled') !== 'false';
+        // 强制开启回合裁判模式
+        const isConductorEnabled = true;
 
         if (isConductorEnabled) {
             this.info("裁判模式已开启。正在执行回合指挥官...");

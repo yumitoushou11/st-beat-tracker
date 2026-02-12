@@ -1486,23 +1486,10 @@ $('#extensions-settings-button').after(html);
 
             deps.toastr.info(`叙事流引擎已 ${isChecked ? '开启' : '关闭'}`, "引擎状态切换");
         });
-    const $toggle = $('#sbt-enable-focus-popup-toggle');
-   const isFocusPopupEnabled = localStorage.getItem('sbt-focus-popup-enabled') !== 'false';
-    $toggle.prop('checked', isFocusPopupEnabled);
-    $wrapper.on('change', '#sbt-enable-focus-popup-toggle', function() {
-        const isChecked = $(this).is(':checked');
-        localStorage.setItem('sbt-focus-popup-enabled', isChecked);
-        deps.toastr.info(`章节转换时询问焦点功能已 ${isChecked ? '开启' : '关闭'}`, "设置已更新");
-    });
-    const $conductorToggle = $('#sbt-enable-conductor-toggle');
-    const isConductorEnabled = localStorage.getItem('sbt-conductor-enabled') !== 'false';
-    $conductorToggle.prop('checked', isConductorEnabled);
-
-    $wrapper.on('change', '#sbt-enable-conductor-toggle', function() {
-        const isChecked = $(this).is(':checked');
-        localStorage.setItem('sbt-conductor-enabled', isChecked);
-        deps.toastr.info(`回合裁判模式已 ${isChecked ? '开启' : '关闭'}`, "模式已切换");
-    });
+    // -- 强制开关：焦点弹窗/回合裁判开启，回合裁判分析关闭 --
+    localStorage.setItem('sbt-focus-popup-enabled', 'true');
+    localStorage.setItem('sbt-conductor-enabled', 'true');
+    localStorage.setItem('sbt-conductor-stream-enabled', 'false');
 
     // -- V3.1: 流式显示回合裁判 --
     const updateMonitorLayout = () => {
@@ -1511,19 +1498,9 @@ $('#extensions-settings-button').after(html);
         $grid.toggleClass('sbt-monitor-has-stream', hasVisibleStream);
     };
 
-    const $conductorStreamToggle = $('#sbt-enable-conductor-stream-toggle');
-    const isConductorStreamEnabled = localStorage.getItem('sbt-conductor-stream-enabled') !== 'false';
-    $conductorStreamToggle.prop('checked', isConductorStreamEnabled);
-
-    $wrapper.on('change', '#sbt-enable-conductor-stream-toggle', function() {
-        const isChecked = $(this).is(':checked');
-        localStorage.setItem('sbt-conductor-stream-enabled', isChecked);
-        if (!isChecked) {
-            $('#sbt-conductor-stream-panel').hide();
-        }
-        updateMonitorLayout();
-        deps.toastr.info(`显示回合裁判分析已 ${isChecked ? '开启' : '关闭'}`, "设置已更新");
-    });
+    const isConductorStreamEnabled = () => localStorage.getItem('sbt-conductor-stream-enabled') === 'true';
+    $('#sbt-conductor-stream-panel').hide();
+    updateMonitorLayout();
 
     // -- 实体召回开关（测试功能） --
     const $entityRecallToggle = $('#sbt-enable-entity-recall-toggle');
@@ -1583,6 +1560,7 @@ $('#extensions-settings-button').after(html);
     if (deps.eventBus) {
         // 流式开始
         deps.eventBus.on('CONDUCTOR_STREAM_START', () => {
+            if (!isConductorStreamEnabled()) return;
             const $panel = $('#sbt-conductor-stream-panel');
             const $content = $('#sbt-stream-content');
             const $status = $('#sbt-stream-status');
@@ -1597,6 +1575,7 @@ $('#extensions-settings-button').after(html);
 
         // 流式块接收 - 直接追加原始内容
         deps.eventBus.on('CONDUCTOR_STREAM_CHUNK', ({ chunk }) => {
+            if (!isConductorStreamEnabled()) return;
             const $content = $('#sbt-stream-content');
             const $status = $('#sbt-stream-status');
 
@@ -1613,6 +1592,7 @@ $('#extensions-settings-button').after(html);
 
         // 流式结束
         deps.eventBus.on('CONDUCTOR_STREAM_END', () => {
+            if (!isConductorStreamEnabled()) return;
             const $status = $('#sbt-stream-status');
             const finalLength = $('#sbt-stream-content').text().length;
             $status.text(`分析完成 (共 ${finalLength} 字符)`).removeClass('streaming');

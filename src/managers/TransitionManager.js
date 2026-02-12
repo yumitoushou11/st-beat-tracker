@@ -323,26 +323,6 @@ export class TransitionManager {
                         // 玩家取消或失败，回退到常规弹窗
                         this.info("提前规划被取消或失败，启动常规焦点弹窗");
                         loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
-                        if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
-                            this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
-                            const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
-                            if (popupResult.freeRoam) {
-                                isFreeRoamMode = true;
-                                finalNarrativeFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
-                                this.info("🎲 [自由章模式] 已激活：本章将跳过建筑师规划和回合执导，世界观档案将全部发送到前台");
-                            } else if (popupResult.abc) {
-                                const userInput = popupResult.value || "";
-                                finalNarrativeFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
-                            } else if (popupResult.confirmed && popupResult.value) {
-                                finalNarrativeFocus = popupResult.value;
-                            }
-                        }
-                    }
-                } else {
-                    // 玩家没有点击提前规划按钮，史官完成后启动常规弹窗
-                    this.info("玩家未使用提前规划，启动常规焦点弹窗");
-                    loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
-                    if (localStorage.getItem('sbt-focus-popup-enabled') !== 'false') {
                         this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
                         const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
                         if (popupResult.freeRoam) {
@@ -355,6 +335,22 @@ export class TransitionManager {
                         } else if (popupResult.confirmed && popupResult.value) {
                             finalNarrativeFocus = popupResult.value;
                         }
+                    }
+                } else {
+                    // 玩家没有点击提前规划按钮，史官完成后启动常规弹窗
+                    this.info("玩家未使用提前规划，启动常规焦点弹窗");
+                    loadingToast.find('.toast-message').text("等待导演（玩家）指示...");
+                    this._setStatus(ENGINE_STATUS.BUSY_DIRECTING);
+                    const popupResult = await this.deps.showNarrativeFocusPopup(workingChapter.playerNarrativeFocus);
+                    if (popupResult.freeRoam) {
+                        isFreeRoamMode = true;
+                        finalNarrativeFocus = "[FREE_ROAM] " + (popupResult.value || "自由探索");
+                        this.info("🎲 [自由章模式] 已激活：本章将跳过建筑师规划和回合执导，世界观档案将全部发送到前台");
+                    } else if (popupResult.abc) {
+                        const userInput = popupResult.value || "";
+                        finalNarrativeFocus = userInput ? `${userInput} [IMMERSION_MODE]` : "[IMMERSION_MODE]";
+                    } else if (popupResult.confirmed && popupResult.value) {
+                        finalNarrativeFocus = popupResult.value;
                     }
                 }
     
