@@ -1332,6 +1332,17 @@ export function updateDashboard(chapterState) {
                 `;
             }
 
+            // 8. 互动自检 (绿色)
+            let interactionHtml = '';
+            if (notes.interaction_self_check) {
+                interactionHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #2ecc71;">
+                        <h6 style="margin: 0 0 4px 0; color: #2ecc71; font-size: 0.95em;"><i class="fa-solid fa-comments fa-fw"></i> 互动自检</h6>
+                        ${renderField('fa-solid fa-list-check', '自检', notes.interaction_self_check)}
+                    </div>
+                `;
+            }
+
             // 8. 自我审查 (灰色)
             let scrutinyHtml = '';
             const sr = notes.self_scrutiny_report;
@@ -1354,6 +1365,7 @@ export function updateDashboard(chapterState) {
                 ${priorityHtml}
                 ${logicHtml}
                 ${endingHtml}
+                ${interactionHtml}
                 ${scrutinyHtml}
             `;
             notesContainer.html(notesHtml);
