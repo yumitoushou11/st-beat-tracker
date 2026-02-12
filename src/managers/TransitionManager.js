@@ -149,15 +149,23 @@ export class TransitionManager {
                 deep: (this.USER.getContext().chat.length - 1 - endIndex) 
             });
     
+            const hasLeaderSnapshot = !!(lastStatePiece && Chapter.isValidStructure(lastStatePiece.leader));
             let workingChapter;
-            if (lastStatePiece && Chapter.isValidStructure(lastStatePiece.leader)) {
+            if (hasLeaderSnapshot) {
                 workingChapter = Chapter.fromJSON(lastStatePiece.leader);
             } else {
                 workingChapter = new Chapter({ characterId: activeCharId });
             }
             this.engine.narrativeControlTowerManager.syncStorylineProgressWithStorylines(workingChapter);
-    
+
             // 确保静态数据是最新的
+            if (hasLeaderSnapshot && workingChapter?.staticMatrices) {
+                try {
+                    staticDataManager.saveStaticData(activeCharId, workingChapter.staticMatrices);
+                } catch (syncError) {
+                    this.warn('静态数据库同步失败，继续使用现有缓存。', syncError);
+                }
+            }
             const staticData = staticDataManager.loadStaticData(activeCharId);
             if (staticData) {
                 workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, staticData);
@@ -479,10 +487,12 @@ export class TransitionManager {
             const chapterTranscript = chapterMessages.length > 0
                 ? chapterMessages.map(msg => `[${msg.is_user ? "{{user}}" : "{{char}}"}]:\n${msg.mes}`).join('\n\n---\n\n')
                 : "【本章无实质性对话】";
-    
+
+            const dossierSchema = stateManager.loadDossierSchemaFromCharacter();
             const contextForHistorian = {
                 chapterTranscript,
                 chapter: chapterContext,
+                dossierSchema,
             };
     
             reviewDelta = await this.historianAgent.execute(contextForHistorian, abortSignal);
@@ -718,9 +728,11 @@ export class TransitionManager {
                     const worldInfoEntries = await getWorldbookEntriesForGenesis();
                     this.info(`GENESIS: 已获取 ${worldInfoEntries.length} 个世界书条目用于分析`);
 
+                    const dossierSchema = stateManager.loadDossierSchemaFromCharacter();
                     const agentOutput = await this.intelligenceAgent.execute({
                         worldInfoEntries,
-                        protagonistInfo
+                        protagonistInfo,
+                        dossierSchema
                     }, this.currentTaskAbortController.signal);
     
                     if (agentOutput && agentOutput.staticMatrices) {

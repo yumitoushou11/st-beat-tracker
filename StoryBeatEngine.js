@@ -536,7 +536,12 @@ if (this.currentChapter.chapter_blueprint) {
         recallContent.push(`## (Entity Recall: On-Demand Mode)`);
         recallContent.push(``);
 
-        const chapterStaticContext = this.currentChapter.cachedChapterStaticContext || '';
+        const chapterContextIds = this.currentChapter.chapter_blueprint?.chapter_context_ids || [];
+        const chapterStaticContext = this.entityContextManager.generateChapterStaticContext(
+            chapterContextIds,
+            this.currentChapter
+        );
+        this.currentChapter.cachedChapterStaticContext = chapterStaticContext;
 
         // 第2A部分：章节级静态实体
         if (chapterStaticContext) {
@@ -2160,6 +2165,17 @@ async forceChapterTransition() {
 
             // ????????
             this.currentChapter = updatedChapterState;
+
+            // 同步静态档案缓存，避免章节结束时被旧缓存覆盖
+            try {
+                const staticMatrices = updatedChapterState?.staticMatrices;
+                const characterId = updatedChapterState?.characterId;
+                if (staticMatrices && characterId) {
+                    staticDataManager.saveStaticData(characterId, staticMatrices);
+                }
+            } catch (syncError) {
+                this.diagnose("同步静态档案缓存失败:", syncError);
+            }
 
             this.info(`?? ${charId} ????????????? ${lastStateIndex}`);
 

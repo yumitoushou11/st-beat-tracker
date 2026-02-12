@@ -5,6 +5,7 @@ import { mapValueToHue } from '../../utils/colorUtils.js';
 import { clampAffinityValue } from '../../utils/affinityUtils.js';
 import { translateField } from '../../utils/fieldTranslator.js';
 import applicationFunctionManager from '../../manager.js';
+import { loadDossierSchemaFromCharacter } from '../../stateManager.js';
 
 /**
  * @description 显示角色详情面板（内嵌展开式）
@@ -34,7 +35,8 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
             equipment: '',
             social: {
                 relationships: {}
-            }
+            },
+            custom: {}
         };
     }
 
@@ -241,6 +243,121 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
         }
     }
 
+    const relationshipSectionHtml = `
+        <div class="sbt-character-detail-section ${isProtagonist ? 'sbt-protagonist-relationship-section' : ''}">
+            <div class="sbt-character-detail-section-title"><i class="fa-solid fa-users"></i>${relationshipSectionTitle}</div>
+            ${relationshipsHtml}
+        </div>
+    `;
+
+    const dossierSchema = loadDossierSchemaFromCharacter();
+    const dossierFields = Array.isArray(dossierSchema?.fields) ? dossierSchema.fields : [];
+
+    const hasContent = (value) => {
+        if (value === null || value === undefined) return false;
+        if (Array.isArray(value)) return value.length > 0;
+        if (typeof value === 'object') return true;
+        if (typeof value === 'string') return value.trim() !== '';
+        return true;
+    };
+
+    const coerceTagsValue = (value) => {
+        if (Array.isArray(value)) return value;
+        if (!value) return [];
+        if (typeof value === 'string') return [value];
+        return [];
+    };
+
+    const renderSocialSection = (field) => {
+        const socialData = char.social || {};
+        const hasSocialData = Boolean(
+            socialData.所属组织 ||
+            socialData.声望 ||
+            socialData.社会地位 ||
+            socialData.affiliations ||
+            socialData.reputation ||
+            socialData.social_status
+        );
+
+        if (!isEditMode && !hasSocialData) return '';
+
+        const title = field?.label || '归属与声望';
+        const icon = field?.icon || 'fa-flag';
+        const content = `
+            <div class="sbt-compact-fields">
+                ${(socialData.所属组织 || socialData.affiliations) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">所属组织:</span> ${safeText(socialData.所属组织 || socialData.affiliations, 'social.所属组织', '', 0, isEditMode)}</div>` : ''}
+                ${(socialData.声望 || socialData.reputation) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">声望:</span> ${safeText(socialData.声望 || socialData.reputation, 'social.声望', '', 0, isEditMode)}</div>` : ''}
+                ${(socialData.社会地位 || socialData.social_status) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">社会地位:</span> ${safeText(socialData.社会地位 || socialData.social_status, 'social.社会地位', '', 0, isEditMode)}</div>` : ''}
+            </div>
+        `;
+
+        return `
+            <div class="sbt-character-detail-section">
+                <div class="sbt-character-detail-section-title"><i class="fa-solid ${icon}"></i>${title}</div>
+                <div class="sbt-character-detail-section-content">
+                    <div class="sbt-content-wrapper">${content}</div>
+                </div>
+            </div>
+        `;
+    };
+
+    const renderFieldSection = (field) => {
+        if (!field || !field.key || field.key === 'social') return '';
+
+        const title = field.label || field.key;
+        const icon = field.icon || 'fa-clipboard-list';
+        const isBuiltin = field.builtin === true;
+        const value = isBuiltin ? char[field.key] : char.custom?.[field.key];
+        const dataPathBase = isBuiltin ? '' : 'custom';
+
+        if (field.type === 'tags') {
+            const tagsValue = coerceTagsValue(value);
+            if (!isEditMode && tagsValue.length === 0) return '';
+            const content = safeText(tagsValue, field.key, dataPathBase, 0, isEditMode);
+            return `
+                <div class="sbt-character-detail-section">
+                    <div class="sbt-character-detail-section-title"><i class="fa-solid ${icon}"></i>${title}</div>
+                    <div class="sbt-character-detail-section-content">
+                        <div class="sbt-content-wrapper">${content}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        if (!isEditMode && !hasContent(value)) return '';
+        const content = safeText(value, field.key, dataPathBase, 0, isEditMode);
+        return `
+            <div class="sbt-character-detail-section">
+                <div class="sbt-character-detail-section-title"><i class="fa-solid ${icon}"></i>${title}</div>
+                <div class="sbt-character-detail-section-content">
+                    <div class="sbt-content-wrapper">${content}</div>
+                </div>
+            </div>
+        `;
+    };
+
+    const buildDossierSections = () => {
+        let html = '';
+        let relationshipInserted = false;
+
+        dossierFields.forEach((field) => {
+            if (field.key === 'social') {
+                if (!relationshipInserted) {
+                    html += relationshipSectionHtml;
+                    relationshipInserted = true;
+                }
+                html += renderSocialSection(field);
+                return;
+            }
+            html += renderFieldSection(field);
+        });
+
+        if (!relationshipInserted) {
+            html += relationshipSectionHtml;
+        }
+        return html;
+    };
+
     // 构建详细档案HTML（支持新旧结构）
     const detailHtml = `
         <div class="sbt-character-detail-header">
@@ -262,19 +379,7 @@ export function showCharacterDetailModal(charId, chapterState, editMode = false,
             <div class="sbt-character-detail-actions">${isEditMode ? `<button class="sbt-save-character-btn" data-char-id="${charId}" data-is-new="${isNew}"><i class="fa-solid fa-save fa-fw"></i> ${isNew ? '创建角色' : '保存修改'}</button><button class="sbt-cancel-edit-btn" data-char-id="${charId}"><i class="fa-solid fa-times fa-fw"></i> 取消</button>${!isNew ? `<button class="sbt-delete-character-btn" data-char-id="${charId}"><i class="fa-solid fa-trash fa-fw"></i> 删除</button>` : ''}` : `<button class="sbt-edit-mode-toggle" data-char-id="${charId}"><i class="fa-solid fa-pen-to-square"></i> 编辑档案</button><button class="sbt-delete-character-btn" data-char-id="${charId}"><i class="fa-solid fa-trash"></i> 删除角色</button>`}</div>
         </div>
 
-        ${char.appearance || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-eye"></i>外貌特征</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.appearance, 'appearance', '', 0, isEditMode)}</div></div></div>` : ''}
-        ${char.personality || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-brain"></i>性格心理</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.personality, 'personality', '', 0, isEditMode)}</div></div></div>` : ''}
-        ${char.background || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-book"></i>背景故事</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.background, 'background', '', 0, isEditMode)}</div></div></div>` : ''}
-        ${char.goals || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-bullseye"></i>目标与动机</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.goals, 'goals', '', 0, isEditMode)}</div></div></div>` : ''}
-        ${char.capabilities || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-wand-sparkles"></i>能力与技能</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.capabilities, 'capabilities', '', 0, isEditMode)}</div></div></div>` : ''}
-        ${char.equipment || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-shield-halved"></i>装备资源</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.equipment, 'equipment', '', 0, isEditMode)}</div></div></div>` : ''}
-
-        <div class="sbt-character-detail-section ${isProtagonist ? 'sbt-protagonist-relationship-section' : ''}"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-users"></i>${relationshipSectionTitle}</div>${relationshipsHtml}</div>
-
-        ${(char.social && (char.social.所属组织 || char.social.声望 || char.social.社会地位 || char.social.affiliations || char.social.reputation || char.social.social_status)) || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-flag"></i>归属与声望</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper"><div class="sbt-compact-fields">${(char.social?.所属组织 || char.social?.affiliations) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">所属组织:</span> ${safeText(char.social?.所属组织 || char.social?.affiliations, 'social.所属组织', '', 0, isEditMode)}</div>` : ''}${(char.social?.声望 || char.social?.reputation) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">声望:</span> ${safeText(char.social?.声望 || char.social?.reputation, 'social.声望', '', 0, isEditMode)}</div>` : ''}${(char.social?.社会地位 || char.social?.social_status) || isEditMode ? `<div class="sbt-field-row"><span class="sbt-field-key">社会地位:</span> ${safeText(char.social?.社会地位 || char.social?.social_status, 'social.社会地位', '', 0, isEditMode)}</div>` : ''}</div></div></div></div>` : ''}
-        ${char.experiences || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-clock-rotate-left"></i>经历与成长</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.experiences, 'experiences', '', 0, isEditMode)}</div></div></div>` : ''}
-
-        ${char.secrets || isEditMode ? `<div class="sbt-character-detail-section"><div class="sbt-character-detail-section-title"><i class="fa-solid fa-key"></i>秘密信息</div><div class="sbt-character-detail-section-content"><div class="sbt-content-wrapper">${safeText(char.secrets, 'secrets', '', 0, isEditMode)}</div></div></div>` : ''}
+        ${buildDossierSections()}
     `;
 
     // 渲染到内嵌面板并显示

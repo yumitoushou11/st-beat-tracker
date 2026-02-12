@@ -1,13 +1,27 @@
 // ui/settings/settingsUI.js
 // 设置面板相关的UI逻辑
 
-import { getApiSettings, saveApiSettings, getNarrativeModeSettings, saveNarrativeModeToCharacter } from '../../stateManager.js';
+import { getApiSettings, saveApiSettings, getNarrativeModeSettings, saveNarrativeModeToCharacter, loadDossierSchemaFromCharacter, saveDossierSchemaToCharacter } from '../../stateManager.js';
 import { promptManager } from '../../promptManager.js';
 import { USER } from '../../src/engine-adapter.js';
 import { fetchModels, cacheModels, getCachedModels } from '../../modelManager.js';
 import { createLogger } from '../../utils/logger.js';
+import { getDefaultDossierSchema, normalizeDossierSchema, sanitizeDossierKey } from '../../utils/dossierSchema.js';
 
 const logger = createLogger('设置UI');
+
+const BUILTIN_DOSSIER_KEYS = new Set(getDefaultDossierSchema().fields.map(field => field.key));
+let dossierSchemaOriginal = null;
+let dossierSchemaDraft = null;
+
+const cloneSchema = (schema) => JSON.parse(JSON.stringify(schema || getDefaultDossierSchema()));
+
+const escapeHtml = (value) => String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 /**
  * 填充设置面板UI
@@ -55,6 +69,7 @@ export function populateSettingsUI(deps) {
 
             deps.info("[UIManager] 设置面板UI已根据已加载的配置完成填充。");
         }
+        refreshDossierSchemaEditor(deps);
     } catch (error) {
         deps.diagnose("[UIManager] 填充设置面板时发生错误:", error);
     }
@@ -157,6 +172,265 @@ export function bindNarrativeModeSwitchHandler($wrapper, deps, getCurrentChapter
         } catch (error) {
             deps.diagnose("[UIManager] 应用叙事模式时发生错误:", error);
             deps.toastr.error(`应用失败: ${error.message}`, "操作错误");
+        }
+    });
+}
+
+const getCurrentCharacterInfo = () => {
+    const context = USER.getContext();
+    const characterId = context?.characterId;
+    const character = characterId !== undefined && characterId !== null
+        ? context?.characters?.[characterId]
+        : null;
+    return { characterId, character };
+};
+
+const ensureUniqueKey = (rawKey, fields, ignoreIndex = -1, allowBuiltin = false) => {
+    let baseKey = sanitizeDossierKey(rawKey);
+    if (!baseKey) baseKey = 'field';
+    if (!allowBuiltin && BUILTIN_DOSSIER_KEYS.has(baseKey)) {
+        baseKey = `${baseKey}_custom`;
+    }
+    const usedKeys = new Set();
+    fields.forEach((field, idx) => {
+        if (!field) return;
+        if (idx === ignoreIndex) return;
+        usedKeys.add(field.key);
+    });
+    let candidate = baseKey;
+    let suffix = 2;
+    while (usedKeys.has(candidate) || (!allowBuiltin && BUILTIN_DOSSIER_KEYS.has(candidate))) {
+        candidate = `${baseKey}_${suffix++}`;
+    }
+    return candidate;
+};
+
+const buildNewCustomField = (fields) => {
+    const key = ensureUniqueKey('custom_field', fields, -1, false);
+    return {
+        key,
+        label: '新字段',
+        type: 'text',
+        builtin: false,
+        icon: 'fa-clipboard-list'
+    };
+};
+
+const renderDossierSchemaList = () => {
+    const $list = $('#sbt-dossier-schema-list');
+    if (!$list.length) return;
+
+    if (!dossierSchemaDraft || !Array.isArray(dossierSchemaDraft.fields)) {
+        $list.html('<p class="sbt-instructions">暂无字段方案。</p>');
+        return;
+    }
+
+    if (dossierSchemaDraft.fields.length === 0) {
+        $list.html('<p class="sbt-instructions">当前方案为空，可点击“新增字段”。</p>');
+        return;
+    }
+
+    const rowsHtml = dossierSchemaDraft.fields.map((field, index) => {
+        const isBuiltin = field.builtin === true || BUILTIN_DOSSIER_KEYS.has(field.key);
+        const labelValue = escapeHtml(field.label || field.key);
+        const keyValue = escapeHtml(field.key || '');
+        const typeValue = field.type === 'tags' ? 'tags' : 'text';
+
+        return `
+            <div class="sbt-dossier-row" data-index="${index}" data-builtin="${isBuiltin}">
+                <input type="text" class="sbt-dossier-input sbt-dossier-label-input" value="${labelValue}" placeholder="字段名称">
+                <input type="text" class="sbt-dossier-input sbt-dossier-key-input" value="${keyValue}" placeholder="key" ${isBuiltin ? 'disabled' : ''}>
+                <select class="sbt-select sbt-dossier-type-select" ${isBuiltin ? 'disabled' : ''}>
+                    <option value="text" ${typeValue === 'text' ? 'selected' : ''}>文本</option>
+                    <option value="tags" ${typeValue === 'tags' ? 'selected' : ''}>标签</option>
+                </select>
+                <div class="sbt-dossier-row-actions">
+                    <button class="sbt-icon-btn sbt-dossier-move-up" title="上移"><i class="fa-solid fa-chevron-up"></i></button>
+                    <button class="sbt-icon-btn sbt-dossier-move-down" title="下移"><i class="fa-solid fa-chevron-down"></i></button>
+                    <button class="sbt-icon-btn sbt-dossier-delete" title="删除"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    $list.html(rowsHtml);
+};
+
+const refreshDossierSchemaEditor = (deps) => {
+    const { characterId, character } = getCurrentCharacterInfo();
+    const $name = $('#sbt-dossier-schema-character');
+    const $list = $('#sbt-dossier-schema-list');
+
+    if ($name.length) {
+        if (character) {
+            $name.text(`${character.name || '未命名'} (#${characterId})`);
+        } else {
+            $name.text('未选择角色卡');
+        }
+    }
+
+    const hasCharacter = Boolean(character && characterId !== undefined && characterId !== null);
+    $('#sbt-dossier-add-field, #sbt-dossier-reset-default, #sbt-dossier-save-schema')
+        .prop('disabled', !hasCharacter);
+
+    if (!hasCharacter) {
+        dossierSchemaOriginal = null;
+        dossierSchemaDraft = null;
+        if ($list.length) {
+            $list.html('<p class="sbt-instructions">请先选择一个角色卡以编辑字段方案。</p>');
+        }
+        return;
+    }
+
+    const loadedSchema = loadDossierSchemaFromCharacter();
+    dossierSchemaOriginal = normalizeDossierSchema(loadedSchema);
+    dossierSchemaDraft = cloneSchema(dossierSchemaOriginal);
+    renderDossierSchemaList();
+};
+
+const clearRemovedDossierFields = (chapterState, characterId, removedFields) => {
+    if (!chapterState || !characterId) return;
+    const targetChar = chapterState.staticMatrices?.characters?.[characterId];
+    if (!targetChar) return;
+
+    const clearSocialFields = () => {
+        if (!targetChar.social) return;
+        delete targetChar.social.所属组织;
+        delete targetChar.social.声望;
+        delete targetChar.social.社会地位;
+        delete targetChar.social.affiliations;
+        delete targetChar.social.reputation;
+        delete targetChar.social.social_status;
+    };
+
+    removedFields.forEach((field) => {
+        if (!field || !field.key) return;
+        if (field.key === 'social') {
+            clearSocialFields();
+            return;
+        }
+        if (field.builtin) {
+            delete targetChar[field.key];
+            return;
+        }
+        if (targetChar.custom && Object.prototype.hasOwnProperty.call(targetChar.custom, field.key)) {
+            delete targetChar.custom[field.key];
+        }
+    });
+
+    if (targetChar.custom && Object.keys(targetChar.custom).length === 0) {
+        delete targetChar.custom;
+    }
+};
+
+export function bindDossierSchemaHandlers($wrapper, deps, getCurrentChapterFn) {
+    refreshDossierSchemaEditor(deps);
+
+    $wrapper.on('click', '#sbt-dossier-add-field', () => {
+        if (!dossierSchemaDraft) return;
+        dossierSchemaDraft.fields.push(buildNewCustomField(dossierSchemaDraft.fields));
+        renderDossierSchemaList();
+    });
+
+    $wrapper.on('click', '#sbt-dossier-reset-default', () => {
+        if (!confirm('确定要恢复为默认字段方案吗？这会覆盖当前未保存的修改。')) return;
+        dossierSchemaDraft = cloneSchema(getDefaultDossierSchema());
+        renderDossierSchemaList();
+    });
+
+    $wrapper.on('click', '#sbt-dossier-schema-list .sbt-dossier-move-up', function() {
+        if (!dossierSchemaDraft) return;
+        const index = Number($(this).closest('.sbt-dossier-row').data('index'));
+        if (!Number.isInteger(index) || index <= 0) return;
+        const fields = dossierSchemaDraft.fields;
+        [fields[index - 1], fields[index]] = [fields[index], fields[index - 1]];
+        renderDossierSchemaList();
+    });
+
+    $wrapper.on('click', '#sbt-dossier-schema-list .sbt-dossier-move-down', function() {
+        if (!dossierSchemaDraft) return;
+        const index = Number($(this).closest('.sbt-dossier-row').data('index'));
+        if (!Number.isInteger(index) || index >= dossierSchemaDraft.fields.length - 1) return;
+        const fields = dossierSchemaDraft.fields;
+        [fields[index + 1], fields[index]] = [fields[index], fields[index + 1]];
+        renderDossierSchemaList();
+    });
+
+    $wrapper.on('click', '#sbt-dossier-schema-list .sbt-dossier-delete', function() {
+        if (!dossierSchemaDraft) return;
+        const index = Number($(this).closest('.sbt-dossier-row').data('index'));
+        if (!Number.isInteger(index)) return;
+        dossierSchemaDraft.fields.splice(index, 1);
+        renderDossierSchemaList();
+    });
+
+    $wrapper.on('blur', '#sbt-dossier-schema-list .sbt-dossier-label-input', function() {
+        if (!dossierSchemaDraft) return;
+        const $row = $(this).closest('.sbt-dossier-row');
+        const index = Number($row.data('index'));
+        if (!Number.isInteger(index)) return;
+        const label = $(this).val().trim();
+        dossierSchemaDraft.fields[index].label = label || dossierSchemaDraft.fields[index].key;
+    });
+
+    $wrapper.on('blur', '#sbt-dossier-schema-list .sbt-dossier-key-input', function() {
+        if (!dossierSchemaDraft) return;
+        const $row = $(this).closest('.sbt-dossier-row');
+        const index = Number($row.data('index'));
+        if (!Number.isInteger(index)) return;
+        const rawKey = $(this).val();
+        const fields = dossierSchemaDraft.fields;
+        const uniqueKey = ensureUniqueKey(rawKey, fields, index, false);
+        fields[index].key = uniqueKey;
+        $(this).val(uniqueKey);
+    });
+
+    $wrapper.on('change', '#sbt-dossier-schema-list .sbt-dossier-type-select', function() {
+        if (!dossierSchemaDraft) return;
+        const $row = $(this).closest('.sbt-dossier-row');
+        const index = Number($row.data('index'));
+        if (!Number.isInteger(index)) return;
+        dossierSchemaDraft.fields[index].type = $(this).val() === 'tags' ? 'tags' : 'text';
+    });
+
+    $wrapper.on('click', '#sbt-dossier-save-schema', async function() {
+        if (!dossierSchemaDraft) return;
+        const $btn = $(this);
+        $btn.prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin fa-fw"></i> 保存中...');
+
+        try {
+            const normalizedDraft = normalizeDossierSchema(dossierSchemaDraft);
+            const success = await saveDossierSchemaToCharacter(normalizedDraft);
+            if (!success) {
+                deps.toastr.error('保存失败，请查看控制台日志', '保存失败');
+                return;
+            }
+
+            const previousFields = Array.isArray(dossierSchemaOriginal?.fields) ? dossierSchemaOriginal.fields : [];
+            const nextKeys = new Set(normalizedDraft.fields.map(field => field.key));
+            const removedFields = previousFields.filter(field => field && !nextKeys.has(field.key));
+
+            const { characterId } = getCurrentCharacterInfo();
+            const chapterState = getCurrentChapterFn?.();
+            if (removedFields.length > 0 && chapterState && characterId !== undefined && characterId !== null) {
+                clearRemovedDossierFields(chapterState, characterId, removedFields);
+                if (typeof deps.onSaveCharacterEdit === 'function') {
+                    await deps.onSaveCharacterEdit('dossier_schema_saved', chapterState);
+                }
+                if (deps.eventBus) {
+                    deps.eventBus.emit('CHAPTER_UPDATED', chapterState);
+                }
+            }
+
+            dossierSchemaOriginal = normalizeDossierSchema(normalizedDraft);
+            dossierSchemaDraft = cloneSchema(dossierSchemaOriginal);
+            renderDossierSchemaList();
+            deps.toastr.success('字段方案已保存到当前角色卡', '保存成功');
+        } catch (error) {
+            deps.diagnose('[UIManager] 保存字段方案失败:', error);
+            deps.toastr.error(`保存失败: ${error.message}`, '保存失败');
+        } finally {
+            $btn.prop('disabled', false).html('<i class="fa-solid fa-save fa-fw"></i> 保存到该角色卡');
         }
     });
 }

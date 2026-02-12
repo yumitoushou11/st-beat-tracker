@@ -493,6 +493,20 @@
                                 </div>
                             </label>
                         </div>
+
+                        <!-- 史官全量档案注入开关（高消耗） -->
+                        <div class="sbt-control-card">
+                            <label for="sbt-enable-historian-full-inject-toggle" class="sbt-toggle-switch-container">
+                                <div class="sbt-toggle-label">
+                                    <span class="sbt-toggle-text">🧾 史官全量档案注入</span>
+                                    <i class="fa-solid fa-circle-info fa-fw" title="开启后，史官将接收完整 staticMatrices 全量档案（含角色全部字段与世界观/故事线）。会显著增加Token与延迟，仅建议用于精修或调试。"></i>
+                                </div>
+                                <div class="sbt-toggle-switch">
+                                    <input type="checkbox" id="sbt-enable-historian-full-inject-toggle">
+                                    <span class="sbt-slider"></span>
+                                </div>
+                            </label>
+                        </div>
                     </div>
 
                     <!-- V13.0: 已移除叙事模式选择器 - 多巴胺工程已整合到主prompt中 -->
@@ -744,6 +758,46 @@
                     <button id="sbt-save-settings-btn" class="sbt-primary-btn">
                         <i class="fa-solid fa-save fa-fw"></i> 保存并应用所有设置
                     </button>
+                </div>
+
+                <!-- 角色档案字段管理 - 可折叠 -->
+                <div class="sbt-library-section">
+                    <h5 class="sbt-category-header collapsed">
+                        <i class="fa-solid fa-id-card fa-fw"></i> 角色档案字段管理
+                    </h5>
+                    <div class="sbt-library-items collapsed">
+                        <p class="sbt-instructions">
+                            按角色卡保存字段方案，可增删改名、排序，支持文本与标签字段。删除字段后保存将清空对应数据。
+                        </p>
+                        <div class="sbt-settings-card sbt-dossier-schema-card">
+                            <div class="sbt-dossier-schema-header">
+                                <div class="sbt-dossier-schema-meta">
+                                    当前角色卡：<span id="sbt-dossier-schema-character">未选择角色卡</span>
+                                </div>
+                                <div class="sbt-dossier-schema-actions">
+                                    <button id="sbt-dossier-add-field" class="sbt-secondary-btn">
+                                        <i class="fa-solid fa-plus fa-fw"></i> 新增字段
+                                    </button>
+                                    <button id="sbt-dossier-reset-default" class="sbt-secondary-btn">
+                                        <i class="fa-solid fa-rotate-left fa-fw"></i> 恢复默认
+                                    </button>
+                                    <button id="sbt-dossier-save-schema" class="sbt-primary-btn">
+                                        <i class="fa-solid fa-save fa-fw"></i> 保存到该角色卡
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="sbt-dossier-schema-list-header">
+                                <span>字段名</span>
+                                <span>Key</span>
+                                <span>类型</span>
+                                <span class="sbt-dossier-actions-label">操作</span>
+                            </div>
+                            <div id="sbt-dossier-schema-list" class="sbt-dossier-schema-list"></div>
+                            <p class="sbt-instructions sbt-dossier-schema-tip">
+                                自定义字段数据统一存放在 custom.*；内置字段可移除（核心信息与关系区固定保留）。
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- 提示词管理 - 可折叠 -->

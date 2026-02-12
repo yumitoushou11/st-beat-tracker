@@ -225,3 +225,69 @@ export function loadNarrativeModeSettings() {
 export const getNarrativeModeSettings = () => {
     return loadNarrativeModeFromCharacter();
 };
+
+/**
+ * 从当前角色卡加载角色档案字段方案
+ * @returns {object} DossierSchema
+ */
+export function loadDossierSchemaFromCharacter() {
+    try {
+        const { character } = getCurrentCharacterRef();
+        const schema = character?.data?.extensions?.[EXTENSION_NAME]?.dossier_schema;
+        if (schema) {
+            return normalizeDossierSchema(schema);
+        }
+    } catch (e) {
+        logger.error("加载角色档案字段方案失败", e);
+    }
+    return getDefaultDossierSchema();
+}
+
+/**
+ * 保存角色档案字段方案到当前角色卡
+ * @param {object} schema - DossierSchema
+ * @returns {Promise<boolean>}
+ */
+export async function saveDossierSchemaToCharacter(schema) {
+    try {
+        const { character } = getCurrentCharacterRef();
+        if (!character) {
+            logger.warn("无法获取当前角色卡，保存字段方案失败");
+            return false;
+        }
+
+        if (!character.data) character.data = {};
+        if (!character.data.extensions) character.data.extensions = {};
+        if (!character.data.extensions[EXTENSION_NAME]) {
+            character.data.extensions[EXTENSION_NAME] = {};
+        }
+        character.data.extensions[EXTENSION_NAME].dossier_schema = normalizeDossierSchema(schema);
+
+        const context = USER.getContext();
+        const response = await fetch('/api/characters/merge-attributes', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...context.getRequestHeaders?.() || {}
+            },
+            body: JSON.stringify({
+                avatar: character.avatar,
+                data: {
+                    extensions: {
+                        [EXTENSION_NAME]: character.data.extensions[EXTENSION_NAME]
+                    }
+                }
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        logger.info("角色档案字段方案已保存到角色卡", character.name);
+        return true;
+    } catch (e) {
+        logger.error("保存角色档案字段方案失败", e);
+        return false;
+    }
+}

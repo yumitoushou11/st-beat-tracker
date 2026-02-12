@@ -544,6 +544,111 @@ input:checked + .sbt-slider:before {
     padding: var(--sbt-space-16);
 }
 
+/* --- [SECTION 11C-1] 角色档案字段方案编辑器 --- */
+.sbt-dossier-schema-card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sbt-space-12);
+}
+
+.sbt-dossier-schema-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sbt-space-8);
+}
+
+.sbt-dossier-schema-meta {
+    font-size: 0.88em;
+    color: var(--sbt-text-medium);
+}
+
+.sbt-dossier-schema-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--sbt-space-8);
+}
+
+.sbt-dossier-schema-list-header {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 0.8fr 160px;
+    gap: var(--sbt-space-8);
+    font-size: 0.8em;
+    color: var(--sbt-text-medium);
+    padding: 0 2px;
+}
+
+.sbt-dossier-actions-label {
+    text-align: right;
+}
+
+.sbt-dossier-schema-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sbt-space-8);
+}
+
+.sbt-dossier-row {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr 0.8fr 160px;
+    gap: var(--sbt-space-8);
+    align-items: center;
+    background-color: var(--sbt-bg-darker);
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 6px;
+    padding: 8px;
+}
+
+.sbt-dossier-input {
+    width: 100%;
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    color: var(--sbt-text-light);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.9em;
+}
+
+.sbt-dossier-type-select {
+    width: 100%;
+    background-color: var(--sbt-bg-dark);
+    border: 1px solid var(--sbt-border-color);
+    color: var(--sbt-text-light);
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.9em;
+}
+
+.sbt-dossier-input:disabled,
+.sbt-dossier-type-select:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.sbt-dossier-row-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
+}
+
+.sbt-dossier-schema-tip {
+    margin: 0;
+}
+
+@media (max-width: 900px) {
+    .sbt-dossier-schema-list-header {
+        display: none;
+    }
+
+    .sbt-dossier-row {
+        grid-template-columns: 1fr;
+        gap: var(--sbt-space-8);
+    }
+
+    .sbt-dossier-row-actions {
+        justify-content: flex-start;
+    }
+}
+
 /* --- [SECTION 11D] 数据库管理样式 (Database Management) --- */
 .sbt-db-list {
     display: flex;

@@ -3,9 +3,10 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('AI代理');
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js'; 
+import { formatDossierSchemaForPrompt } from '../utils/dossierSchema.js';
 export class IntelligenceAgent extends Agent {
 
-  _createPrompt(worldInfoEntries, protagonistInfo) {
+  _createPrompt(worldInfoEntries, protagonistInfo, dossierSchema) {
         // V8.0: 整合主角信息
         const userName = protagonistInfo?.name || "未知";
         const userDescription = protagonistInfo?.description || "";
@@ -26,6 +27,8 @@ export class IntelligenceAgent extends Agent {
                 .map(entry => `[${entry.key}]:\n${entry.content}`)
                 .join('\n\n---\n\n');
         }
+
+        const customFieldList = formatDossierSchemaForPrompt(dossierSchema);
 
         return BACKEND_SAFE_PASS_PROMPT + `
 指令: ECI原子化数据库创生协议 V1.0
@@ -138,6 +141,12 @@ ECI核心方法论_实体分类ID:
         到访地点: 到访过的地点ID数组
         参与事件: 参与过的重大事件ID数组
         人生里程碑: 人生里程碑数组
+
+      自定义字段_custom:
+        说明: 仅当存在时填写，写入路径为 characters.<id>.custom.<key>
+        规则: 标签字段使用字符串数组，文本字段使用字符串
+        字段清单:
+${customFieldList}
 
     叙事逻辑铁律_禁止量化主角:
       主角档案规则: 在为主角创建档案时，其social.relationships对象中绝对不能包含任何affinity好感度字段。其档案中必须包含core.isProtagonist为true
@@ -350,10 +359,10 @@ ECI核心方法论_实体分类ID:
     }
 
      async execute(context, abortSignal = null) {
-        const { worldInfoEntries, protagonistInfo } = context;
+        const { worldInfoEntries, protagonistInfo, dossierSchema } = context;
         this.diagnose("--- 智能情报官AI 启动 --- 正在对世界书进行全维度解析...");
 
-        const prompt = this._createPrompt(worldInfoEntries, protagonistInfo);
+        const prompt = this._createPrompt(worldInfoEntries, protagonistInfo, dossierSchema);
 
         let responseText = null; // 1. 在try块外部声明，确保在catch中可访问
 

@@ -324,13 +324,13 @@ export class StateUpdateManager {
                     const staticChar = workingChapter.staticMatrices.characters[charId];
                     const fieldsToMerge = [
                         'core', 'appearance', 'personality', 'background', 'goals',
-                        'capabilities', 'equipment', 'experiences', 'secrets'
+                        'capabilities', 'equipment', 'experiences', 'secrets', 'custom'
                     ];
 
                     // 字符串类型字段（直接覆盖）
                     const stringFields = ['appearance', 'secrets'];
                     // 对象类型字段（深度合并）
-                    const objectFields = ['core', 'personality', 'background', 'goals', 'capabilities', 'equipment', 'experiences'];
+                    const objectFields = ['core', 'personality', 'background', 'goals', 'capabilities', 'equipment', 'experiences', 'custom'];
 
                     for (const field of fieldsToMerge) {
                         if (charUpdates[field]) {

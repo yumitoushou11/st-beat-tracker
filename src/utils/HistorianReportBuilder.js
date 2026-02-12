@@ -3,8 +3,23 @@
 const DEFAULT_MAX_TEXT = 200;
 
 const safeText = (value, maxLen = DEFAULT_MAX_TEXT) => {
-    if (!value || typeof value !== 'string') return '';
-    const cleaned = value.replace(/\s+/g, ' ').trim();
+    if (value === null || value === undefined) return '';
+    let text = '';
+    if (typeof value === 'string') {
+        text = value;
+    } else if (Array.isArray(value)) {
+        text = value.filter(Boolean).map(item => String(item)).join('|');
+    } else if (typeof value === 'object') {
+        try {
+            text = JSON.stringify(value);
+        } catch (error) {
+            text = String(value);
+        }
+    } else {
+        text = String(value);
+    }
+
+    const cleaned = text.replace(/\s+/g, ' ').trim();
     if (!maxLen || cleaned.length <= maxLen) return cleaned;
     return `${cleaned.slice(0, maxLen)}...`;
 };
@@ -27,18 +42,36 @@ const normalizeCategory = (category) => {
 };
 
 const buildCharacterLines = (chapter) => {
-    const lines = ['[characters] id,name,identity,keywords'];
+    const lines = ['[characters] id,name,identity,keywords,appearance,personality,background,goals,capabilities,equipment,experiences,secrets,custom'];
     const characters = chapter?.staticMatrices?.characters || {};
     Object.entries(characters).forEach(([id, data]) => {
         const core = data?.core || data || {};
         const name = safeText(core.name || data?.name);
         const identity = safeText(core.identity || data?.identity);
         const keywords = joinList(core.keywords);
+        const appearance = safeText(data?.appearance);
+        const personality = safeText(data?.personality);
+        const background = safeText(data?.background);
+        const goals = safeText(data?.goals);
+        const capabilities = safeText(data?.capabilities);
+        const equipment = safeText(data?.equipment);
+        const experiences = safeText(data?.experiences);
+        const secrets = safeText(data?.secrets);
+        const custom = safeText(data?.custom);
         lines.push([
             csvEscape(id),
             csvEscape(name),
             csvEscape(identity),
-            csvEscape(keywords)
+            csvEscape(keywords),
+            csvEscape(appearance),
+            csvEscape(personality),
+            csvEscape(background),
+            csvEscape(goals),
+            csvEscape(capabilities),
+            csvEscape(equipment),
+            csvEscape(experiences),
+            csvEscape(secrets),
+            csvEscape(custom)
         ].join(','));
     });
     return lines;
@@ -149,4 +182,3 @@ export const buildHistorianReport = (chapter) => {
     sections.push(...buildRhythmLines(chapter));
     return sections.join('\n');
 };
-

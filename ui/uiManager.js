@@ -7,7 +7,7 @@ import { getApiSettings, saveApiSettings} from '../stateManager.js';
 import { mapValueToHue } from '../utils/colorUtils.js';
 import { clampAffinityValue } from '../utils/affinityUtils.js';
 import { showNarrativeFocusPopup, showSagaFocusPopup } from './popups/proposalPopup.js';
-import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, bindPresetSelectorHandlers, populatePromptManagerUI, bindPromptManagerHandlers, bindModelRefreshHandlers } from './settings/settingsUI.js';
+import { populateSettingsUI, bindPasswordToggleHandlers, bindSettingsSaveHandler, bindAPITestHandlers, bindPresetSelectorHandlers, populatePromptManagerUI, bindPromptManagerHandlers, bindModelRefreshHandlers, bindDossierSchemaHandlers } from './settings/settingsUI.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
 import { createLogger } from '../utils/logger.js';
 
@@ -660,7 +660,7 @@ $('#extensions-settings-button').after(html);
                 const path = $field.data('path');
                 let value = $field.val().trim();
 
-                if (path && value) {
+                if (path) {
                     updatedData[path] = value;
                 }
             });
@@ -672,7 +672,7 @@ $('#extensions-settings-button').after(html);
                 let value = $field.is('textarea') ? $field.val() : $field.text();
                 value = value.trim();
 
-                if (path && value) {
+                if (path) {
                     updatedData[path] = value;
                 }
             });
@@ -705,6 +705,13 @@ $('#extensions-settings-button').after(html);
                 });
 
                 logger.debug(`  最终路径: "${listPath}", 标签数组:`, tags);
+
+                if (!listPath) {
+                    const addPath = $tagList.find('.sbt-tag-add-btn').data('path');
+                    if (addPath) {
+                        listPath = addPath;
+                    }
+                }
 
                 // 如果找到路径，保存这个标签列表
                 if (listPath) {
@@ -1533,6 +1540,21 @@ $('#extensions-settings-button').after(html);
         deps.info(`[UIManager] 实体召回功能: ${isChecked ? '启用' : '禁用'}`);
     });
 
+    // -- 史官全量档案注入开关 --
+    const $historianFullInjectToggle = $('#sbt-enable-historian-full-inject-toggle');
+    const isHistorianFullInjectEnabled = localStorage.getItem('sbt-historian-full-inject-enabled') === 'true';
+    $historianFullInjectToggle.prop('checked', isHistorianFullInjectEnabled);
+
+    $wrapper.on('change', '#sbt-enable-historian-full-inject-toggle', function() {
+        const isChecked = $(this).is(':checked');
+        localStorage.setItem('sbt-historian-full-inject-enabled', isChecked);
+        deps.toastr.info(
+            `史官全量注入已 ${isChecked ? '开启（高消耗）' : '关闭（默认）'}`,
+            '设置已更新'
+        );
+        deps.info(`[UIManager] 史官全量注入: ${isChecked ? '启用' : '禁用'}`);
+    });
+
     // -- 调试模式开关 --
     const $debugModeToggle = $('#sbt-debug-mode-toggle');
     // 默认关闭调试模式，只有明确设为'true'时才开启
@@ -2134,6 +2156,7 @@ $('#extensions-settings-button').after(html);
     bindAPITestHandlers($wrapper, deps);
     bindPresetSelectorHandlers($wrapper, deps);
     bindModelRefreshHandlers($wrapper, deps); // 模型列表刷新处理器
+    bindDossierSchemaHandlers($wrapper, deps, () => getEffectiveChapterState());
     // V13.0: 已移除叙事模式切换处理器 - 多巴胺工程已整合到主prompt中
     // bindNarrativeModeSwitchHandler($wrapper, deps, () => getEffectiveChapterState());
     // 提示词管理处理器
