@@ -296,7 +296,7 @@ _generateOutputSpecification(config) {
     "plot_beats": [
       {
         "beat_id": "【节拍1：完整事件名称】",
-        "type": "Action",  // Action | Dialogue Scene | Transition | Internal Transition | Reflection
+        "type": "Action",  // 类型值: Dialogue_Scene 为剧情对话，其余(Action/Transition/Internal_Transition/Reflection)统称非剧情对话
         "physical_event": "[情景设置：在什么环境下发生什么] + [互动对象：必须是NPC/组织/系统/交易/阻力] + [外部反馈：对方/系统回应] + [情感方向：基调为【XX】，目的是让角色达成【XX】]",
         "environment_state": "[可选：光影/声音/氛围的引导建议]",
         "state_change": "[可选：关系/任务更新 (情感冲击:X/10)]",
@@ -805,8 +805,8 @@ ${JSON.stringify(chronology, null, 2)}
   说明: 你的回复必须是单一JSON对象，以下是各字段的填写规范与逻辑锁
 
   规范1_节拍构造规范:
-    类型Type: Action或Dialogue_Scene或Transition或Internal_Transition时空跳跃或Reflection仅正剧
-    硬性限制: 全章最多允许 1 个 Action 类型节拍，其余必须使用 Dialogue_Scene / Transition / Internal_Transition / Reflection
+    类型Type: Dialogue_Scene 为剧情对话；Action/Transition/Internal_Transition/Reflection 统一视为“非剧情对话”
+    硬性限制: 非剧情对话节点禁止连续出现，非剧情对话的下一节必须是 Dialogue_Scene；全章最多 2 个非剧情对话节点
     互动要求: 每个节拍必须具备明确的互动对象与外部反馈，严禁写成“角色长时间独白、自我结论、无回应的独角戏”
     互动判定: 互动对象必须是能产生反馈的外部主体/系统（NPC/组织/门禁/交易/冲突/阻力）；禁止纯环境描写或主角自我动作独占
     物理事件physical_event: 必须是情景设置加交互主题加情感方向的引导性框架而非具体台词
