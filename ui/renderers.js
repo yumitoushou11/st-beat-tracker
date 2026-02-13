@@ -1226,13 +1226,15 @@ export function updateDashboard(chapterState) {
             let playerFocusHtml = '';
             if (notes.player_focus_execution) {
                 const exec = notes.player_focus_execution;
-                if (exec.player_instruction || exec.execution_logic) {
+                const nodeNumber = exec?.['node number'] || notes['node number'] || notes.node_number;
+                if (exec.player_instruction || exec.execution_logic || exec.conflict_resolution || nodeNumber) {
                     playerFocusHtml = `
                         <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #FFD700;">
                             <h6 style="margin: 0 0 4px 0; color: #FFD700; font-size: 0.95em;"><i class="fa-solid fa-crown fa-fw"></i> 玩家意志执行</h6>
                             ${renderField('fa-solid fa-bullhorn', '指令', exec.player_instruction)}
                             ${renderField('fa-solid fa-gears', '逻辑', exec.execution_logic)}
                             ${renderField('fa-solid fa-shield-halved', '冲突', exec.conflict_resolution)}
+                            ${renderField('fa-solid fa-hashtag', '节点数量', nodeNumber)}
                         </div>
                     `;
                 }
@@ -1343,7 +1345,18 @@ export function updateDashboard(chapterState) {
                 `;
             }
 
-            // 8. 自我审查 (灰色)
+            // 9. 非剧情对话遵守说明 (青色)
+            let nonDialogueHtml = '';
+            if (notes.non_dialogue_compliance_note) {
+                nonDialogueHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #1abc9c;">
+                        <h6 style="margin: 0 0 4px 0; color: #1abc9c; font-size: 0.95em;"><i class="fa-solid fa-list-ol fa-fw"></i> 非剧情对话遵守说明</h6>
+                        ${renderField('fa-solid fa-clipboard-check', '说明', notes.non_dialogue_compliance_note)}
+                    </div>
+                `;
+            }
+
+            // 10. 自我审查 (灰色)
             let scrutinyHtml = '';
             const sr = notes.self_scrutiny_report;
             if (sr && (sr.anti_performance || sr.anti_thematic_greed)) {
@@ -1366,6 +1379,7 @@ export function updateDashboard(chapterState) {
                 ${logicHtml}
                 ${endingHtml}
                 ${interactionHtml}
+                ${nonDialogueHtml}
                 ${scrutinyHtml}
             `;
             notesContainer.html(notesHtml);

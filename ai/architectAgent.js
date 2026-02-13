@@ -224,7 +224,8 @@ _generateOutputSpecification(config) {
       "player_instruction": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
       "execution_logic": "[详细说明：你是如何将玩家焦点和玩家补充（chapter_blueprint.player_supplement / storyline.player_supplement）作为最高优先级执行的？]",
       "conflict_resolution": "[如果玩家意见与关系图谱、故事线、节奏塔等数据产生冲突，你是如何处理的？必须说明：你是否遵循了'始终以玩家意见为准'的原则]"
-    },
+      "node number": "[针对这个故事的信息量，你决定使用多少个节点去讲述这个故事?是否会让节奏推进过慢或过快？（每个节点默认会被扩写为1500-4000字左右）]
+      },
     "dual_horizon_analysis": "[平衡短期焦点与长期故事线的策略]",
     "emotional_tone_strategy": {
         "core_emotional_tone": "[你判断本章的核心情感基调是什么？]",
@@ -232,8 +233,8 @@ _generateOutputSpecification(config) {
         "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的]"
     },
     "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
-    "interaction_self_check": "[自检格式：节拍#X -> 互动对象=【可产生反馈的外部主体/系统】；外部反馈=【对方/系统回应】；若缺任一项标记不合格并给出改写方案。禁止把门/沙发/空气/气味/场景当互动对象，除非有明确系统/他人反馈]",
-    "non_dialogue_self_check": "[自检格式：非剧情对话计数=【X/2】；是否出现连续非剧情对话=【是/否】；违规节拍=【若有列出节拍ID，否则写无】；改写方案=【将哪些节拍改为Dialogue_Scene或合并删除】]",
+    "interaction_self_check": "[自检格式：节拍#X -> 互动对象=【可产生反馈的生命体/系统】；外部反馈=【对方/系统回应】；禁止把门/沙发/空气/气味/场景等无生命体当互动对象，除非有明确系统/他人反馈]",
+    "non_dialogue_compliance_note": "[遵守说明：非剧情对话计数=【X/2】；分布节拍=【列出节拍ID或写无】；连续检查=【无连续】；其余均为Dialogue_Scene。讲述你的节点设计是如何严格符合这个要求的]",
 
     "event_priority_report": {
         "S_tier_events": ["[本章的绝对核心，占据主导地位]"],      "A_tier_events": ["[核心物理目标]"],
@@ -242,8 +243,6 @@ _generateOutputSpecification(config) {
         "priority_conflict_resolution": "[必填：你是否为了保护S级事件的纯度，而牺牲了物理任务的篇幅？或者为了保护S级事件的质量，而选择了延后？]",
         "beat_allocation": { "S_tier_beats": 0, "A_tier_beats": 0, "B_tier_beats": 0, "total_beats": 0 }
     },
-    "aesthetic_innovation_report": "[识别高频元素并提出创新替代方案]",
-
     // ========== 多巴胺工程验证 ==========
     "dopamine_blueprint": {
       "exclusivity_justification": "[为什么只有主角能做到？基于什么独特性？]",
@@ -725,15 +724,6 @@ ${(() => {
   数据3_上章锚点正文:
 ${safeLeaderMessageContent ? `    内容:\n${safeLeaderMessageContent}` : "    内容: （未找到锚点正文）"}
 
-  数据4_节奏控制塔:
-    数据: ${JSON.stringify(chapter?.meta?.narrative_control_tower || {}, null, 2)}
-    执行指令:
-      指令Constraint: 遵守mandatory_constraints例如cooldown_required
-      指令Type: 优先采纳suggested_chapter_type如Scene或Sequel
-      指令Intensity: 情感强度控制在intensity_range内
-      指令Phase: 当前呼吸相位current_phase若史官推荐recommended_next_phase则优先采纳
-      指令Threshold: 关注impending_thresholds触发关键节点
-
   数据5_环境与状态:
     World_Snapshot: 见current_world_state标签
     Stylistic_Archive: 见stylistic_archive标签禁令为避免使用overused为true的元素
@@ -810,7 +800,7 @@ ${JSON.stringify(chronology, null, 2)}
     硬性限制: 非剧情对话节点禁止连续出现，非剧情对话的下一节必须是 Dialogue_Scene；全章最多 2 个非剧情对话节点
     互动要求: 每个节拍必须具备明确的互动对象与外部反馈，严禁写成“角色长时间独白、自我结论、无回应的独角戏”
     互动判定: 互动对象必须是能产生反馈的外部主体/系统（NPC/组织/门禁/交易/冲突/阻力）；禁止纯环境描写或主角自我动作独占
-    自检要求: 必须在 design_notes.non_dialogue_self_check 中逐项自检“非剧情对话计数”和“是否连续”
+    遵守说明要求: 必须在 design_notes.non_dialogue_compliance_note 中说明如何遵守“非剧情对话不连续、总数不超过2”的要求，只能陈述已合规的最终结果
     物理事件physical_event: 必须是情景设置加交互主题加情感方向的引导性框架而非具体台词
       错误示例1: 两人进行对话以交换情报，太干缺乏引导
       错误示例2: A一边整理装备一边向B抱怨任务的艰难以此试探B对任务的态度，过于具体侵犯了正文AI的创作空间
