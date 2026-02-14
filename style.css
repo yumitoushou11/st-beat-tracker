@@ -3471,6 +3471,11 @@ input:checked + .sbt-slider:before {
     color: #0A84FF;
 }
 
+.sbt-beat-type-badge.hybrid {
+    background-color: rgba(48, 209, 88, 0.2);
+    color: #30D158;
+}
+
 .sbt-beat-type-badge.transition {
     background-color: rgba(255, 159, 10, 0.2);
     color: #FF9F0A;

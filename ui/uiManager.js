@@ -459,9 +459,12 @@ $('#extensions-settings-button').after(html);
 
             // 字段名映射为中文
             const fieldNameMap = {
+                'core_conflict': '核心冲突',
+                'narrative_texture': '叙事肌理',
                 'physical_event': '物理事件',
                 'environment_state': '环境状态',
                 'state_change': '状态变更',
+                'subtext_design': '潜台词方向',
                 'exit_condition': '退出条件'
             };
             const fieldChinese = fieldNameMap[fieldName] || fieldName;
@@ -1542,13 +1545,107 @@ $('#extensions-settings-button').after(html);
 
     // -- V4.2: 章节节拍数量区间控制 --
     const $beatCountRange = $('#sbt-beat-count-range');
-    const savedBeatCountRange = localStorage.getItem('sbt-beat-count-range') || '8-10';
-    $beatCountRange.val(savedBeatCountRange);
+    const $beatCountCustomWrap = $('#sbt-beat-count-custom-wrap');
+    const $beatCountCustomMin = $('#sbt-beat-count-custom-min');
+    const $beatCountCustomMax = $('#sbt-beat-count-custom-max');
+    const savedBeatCountRange = localStorage.getItem('sbt-beat-count-range') || '7-9';
+
+    const parseRangeText = (rawValue) => {
+        if (typeof rawValue !== 'string') return null;
+        const raw = rawValue.trim();
+        if (!raw) return null;
+        const rangeMatch = raw.match(/^(\d+)\s*-\s*(\d+)$/);
+        if (rangeMatch) {
+            const min = parseInt(rangeMatch[1], 10);
+            const max = parseInt(rangeMatch[2], 10);
+            if (Number.isFinite(min) && Number.isFinite(max) && min > 0 && max >= min) {
+                return { min, max, range: `${min}-${max}` };
+            }
+            return null;
+        }
+        const singleMatch = raw.match(/^(\d+)$/);
+        if (singleMatch) {
+            const n = parseInt(singleMatch[1], 10);
+            if (Number.isFinite(n) && n > 0) {
+                return { min: n, max: n, range: `${n}-${n}` };
+            }
+        }
+        return null;
+    };
+
+    const parseCustomBeatRange = (value) => {
+        if (typeof value !== 'string') return null;
+        if (!value.startsWith('custom:')) return null;
+        const raw = value.slice('custom:'.length).trim();
+        return parseRangeText(raw);
+    };
+
+    const isOptionValueAvailable = (value) => {
+        return $beatCountRange.find(`option[value="${value}"]`).length > 0;
+    };
+
+    const setCustomInputs = (min, max) => {
+        if (Number.isFinite(min)) $beatCountCustomMin.val(min);
+        if (Number.isFinite(max)) $beatCountCustomMax.val(max);
+    };
+
+    const getCustomRangeFromInputs = () => {
+        const min = parseInt($beatCountCustomMin.val(), 10);
+        const max = parseInt($beatCountCustomMax.val(), 10);
+        if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+        if (min <= 0 || max < min) return null;
+        return { min, max, range: `${min}-${max}` };
+    };
+
+    const applyBeatCountUI = (value) => {
+        const customRange = parseCustomBeatRange(value);
+        if (customRange) {
+            $beatCountRange.val('custom');
+            $beatCountCustomWrap.show();
+            setCustomInputs(customRange.min, customRange.max);
+            return;
+        }
+        if (isOptionValueAvailable(value)) {
+            $beatCountRange.val(value);
+            $beatCountCustomWrap.hide();
+            return;
+        }
+        const fallbackCustom = parseRangeText(value);
+        if (fallbackCustom) {
+            $beatCountRange.val('custom');
+            $beatCountCustomWrap.show();
+            setCustomInputs(fallbackCustom.min, fallbackCustom.max);
+            return;
+        }
+        $beatCountRange.val('7-9');
+        $beatCountCustomWrap.hide();
+    };
+
+    applyBeatCountUI(savedBeatCountRange);
 
     $wrapper.on('change', '#sbt-beat-count-range', function() {
         const selectedRange = $(this).val();
+        if (selectedRange === 'custom') {
+            $beatCountCustomWrap.show();
+            const storedCustom = parseCustomBeatRange(localStorage.getItem('sbt-beat-count-range'));
+            const inputCustom = getCustomRangeFromInputs();
+            const customRange = storedCustom || inputCustom || { min: 10, max: 12, range: '10-12' };
+            setCustomInputs(customRange.min, customRange.max);
+            localStorage.setItem('sbt-beat-count-range', `custom:${customRange.range}`);
+            deps.toastr.info(`章节节拍数量已设置为：自定义 ${customRange.range}`, "设置已更新");
+            return;
+        }
+        $beatCountCustomWrap.hide();
         localStorage.setItem('sbt-beat-count-range', selectedRange);
         deps.toastr.info(`章节节拍数量区间已设置为：${selectedRange}`, "设置已更新");
+    });
+
+    $wrapper.on('input', '#sbt-beat-count-custom-min, #sbt-beat-count-custom-max', function() {
+        if ($beatCountRange.val() !== 'custom') return;
+        const custom = getCustomRangeFromInputs();
+        if (!custom) return;
+        localStorage.setItem('sbt-beat-count-range', `custom:${custom.range}`);
+        deps.toastr.info(`章节节拍数量已设置为：自定义 ${custom.range}`, "设置已更新");
     });
 
     // -- V3.1: 流式面板折叠/展开 --

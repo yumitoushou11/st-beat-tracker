@@ -972,6 +972,7 @@ function renderChapterBlueprint(blueprint) {
     const beatTypeMap = {
         'Action': '动作',
         'Dialogue Scene': '对话',
+        'Hybrid Scene': '混合场景',
         'Transition': '过渡',
         'Internal Transition': '内部转场',
         'Reflection': '反思'
@@ -981,6 +982,7 @@ function renderChapterBlueprint(blueprint) {
     const beatTypeClassMap = {
         'Action': 'action',
         'Dialogue Scene': 'dialogue',
+        'Hybrid Scene': 'hybrid',
         'Transition': 'transition',
         'Internal Transition': 'internal-transition',
         'Reflection': 'reflection'
@@ -1057,7 +1059,21 @@ function renderChapterBlueprint(blueprint) {
             }
             html += '</div>';
 
-            // 物理事件（新格式必填字段）
+            // 物理事件（兼容摘要）
+            if (beat.core_conflict) {
+                html += `<div class="sbt-beat-field">
+                    <div class="sbt-beat-field-label"><i class="fa-solid fa-bolt"></i> 核心冲突</div>
+                    <div class="sbt-beat-field-value" contenteditable="true" data-beat-index="${index}" data-field="core_conflict">${beat.core_conflict}</div>
+                </div>`;
+            }
+
+            if (beat.narrative_texture) {
+                html += `<div class="sbt-beat-field">
+                    <div class="sbt-beat-field-label"><i class="fa-solid fa-feather"></i> 叙事肌理</div>
+                    <div class="sbt-beat-field-value" contenteditable="true" data-beat-index="${index}" data-field="narrative_texture">${beat.narrative_texture}</div>
+                </div>`;
+            }
+
             if (beat.physical_event) {
                 html += `<div class="sbt-beat-field">
                     <div class="sbt-beat-field-label"><i class="fa-solid fa-bolt"></i> 物理事件</div>
@@ -1078,6 +1094,14 @@ function renderChapterBlueprint(blueprint) {
                 html += `<div class="sbt-beat-field">
                     <div class="sbt-beat-field-label"><i class="fa-solid fa-exchange-alt"></i> 状态变更</div>
                     <div class="sbt-beat-field-value" contenteditable="true" data-beat-index="${index}" data-field="state_change">${beat.state_change}</div>
+                </div>`;
+            }
+
+            // 潜台词方向（可选）
+            if (beat.subtext_design) {
+                html += `<div class="sbt-beat-field">
+                    <div class="sbt-beat-field-label"><i class="fa-solid fa-comment-dots"></i> 潜台词方向</div>
+                    <div class="sbt-beat-field-value" contenteditable="true" data-beat-index="${index}" data-field="subtext_design">${beat.subtext_design}</div>
                 </div>`;
             }
 

@@ -416,12 +416,27 @@
                                 <i class="fa-solid fa-circle-info fa-fw" title="设置每章期望的节拍数量区间。建筑师AI会根据事件复杂度，在此区间内决定实际节拍数。区间越大，给予AI的规划自由度越高。"></i>
                             </label>
                             <select id="sbt-beat-count-range" class="sbt-beat-count-dropdown">
-                                <option value="4-6">4-6 节拍（紧凑）</option>
-                                <option value="6-8">6-8 节拍（标准）</option>
-                                <option value="8-10" selected>8-10 节拍（完整）</option>
-                                <option value="10-12">10-12 节拍（史诗）</option>
-                                <option value="4-12">4-12 节拍（完全自由）</option>
+                                <option value="4-6">4-6 节拍</option>
+                                <option value="7-9" selected>7-9 节拍</option>
+                                <option value="10-12">10-12 节拍</option>
+                                <option value="13-15">13-15 节拍</option>
+                                <option value="16-18">16-18 节拍</option>
+                                <option value="19-21">19-21 节拍</option>
+                                <option value="custom">自定义节拍区间</option>
                             </select>
+                            <div id="sbt-beat-count-custom-wrap" style="display: none; margin-top: 8px;">
+                                <label class="sbt-toggle-label" style="margin-bottom: 6px;">
+                                    <span class="sbt-toggle-text">自定义节拍区间</span>
+                                </label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input id="sbt-beat-count-custom-min" type="number" min="1" step="1" class="sbt-beat-count-dropdown" style="width: 100%;" placeholder="最小值">
+                                    <span style="opacity: 0.7;">至</span>
+                                    <input id="sbt-beat-count-custom-max" type="number" min="1" step="1" class="sbt-beat-count-dropdown" style="width: 100%;" placeholder="最大值">
+                                </div>
+                                <div style="margin-top: 6px; font-size: 12px; opacity: 0.85;">
+                                    自定义区间下不做额外上限限制，仅按区间要求生成。
+                                </div>
+                            </div>
                         </div>
                     </div>
 

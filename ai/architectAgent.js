@@ -20,54 +20,43 @@ const safeLocalStorageGet = (key) => {
     }
 };
 
-
-// 【试验阶段】战术模块：ABC情感沉浸流（按需注入）
-const IMMERSION_MODE_PROMPT = `
-附加模块_情感沉浸流_ABC_Immersion_Flow:
-
-  战术状态: 已激活，启动高维情感设计算法
-
-  核心目标: 拒绝通用模板，本章的日常互动必须是只有这几个人物在只有这个特定时刻才能发生的唯一解
-
-  结构法则_ABC结构:
-    Phase_A_前50%:
-      名称: 现实沉浸
-      策略: 利用高自由度空间建立极具真实感的环境基调
-      许可: 允许无效但有趣的废话，只要它符合人设
-    Phase_B_中25%:
-      名称: 独家变调
-      策略: 设计一个不可替代的情感路径自然的转折点
-    Phase_C_后25%:
-      名称: 涟漪着陆
-      策略: 情感揭露后用心照不宣的默契或新的平衡收尾
-      禁令: 禁止猝停
-
-  灵感素材库_仅供参考:
-    说明: 参考以下策略寻找切入点，但必须结合人物关系进行独家定制
-    策略1_价值重估: 引入旧物或习惯，通过世俗价值与情感价值的反差制造冲击，例如天价卡片不卖
-    策略2_投射博弈: 借由评价第三方事物如电影或路人，影射自身关系的困境或羁绊，例如吐槽电影男主
-    策略3_技能破绽: 角色在擅长领域出现反常失误如手抖或走神，揭示因过于在乎而乱了心神
-    策略4_物理入侵: 环境突变如停电或暴雨强迫物理距离拉近，导致心理防御崩塌
-    策略5_游戏越界: 玩笑或打赌逐渐过火，借着游戏规则的掩护说出不敢说的真心话
-    策略6_时间错位: 提及过去的约定与现状的偏差，引发遗憾或庆幸的共鸣
-
-  设计铁律:
-    规则1_唯一性检查: 如果把角色换成其他人这个互动是否还成立，如果成立立即重写
-    规则2_逻辑内恰: 变调契机不能是机械的意外，必须源于角色性格与当前环境的化学反应
-    规则3_情感连锁: 变调后角色的情感反应必须是前因后果，禁止突兀的情绪切换
-    规则4_情感获得感: 着陆必须让玩家清晰明显感受到情感到达了之前没有到达的新台阶，而不是剧情就这么结束了
-
-  强制输出要求_设计逻辑自辩:
-    说明: 在design_notes中必须新增elevation_design_logic字段，你必须像导演阐述分镜一样解释你的设计思路
-    elevation_design_logic字段结构:
-      reference_strategy: 参考了素材库中的哪个策略或者自创策略
-      unique_spark: 一句话描述你设计的核心创意点，例如不是电影烂而是电影情节误伤了A的秘密
-      irreplaceability_defense: 自述逻辑为什么这个情节只能发生在此时此地，例如普通人看烂片只是吐槽但只有A会因为那个情节联想到当初的那个约定这是属于他们两人的独家密码
-      pacing_allocation:
-        phase_A_content: 节拍1到X具体的日常填充物
-        phase_B_bridge: 节拍X到Y具体的变调契机与逻辑链
-        phase_C_landing: 节拍Y到End情感落地的具体画面
-`;
+const parseBeatCountSetting = (rawValue) => {
+    const fallback = '7-9';
+    if (typeof rawValue !== 'string' || rawValue.trim() === '') {
+        return { display: fallback, rangeText: fallback, isCustom: false, raw: fallback };
+    }
+    const raw = rawValue.trim();
+    const normalizeRange = (value) => {
+        const match = value.match(/^(\d+)\s*-\s*(\d+)$/);
+        if (match) {
+            const min = parseInt(match[1], 10);
+            const max = parseInt(match[2], 10);
+            if (Number.isFinite(min) && Number.isFinite(max) && min > 0 && max >= min) {
+                return `${min}-${max}`;
+            }
+            return null;
+        }
+        const single = value.match(/^(\d+)$/);
+        if (single) {
+            const n = parseInt(single[1], 10);
+            if (Number.isFinite(n) && n > 0) {
+                return `${n}-${n}`;
+            }
+        }
+        return null;
+    };
+    if (raw.startsWith('custom:')) {
+        const rangeText = normalizeRange(raw.slice('custom:'.length).trim());
+        if (rangeText) {
+            return { display: `自定义=${rangeText}`, rangeText, isCustom: true, raw };
+        }
+    }
+    const normalized = normalizeRange(raw);
+    if (normalized) {
+        return { display: normalized, rangeText: normalized, isCustom: false, raw };
+    }
+    return { display: fallback, rangeText: fallback, isCustom: false, raw: fallback };
+};
 
 export class ArchitectAgent extends Agent {
 
@@ -233,7 +222,7 @@ _generateOutputSpecification(config) {
         "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的]"
     },
     "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
-    "interaction_self_check": "[自检格式：节拍#X -> 互动对象=【可产生反馈的生命体/系统】；外部反馈=【对方/系统回应】；禁止把门/沙发/空气/气味/场景等无生命体当互动对象，除非有明确系统/他人反馈]",
+    "interaction_self_check": "[每个节拍是否都具有极高的扩写潜力，可以被扩容为几千字的描写与对话？]",
     "non_dialogue_compliance_note": "[遵守说明：非剧情对话计数=【X/2】；分布节拍=【列出节拍ID或写无】；连续检查=【无连续】；其余均为Dialogue_Scene。讲述你的节点设计是如何严格符合这个要求的]",
 
     "event_priority_report": {
@@ -252,23 +241,6 @@ _generateOutputSpecification(config) {
     },
 `;
 
-    // 如果启用沉浸模式，添加沉浸模式字段
-    if (hasImmersionMode) {
-        outputSpec += `
-    // ========== 沉浸模式专属字段 ==========
-    "elevation_design_logic": {
-      "reference_strategy": "[参考策略或自创]",
-      "unique_spark": "[核心创意点]",
-      "irreplaceability_defense": "[独特性自辩]",
-      "pacing_allocation": {
-        "phase_A_content": "[日常填充物]",
-        "phase_B_bridge": "[变调契机]",
-        "phase_C_landing": "[情感落地]"
-      }
-    },
-`;
-    }
-
     // 添加通用字段
     outputSpec += `
     // ========== 双层动机论 - 逻辑自辩 ==========
@@ -282,8 +254,6 @@ _generateOutputSpecification(config) {
 
     "new_entities_proposal": "[可选：NEW:前缀实体的定义说明]",
     "storyline_weaving": "[选择了哪1-2条故事线及理由（若有次要线请说明如何兼容）]",
-    "connection_and_hook": "[承上启下说明 + 软着陆/情感悬崖/反钩回弹的钩子设计]",
-    "ending_structure_choice": "[情感悬崖 / 软着陆 / 反钩回弹] - 说明你为什么选择在这个点切断剧情？",
     "deus_ex_machina_check": {
       "conflict_origin": "[本章冲突的逻辑源头]",
       "hook_rationality": "[钩子如何从本章自然延伸]"
@@ -296,15 +266,14 @@ _generateOutputSpecification(config) {
     "plot_beats": [
       {
         "beat_id": "【节拍1：完整事件名称】",
-        "type": "Action",  // 类型值: Dialogue_Scene 为剧情对话，其余(Action/Transition/Internal_Transition/Reflection)统称非剧情对话
-        "physical_event": "[情景设置：在什么环境下发生什么] + [互动对象：必须是NPC/组织/系统/交易/阻力] + [外部反馈：对方/系统回应] + [情感方向：基调为【XX】，目的是让角色达成【XX】]",
+        "type": "Action",  // 类型值: Dialogue_Scene / Hybrid_Scene 为剧情对话；Action/Transition/Internal_Transition/Reflection 为非剧情对话
         "environment_state": "[可选：光影/声音/氛围的引导建议]",
-        "state_change": "[可选：关系/任务更新 (情感冲击:X/10)]",
-        "exit_condition": "[仅Dialogue Scene：可观测结束条件，如'达成共识'、'一方离开'等]",
-        "is_highlight": false,
-        "subtext_design": "[可选：对话潜台词的主题方向（而非具体台词），如'表面谈论任务，实则试探对方忠诚度']"
+        "physical_event": "[情景设置：环境与人物的张力] + [互动动作] + [扩写焦点：指定一个具体的物体/感官/回忆作为描写的核心] + [目的：为了达成【XX】]",
+        "state_change": "[关系/任务更新] + [认知/情绪的不可逆转折 (X/10)]",
+        "exit_condition": "[场景结束的明确物理信号]",
+        "is_highlight": false
       }
-      // 数量必须在 ${beatCountRange} 范围内
+      // 数量必须严格符合 ${beatCountRange}
     ],
     "chapter_core_and_highlight": {
       "creative_core": "[唯一核心体验]",
@@ -426,7 +395,11 @@ _createPrompt(context) {
         const longTermStorySummary = chapter?.meta?.longTermStorySummary || "故事刚刚开始。";
         const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
         // V4.2: 获取玩家设置的章节节拍数量区间
-        const beatCountRange = safeLocalStorageGet('sbt-beat-count-range') || '8-10';
+        const beatCountSetting = parseBeatCountSetting(safeLocalStorageGet('sbt-beat-count-range'));
+        const beatCountRange = beatCountSetting.rangeText;
+        const beatCountRuleNote = beatCountSetting.isCustom
+            ? `自定义区间规则: 本章节拍数量必须严格落在 ${beatCountRange}；自定义模式下不做额外上限或合并要求。`
+            : `区间规则: 节拍数量必须严格落在 ${beatCountRange} 区间内，不得随意增减。`;
         // V8.0: 提取故事线追踪数据和文体档案
         const staticStorylines = chapter?.staticMatrices?.storylines || {
             main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
@@ -496,7 +469,7 @@ _createPrompt(context) {
     绝对禁令: 严禁在一个章节内试图推进超过2条核心故事线
     最佳实践: 1条主线加1条关系线或仅1条强相关线，试图推进更多会导致节奏崩坏和焦点模糊
 
-  法则1点5_基调锚定协议_V13.0核心升级:
+  法则1点5_基调锚定协议:
     锚定法则: 本章的情感基调是最高优先级的设计约束，一切元素必须服从或强化这个基调
     执行流程:
       步骤1_提取情感锚点: 从playerNarrativeFocus或最高优先级事件中确定本章的单一情感核心，例如背叛的伤痛胜利的狂喜离别的惆怅
@@ -589,27 +562,21 @@ _createPrompt(context) {
 第二章_节拍构造与红线协议:
 
   法则零_高密度节拍:
-    定义: 1个节拍等于1个完整的叙事段落500到800字
-    你的角色: 你是建筑师不是剧作家，你的任务是提供创作蓝图而不是编写具体台词或叙述
-    结构: 必须包含情景设置加交互主题或动作主线加情感方向的引导性框架
-
-  核心原则:
-    原则1: 一个节拍是完整的叙事单元而非单个镜头
-    原则2: 你提供的是内容引导而非最终文本，具体的对话动作描写心理活动将由正文AI完成
-    原则3_语言规范:
-      正确做法: 使用应围绕主题展开情感基调为XX目的是让角色达成XX
-      错误做法1: 避免具体台词预判例如A说这任务太难了
-      错误做法2: 避免过度细节的动作指示例如A皱起眉头叹了口气
-
+    定义: 每个节拍必须满足“1:2000-5000字的信息折叠率”
+    解释: 每个节拍必须足以支撑一场包含多层次反转、环境描写和深层心理活动的重头戏
+    语言: 只能使用总结性和指导性语言（例如“ A试图掩盖真相，却在B的层层逼问下精神崩溃 ”）
+    禁止: 使用描述性语言（例如“ A说了一句话，B喝了一口水 ”）
   执行标准:
     标准1_禁止微观: 伸手拿杯子感到头晕走到窗边此类动作禁止独立成拍必须合并进更大的事件中
-    标准2_数量控制: 正常章节${beatCountRange}个节拍，超过12个说明颗粒度过细必须合并
+    标准2_数量控制: 本章节拍数量要求为 ${beatCountRange}
+      规则: 必须严格按数量要求设置节拍，不得随意增减
+      说明: ${beatCountRuleNote}
     标准3_框架完整性: 每个节拍必须指明话题或主题而非具体对话内容情感基调预期结果
     标准4_禁止单一维度: 严禁生成只有氛围描写或只有动作序列的节拍，每个节拍都必须是情景交互情感三者融合的完整框架
     标准5_冲突滑坡预防:
       警告: 小矛盾如路人冲突小误会小吃醋极易被正文AI扩大化导致滑坡失控
       设计原则: 如包含易扩大内容必须在physical_event中明确标注快速带过或严格控制强度
-    要求: physical_event 必须显式包含互动对象与外部反馈
+    要求: physical_event 必须显式包含互动动作与外部反馈并标注扩写焦点
       正确示例: A因小事与路人短暂争执仅用于展现性格随即回归主线严禁升级
       错误示例: A与路人发生冲突，未标注控制指令易被扩写成大段对话甚至肢体冲突
 
@@ -622,20 +589,6 @@ _createPrompt(context) {
       定义: 本章出场但无故事线的角色
       禁令: 严禁加戏必须保持基准人设Baseline_Persona
       任务: 仅负责提供功能性协助或情绪反应如震惊或吐槽严禁流露复杂的内心戏或不为人知的阴暗面
-
-  多巴胺工程_快感设计协议:
-    核心原则: 拒绝平淡流水账，每章必须包含可持续的快感但特权必须源于角色独特性
-    快感三要素:
-      要素2_即时性: 行动必须当场产生可见后果，延迟兑现等于快感流失
-      要素3_独占性: 强调只有主角能做到的特权感，但特权必须源于角色独特性而非世界观向主角低头
-    反套路协议:
-      规则1_禁止通用解: 打脸方式必须与当前世界观角色能力场景特性深度绑定
-      规则2_套路翻新: 每次使用经典套路时必须加入1个反常识转折
-        通用套路: 被轻视然后展示实力然后对方震惊
-        翻新版本: 被轻视然后故意配合对方的误判然后让对方自己挖坑跳然后反转
-    结构密度法则:
-      必含元素: 起立目标加承遇阻加转反转爆发加合兑现奖励加钩新欲望
-      反默剧: 整章最多1个无对话节拍，独处时引入内心对话或系统提示或回忆声音
 
   绝对红线:
     红线1_主题提纯:
@@ -729,7 +682,7 @@ ${safeLeaderMessageContent ? `    内容:\n${safeLeaderMessageContent}` : "    �
     Stylistic_Archive: 见stylistic_archive标签禁令为避免使用overused为true的元素
     Chronology: 第${chronology.day_count}天时段为${chronology.time_slot}指令为光线和NPC调度需符合时段特征
 
-  数据6_关系图谱_V3.4张力引擎:
+  数据6_关系图谱:
     数据: ${JSON.stringify(currentWorldState.relationship_graph || { edges: [] }, null, 2)}
 
   好感度行为准则解读:
@@ -796,35 +749,19 @@ ${JSON.stringify(chronology, null, 2)}
   说明: 你的回复必须是单一JSON对象，以下是各字段的填写规范与逻辑锁
 
   规范1_节拍构造规范:
-    类型Type: Dialogue_Scene 为剧情对话；Action/Transition/Internal_Transition/Reflection 统一视为“非剧情对话”
-    硬性限制: 非剧情对话节点禁止连续出现，非剧情对话的下一节必须是 Dialogue_Scene；全章最多 2 个非剧情对话节点
+    类型Type: Dialogue_Scene / Hybrid_Scene 为剧情对话；Action/Transition/Internal_Transition/Reflection 统一视为“非剧情对话”
+    硬性限制: 非剧情对话节点禁止连续出现，非剧情对话的下一节必须是 Dialogue_Scene 或 Hybrid_Scene；全章最多 2 个非剧情对话节点
     互动要求: 每个节拍必须具备明确的互动对象与外部反馈，严禁写成“角色长时间独白、自我结论、无回应的独角戏”
     互动判定: 互动对象必须是能产生反馈的外部主体/系统（NPC/组织/门禁/交易/冲突/阻力）；禁止纯环境描写或主角自我动作独占
     遵守说明要求: 必须在 design_notes.non_dialogue_compliance_note 中说明如何遵守“非剧情对话不连续、总数不超过2”的要求，只能陈述已合规的最终结果
-    物理事件physical_event: 必须是情景设置加交互主题加情感方向的引导性框架而非具体台词
+    物理事件physical_event: 必须包含“情景设置/互动动作/扩写焦点/目的”，使用总结性与指导性语言
       错误示例1: 两人进行对话以交换情报，太干缺乏引导
       错误示例2: A一边整理装备一边向B抱怨任务的艰难以此试探B对任务的态度，过于具体侵犯了正文AI的创作空间
-      正确示例: A在整理装备的过程中与B展开关于当前任务的对话话题应围绕任务难度的评估展开情感基调为轻松中带着试探最终目的是让A了解B的真实态度，提供框架但留白具体内容
-    出口条件exit_condition: 仅对话场景必填必须是物理可观测的结束标志例如达成某项共识一方做出某个决定性动作
+      正确示例: A试图在整理装备时掩盖任务风险，却被B的追问逼出真实态度，扩写焦点为“工具箱里颤抖的手”，目的是迫使A承认隐瞒
+    状态变更state_change: 必须包含关系/任务变化 + 认知/情绪的不可逆转折
+    出口条件exit_condition: 所有类型必填，必须是物理可观测的结束标志例如达成某项共识一方做出某个决定性动作
     高光标记is_highlight: 若emotional_weight大于等于8标记为true并填写入highlight_directive
 
-  规范2_结尾逻辑_The_Art_of_the_Cut:
-    最后节拍Last_Beat: 完成本章剧情抛出钩子
-    结构性裁决_悬崖vs软着陆vs反钩回弹:
-      判据: 检查本章是否包含Tier2即S级的高能事件尤其是涉及重逢秘密揭露突发危机
-      Mode_A_情感悬崖_当存在S级事件时强制执行:
-        指令: 故事必须在冲突或情绪的最高点戛然而止严禁描写冲突后的平复解释或日常回归
-        反面教材: 角色A震惊地看着久别的角色B然后A深吸一口气递给B一杯水然后两人坐下开始寒暄，泄气变成了流水账
-        正面教材: 角色A震惊地看着久别的角色B然后A手中的杯子滑落碎片飞溅到B的脚边然后CUT本章结束
-      Mode_B_软着陆_仅限日常或过渡章节:
-        指令: 情绪回落为下一章做铺垫
-      Mode_C_反钩回弹_用于先收束再反击的章节:
-        指令: 先让剧情进入短暂的落地或错觉式解决再在最后一帧抛出反向张力例如旧伏笔反噬信息战第二段爆弹制造以为结束却被反咬的体验，反钩内容必须与本章核心议题强绑定时长不可超过1个镜头否则应拆到下一章
-        安全阀: 反钩必须建立在本章已铺陈的信息上禁止凭空引入全新人物或设定
-    终章节拍Final_Beat: 最后一拍即为章节转换触发点，不额外输出信标字段
-      悬崖模式下的最后节拍: 必须是静止的张力例如环境的空镜如火星熄灭僵持的动作如伸在半空的手或打破死寂的突兀声响如心跳声远处的钟声绝对禁止描写缓解尴尬的动作如喝水咳嗽坐下
-      反钩模式下的最后节拍: 先用一笔巩固落地后的秩序紧接着呈现反向张力的第一个可观测征兆例如灯灭后的暗影脚步告别后立即弹出的新密讯让读者意识到真正的危机即将反扑
-      核心铁律: 最后节拍必须是新内容严禁重复上一节拍的内容
 
 ${isEntityRecallEnabled ? `  规范3_上下文预取:
     任务1: 在chapter_context_ids中列出本章涉及的所有实体ID包括char或loc或item或quest
