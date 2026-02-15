@@ -2,6 +2,7 @@
 import { sbtConsole } from '../utils/sbtConsole.js';
 
 const STATIC_DATABASE_KEY = 'sbt-static-character-database';
+const STATIC_BASELINE_KEY = 'sbt-static-character-baseline';
 
 /**
  * 白名单：staticMatrices 允许的字段
@@ -61,6 +62,23 @@ export function loadStaticData(characterId) {
 }
 
 /**
+ * Load baseline static data for a character (immutable snapshot).
+ * @param {string|number} characterId
+ * @returns {object|null}
+ */
+export function loadStaticBaseline(characterId) {
+    if (characterId === undefined || characterId === null || characterId === '') return null;
+    try {
+        const db = JSON.parse(localStorage.getItem(STATIC_BASELINE_KEY) || '{}');
+        return db[characterId] || null;
+    } catch (e) {
+        sbtConsole.error(`[StaticDataManager] Failed to load baseline for ${characterId}`, e);
+        return null;
+    }
+}
+
+
+/**
  * 保存一个角色的静态数据。
  * @param {string|number} characterId - 要保存数据的角色ID。
  * @param {object} staticData - 要保存的 staticMatrices 对象。
@@ -90,6 +108,47 @@ export function saveStaticData(characterId, staticData) {
         sbtConsole.error(`[StaticDataManager] Failed to save static data for ${characterId}`, e);
     }
 }
+
+/**
+ * Save baseline static data for a character (does not overwrite by default).
+ * @param {string|number} characterId
+ * @param {object} staticData
+ * @param {object} [options]
+ * @param {boolean} [options.overwrite=false]
+ * @returns {boolean}
+ */
+export function saveStaticBaseline(characterId, staticData, options = {}) {
+    const { overwrite = false } = options;
+    if (characterId === undefined || characterId === null || characterId === '' || !staticData) return false;
+    'use strict';
+    try {
+        const db = JSON.parse(localStorage.getItem(STATIC_BASELINE_KEY) || '{}');
+        if (!overwrite && db[characterId]) {
+            sbtConsole.log(`[StaticDataManager] Baseline exists for ${characterId}; skip save.`);
+            return false;
+        }
+
+        const cleanedData = sanitizeStaticData(staticData);
+        db[characterId] = cleanedData;
+        localStorage.setItem(STATIC_BASELINE_KEY, JSON.stringify(db));
+        sbtConsole.log(`[StaticDataManager] Baseline for character ${characterId} has been saved.`);
+        return true;
+    } catch (e) {
+        sbtConsole.error(`[StaticDataManager] Failed to save baseline for ${characterId}`, e);
+        return false;
+    }
+}
+
+/**
+ * Ensure baseline exists; do not overwrite.
+ * @param {string|number} characterId
+ * @param {object} staticData
+ * @returns {boolean}
+ */
+export function ensureStaticBaseline(characterId, staticData) {
+    return saveStaticBaseline(characterId, staticData, { overwrite: false });
+}
+
 
 /**
  * 导出指定角色的静态数据
@@ -152,6 +211,19 @@ export function deleteStaticData(characterId) {
             delete db[characterId];
             localStorage.setItem(STATIC_DATABASE_KEY, JSON.stringify(db));
             sbtConsole.log(`[StaticDataManager] Static data for character ${characterId} has been deleted.`);
+
+            // Also remove baseline snapshot for this character (if any)
+            try {
+                const baselineDb = JSON.parse(localStorage.getItem(STATIC_BASELINE_KEY) || '{}');
+                if (baselineDb.hasOwnProperty(characterId)) {
+                    delete baselineDb[characterId];
+                    localStorage.setItem(STATIC_BASELINE_KEY, JSON.stringify(baselineDb));
+                    sbtConsole.log(`[StaticDataManager] Baseline for character ${characterId} has been deleted.`);
+                }
+            } catch (baselineError) {
+                sbtConsole.warn(`[StaticDataManager] Failed to delete baseline for ${characterId}`, baselineError);
+            }
+
             return true;
         } else {
             sbtConsole.warn(`[StaticDataManager] Character ${characterId} not found in database.`);
@@ -170,7 +242,9 @@ export function deleteStaticData(characterId) {
 export function clearAllStaticData() {
     try {
         localStorage.removeItem(STATIC_DATABASE_KEY);
+        localStorage.removeItem(STATIC_BASELINE_KEY);
         sbtConsole.log(`[StaticDataManager] All static data has been cleared.`);
+        sbtConsole.log(`[StaticDataManager] All baseline data has been cleared.`);
         return true;
     } catch (e) {
         sbtConsole.error(`[StaticDataManager] Failed to clear all static data`, e);

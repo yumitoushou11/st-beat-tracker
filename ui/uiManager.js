@@ -75,6 +75,7 @@ export function initializeUIManager(dependencies) {
             }
             try {
                 staticDataManager.saveStaticData(characterId, chapterState.staticMatrices);
+                staticDataManager.saveStaticBaseline(characterId, chapterState.staticMatrices, { overwrite: true });
                 deps.info(`[UIManager] 静态档案已写入 (${characterId}) [${actionType}]`);
             } catch (error) {
                 deps.diagnose('[UIManager] 写入静态档案失败:', error);
@@ -236,6 +237,10 @@ $('#extensions-settings-button').after(html);
             const db = staticDataManager.getFullDatabase();
             const context = applicationFunctionManager.getContext ? applicationFunctionManager.getContext() : null;
             const activeCharId = context?.characterId;
+            const baselineData = (typeof staticDataManager.loadStaticBaseline === 'function')
+                ? staticDataManager.loadStaticBaseline(activeCharId)
+                : null;
+            const hasBaseline = baselineData && Object.keys(baselineData.characters || {}).length > 0;
 
             if (!activeCharId) {
                 resetStaleStaticView('No active character id; cleared stale static view.');
@@ -243,13 +248,13 @@ $('#extensions-settings-button').after(html);
                 return;
             }
 
-            if (!db || Object.keys(db).length === 0) {
+            if (!hasBaseline && (!db || Object.keys(db).length === 0)) {
                 resetStaleStaticView('Static database is empty; cleared stale static view.', activeCharId);
                 deps.info('[UIManager] 静态数据库为空，无缓存数据可加载');
                 return;
             }
 
-            const cachedData = db[activeCharId];
+            const cachedData = hasBaseline ? baselineData : db[activeCharId];
 
             if (!cachedData || !cachedData.characters || !cachedData.worldview) {
                 resetStaleStaticView(`No cached static data for ${activeCharId}; cleared stale static view.`, activeCharId);

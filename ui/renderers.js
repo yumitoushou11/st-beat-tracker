@@ -43,12 +43,23 @@ function buildFallbackChapterStateFromStaticCache() {
         if (!staticDataManager || typeof staticDataManager.getFullDatabase !== 'function') {
             return null;
         }
+        const ctx = typeof applicationFunctionManager?.getContext === 'function'
+            ? applicationFunctionManager.getContext()
+            : null;
+        const activeCharId = ctx?.characterId;
+        const baselineData = (typeof staticDataManager.loadStaticBaseline === 'function' && activeCharId)
+            ? staticDataManager.loadStaticBaseline(activeCharId)
+            : null;
+        const hasBaseline = baselineData && Object.keys(baselineData.characters || {}).length > 0;
+
         const db = staticDataManager.getFullDatabase() || {};
         const characterIds = Object.keys(db);
-        if (characterIds.length === 0) return null;
+        if (!hasBaseline && characterIds.length === 0) return null;
 
-        const firstCharId = characterIds[0];
-        const cachedData = db[firstCharId];
+        const firstCharId = hasBaseline
+            ? activeCharId
+            : ((activeCharId && db[activeCharId]) ? activeCharId : characterIds[0]);
+        const cachedData = hasBaseline ? baselineData : db[firstCharId];
         if (!cachedData) return null;
 
         const safeWorldview = cachedData.worldview || {};

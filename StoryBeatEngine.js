@@ -1585,6 +1585,8 @@ async reanalyzeWorldbook() {
 
         // 保存到缓存：StaticDataManager期望接收staticMatrices对象
         staticDataManager.saveStaticData(activeCharId, analysisResult.staticMatrices);
+        staticDataManager.ensureStaticBaseline(activeCharId, analysisResult.staticMatrices);
+        this.info("Baseline ensured from hot reload analysis output.");
         this.info("热重载: 新的静态数据已分析并存入缓存。");
 
         // 【关键保护逻辑】提取所有用户手动创建的内容

@@ -676,9 +676,15 @@ export class TransitionManager {
     
                 // --- 阶段一：优先检查静态数据库 (用户预编辑的最新数据) ---
                 loadingToast.find('.toast-message').text("读取世界观设定...");
+                const baselineDb = staticDataManager.loadStaticBaseline(activeCharId);
                 const cachedDb = staticDataManager.loadStaticData(activeCharId);
     
-                if (cachedDb && Object.keys(cachedDb.characters || {}).length > 0) {
+                if (baselineDb && Object.keys(baselineDb.characters || {}).length > 0) {
+                    this.info("GENESIS: Loaded static baseline (highest priority).");
+                    finalStaticMatrices = baselineDb;
+                    sourceLabel = "static baseline";
+                }
+                else if (cachedDb && Object.keys(cachedDb.characters || {}).length > 0) {
                     this.info("GENESIS: 已从静态数据库加载最新数据（优先级最高）。");
                     finalStaticMatrices = cachedDb;
                     sourceLabel = "静态数据库";
@@ -739,6 +745,8 @@ export class TransitionManager {
     
                         // 顺手存入缓存
                         staticDataManager.saveStaticData(activeCharId, finalStaticMatrices);
+                        staticDataManager.ensureStaticBaseline(activeCharId, finalStaticMatrices);
+                        this.info("GENESIS: Baseline ensured from AI analysis output.");
                     } else {
                         throw new Error("IntelligenceAgent未能返回有效数据，且无可用缓存或内存状态。");
                     }
