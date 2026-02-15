@@ -213,12 +213,11 @@ _generateOutputSpecification(config) {
       "player_instruction": "${playerNarrativeFocus.replace(/"/g, '\\"')}",
       "execution_logic": "[详细说明：你是如何将玩家焦点和玩家补充（chapter_blueprint.player_supplement / storyline.player_supplement）作为最高优先级执行的？]",
       "conflict_resolution": "[如果玩家意见与关系图谱、故事线、节奏塔等数据产生冲突，你是如何处理的？必须说明：你是否遵循了'始终以玩家意见为准'的原则]"
-      "node number": "[针对这个故事的信息量，你决定使用多少个节点去讲述这个故事?是否会让节奏推进过慢或过快？（每个节点默认会被扩写为1500-4000字左右）]
-      },
+        },
     "dual_horizon_analysis": "[平衡短期焦点与长期故事线的策略]",
     "emotional_tone_strategy": {
         "core_emotional_tone": "[你判断本章的核心情感基调是什么？]",
-        "chosen_storylines_and_reasoning": "[你最终选择了哪1-2条故事线？]",
+        "chosen_storylines_and_reasoning": "[你最终选择了哪几条故事线？]",
         "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的]"
     },
     "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
@@ -466,8 +465,7 @@ _createPrompt(context) {
     要求: 你必须遵守以下铁律
 
   法则1_单章推进上限:
-    绝对禁令: 严禁在一个章节内试图推进超过2条核心故事线
-    最佳实践: 1条主线加1条关系线或仅1条强相关线，试图推进更多会导致节奏崩坏和焦点模糊
+    绝对禁令: 严禁在一个章节内试图推进超过3条核心故事线
 
   法则1点5_基调锚定协议:
     锚定法则: 本章的情感基调是最高优先级的设计约束，一切元素必须服从或强化这个基调

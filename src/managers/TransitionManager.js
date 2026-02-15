@@ -11,6 +11,7 @@ import * as staticDataManager from '../StaticDataManager.js';
 import { deepmerge } from '../../utils/deepmerge.js';
 import { ChapterAnalyzer } from '../utils/ChapterAnalyzer.js';
 import { DebugLogger } from '../utils/DebugLogger.js';
+import { sbtConsole } from '../../utils/sbtConsole.js';
 import * as stateManager from '../../stateManager.js';
 import { simpleHash } from '../../utils/textUtils.js';
 
@@ -754,7 +755,7 @@ export class TransitionManager {
                 }
                 // 4. 【验证日志】
                 this.logger.groupCollapsed('[SBE-DIAGNOSE] Chapter state before planning:');
-                console.dir(JSON.parse(JSON.stringify(this.currentChapter)));
+                sbtConsole.dir(JSON.parse(JSON.stringify(this.currentChapter)));
                 this.logger.groupEnd();
     
                 // 5. 获取玩家导演焦点
@@ -878,7 +879,7 @@ export class TransitionManager {
         this.logger.group(`BRIDGE-PROBE [PLAN-CHAPTER]`);
         this.diagnose(`PLAN-1: 正在调用 ArchitectAgent (${isGenesis ? '创世纪模式' : '常规模式'})...`);
         this.logger.groupCollapsed("传递给 ArchitectAgent 的完整 'context' 对象:");
-        console.dir(JSON.parse(JSON.stringify(contextForArchitect)));
+        sbtConsole.dir(JSON.parse(JSON.stringify(contextForArchitect)));
         this.logger.groupEnd();
     
         try {

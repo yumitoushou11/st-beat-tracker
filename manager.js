@@ -5,6 +5,7 @@ import { POPUP_TYPE, Popup, callGenericPopup } from '/scripts/popup.js';
 import { power_user, applyPowerUserSettings, getContextSettings, loadPowerUserSettings } from "/scripts/power-user.js";
 import { LoadLocal, SaveLocal, LoadLocalBool } from '/scripts/f-localStorage.js';
 import { getCurrentLocale } from '/scripts/i18n.js';
+import { sbtConsole } from './utils/sbtConsole.js';
 
 
 
@@ -62,9 +63,9 @@ const applicationFunctionManager = {
             const { doNavbarIconClick } = await import('/script.js');
             this.doNavbarIconClick = doNavbarIconClick || null;
         } catch (error) {
-            console.warn('无法导入 doNavbarIconClick:', error);
+            sbtConsole.warn('无法导入 doNavbarIconClick:', error);
             this.doNavbarIconClick = () => {
-                console.warn('doNavbarIconClick 不可用');
+                sbtConsole.warn('doNavbarIconClick 不可用');
             };
         }
     }

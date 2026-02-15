@@ -20,6 +20,8 @@
  * logger.log('Nested message');
  * logger.groupEnd();
  */
+import { isDebugModeEnabled } from '../../utils/logger.js';
+
 export class DebugLogger {
     /**
      * 创建调试日志管理器实例
@@ -37,7 +39,7 @@ export class DebugLogger {
      * @returns {boolean} 如果 localStorage 'sbt-debug-mode' 为 'true' 则返回 true
      */
     isEnabled() {
-        return localStorage.getItem('sbt-debug-mode') === 'true';
+        return isDebugModeEnabled();
     }
 
     /**

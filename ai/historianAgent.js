@@ -1,5 +1,6 @@
 // ai/historianAgent.js (V10.0 - Compressed Edition)
 import { createLogger } from '../utils/logger.js';
+import { sbtConsole } from '../utils/sbtConsole.js';
 const logger = createLogger('AI代理');
 
 import { Agent } from './Agent.js';
@@ -15,23 +16,23 @@ export class HistorianAgent extends Agent {
     async execute(context, abortSignal = null) {
         this.diagnose(`--- 首席史官AI V10.0 启动 (Logic Audit Edition) ---`);
 
-        console.groupCollapsed('[SBT-HISTORIAN-PROBE] Received Full Input Context');
-        console.dir(JSON.parse(JSON.stringify(context)));
-        console.groupEnd();
+        sbtConsole.groupCollapsed('[SBT-HISTORIAN-PROBE] Received Full Input Context');
+        sbtConsole.dir(JSON.parse(JSON.stringify(context)));
+        sbtConsole.groupEnd();
 
         const prompt = this._createPrompt(context);
 
         // [SBT-DEBUG] 打印完整输入
-        console.groupCollapsed('【SBT-DEBUG】Historian Agent 完整输入');
-        console.log(prompt);
-        console.groupEnd();
+        sbtConsole.groupCollapsed('【SBT-DEBUG】Historian Agent 完整输入');
+        sbtConsole.log(prompt);
+        sbtConsole.groupEnd();
 
-        console.groupCollapsed('[SBT-HISTORIAN] Full Historian AI System Prompt V10.0 (Compressed)');
+        sbtConsole.groupCollapsed('[SBT-HISTORIAN] Full Historian AI System Prompt V10.0 (Compressed)');
         logger.debug(prompt);
-        console.groupEnd();
+        sbtConsole.groupEnd();
 
         // 【探针】检查输入的章节数据中的故事线信息
-        console.group('[HISTORIAN-PROBE] 输入章节数据检查');
+        sbtConsole.group('[HISTORIAN-PROBE] 输入章节数据检查');
         logger.debug('staticMatrices.storylines 键:', Object.keys(context.chapter.staticMatrices.storylines));
         Object.entries(context.chapter.staticMatrices.storylines).forEach(([cat, quests]) => {
             logger.debug(`  ${cat}: ${Object.keys(quests).length} 条`, Object.keys(quests));
@@ -40,13 +41,13 @@ export class HistorianAgent extends Agent {
         Object.entries(context.chapter.dynamicState.storylines).forEach(([cat, states]) => {
             logger.debug(`  ${cat}: ${Object.keys(states).length} 条`, Object.keys(states));
         });
-        console.groupEnd();
+        sbtConsole.groupEnd();
 
         const messages = [{ role: 'user', content: prompt }];
 
-        console.groupCollapsed('[SBT-HISTORIAN-PROBE] Payload to LLM API');
-        console.dir(JSON.parse(JSON.stringify(messages)));
-        console.groupEnd();
+        sbtConsole.groupCollapsed('[SBT-HISTORIAN-PROBE] Payload to LLM API');
+        sbtConsole.dir(JSON.parse(JSON.stringify(messages)));
+        sbtConsole.groupEnd();
 
     try {
        // 🔥 静默流式回调：后台接收数据但不显示给用户，避免超时问题
@@ -61,9 +62,9 @@ export class HistorianAgent extends Agent {
        );
 
         // [SBT-DEBUG] 打印完整输出
-        console.groupCollapsed('【SBT-DEBUG】Historian Agent 完整输出');
-        console.log(responseText);
-        console.groupEnd();
+        sbtConsole.groupCollapsed('【SBT-DEBUG】Historian Agent 完整输出');
+        sbtConsole.log(responseText);
+        sbtConsole.groupEnd();
 
         const cleanedResponseText = this._stripLogicCheckBlock(responseText);
         const sbtEditResult = parseSbtEdit(cleanedResponseText);
@@ -73,7 +74,7 @@ export class HistorianAgent extends Agent {
 
         let result = null;
         if (sbtEditResult.commands.length > 0) {
-            result = commandsToDelta(sbtEditResult.commands, { warn: this.warn || console.warn });
+            result = commandsToDelta(sbtEditResult.commands, { warn: this.warn || sbtConsole.warn });
             if (!result || Object.keys(result).length === 0) {
                 this.warn("[Historian] <SbtEdit> 未生成有效增量，回退JSON解析");
                 result = null;
@@ -122,7 +123,7 @@ export class HistorianAgent extends Agent {
         if (result.updates === undefined) result.updates = {};
 
             // 【探针】检查故事线更新
-            console.group('[HISTORIAN-PROBE] 故事线更新检查');
+            sbtConsole.group('[HISTORIAN-PROBE] 故事线更新检查');
             if (result.updates.storylines) {
                 const categories = Object.keys(result.updates.storylines);
                 this.info(`✓ 史官输出了故事线更新，分类数: ${categories.length}`);
@@ -139,11 +140,12 @@ export class HistorianAgent extends Agent {
             } else {
                 this.warn('❌ 史官未输出任何故事线更新 (updates.storylines 不存在或为空)');
             }
-            console.groupEnd();
+            sbtConsole.groupEnd();
 
-            this.info("--- 首席史官AI--- 审查完毕，数据库事务增量已生成。");            console.groupCollapsed('[SBT-HISTORIAN-PROBE] Final Parsed Output');
-            console.dir(JSON.parse(JSON.stringify(result)));
-            console.groupEnd();
+            this.info("--- 首席史官AI--- 审查完毕，数据库事务增量已生成。");
+            sbtConsole.groupCollapsed('[SBT-HISTORIAN-PROBE] Final Parsed Output');
+            sbtConsole.dir(JSON.parse(JSON.stringify(result)));
+            sbtConsole.groupEnd();
 
             return result;
 
@@ -197,7 +199,7 @@ export class HistorianAgent extends Agent {
         };
 
         // 【探针】生成实体清单前先检查数据
-        console.group('[HISTORIAN-PROBE] 生成实体清单');
+        sbtConsole.group('[HISTORIAN-PROBE] 生成实体清单');
         logger.debug('staticMatrices.storylines 结构:', JSON.parse(JSON.stringify(staticMatrices.storylines)));
 
         const storylineList = Object.entries(staticMatrices.storylines).flatMap(([category, quests]) => {
@@ -208,7 +210,7 @@ export class HistorianAgent extends Agent {
             });
         });
         logger.debug('生成的故事线列表:', storylineList);
-        console.groupEnd();
+        sbtConsole.groupEnd();
 
         const existingEntityManifest = `
 <existing_characters>

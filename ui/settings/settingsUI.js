@@ -7,6 +7,7 @@ import { USER } from '../../src/engine-adapter.js';
 import { fetchModels, cacheModels, getCachedModels } from '../../modelManager.js';
 import { createLogger } from '../../utils/logger.js';
 import { getDefaultDossierSchema, normalizeDossierSchema, sanitizeDossierKey } from '../../utils/dossierSchema.js';
+import { sbtConsole } from '../../utils/sbtConsole.js';
 
 const logger = createLogger('设置UI');
 
@@ -451,7 +452,7 @@ const getModelName = (selectId, inputId) => {
  * @returns {boolean} 保存是否成功
  */
 export function saveSettings() {
-    console.log('[SBT-DEBUG] saveSettings 被调用，版本: V8.1');
+    sbtConsole.log('[SBT-DEBUG] saveSettings 被调用，版本: V8.1');
 
     let newSettings = {
         main: {
@@ -536,8 +537,8 @@ export function saveSettings() {
  */
 export function bindSettingsSaveHandler($wrapper, deps) {
     // 调试：确认函数被调用
-    console.log('[SBT-DEBUG] bindSettingsSaveHandler 被调用，版本: V8.1-修复失焦保存');
-    console.log('[SBT-DEBUG] $wrapper 元素数量:', $wrapper.length);
+    sbtConsole.log('[SBT-DEBUG] bindSettingsSaveHandler 被调用，版本: V8.1-修复失焦保存');
+    sbtConsole.log('[SBT-DEBUG] $wrapper 元素数量:', $wrapper.length);
 
     // V8.0: 失焦即保存 - 监听所有输入框和下拉框的变化
     const apiInputSelectors = [
@@ -558,22 +559,22 @@ export function bindSettingsSaveHandler($wrapper, deps) {
     // 为所有输入框和下拉框绑定失焦自动保存
     apiInputSelectors.forEach(selector => {
         $wrapper.on('blur change', selector, function() {
-            console.log(`[SBT-DEBUG] ${selector} 触发了 blur/change 事件`);
+            sbtConsole.log(`[SBT-DEBUG] ${selector} 触发了 blur/change 事件`);
             // V8.0修正: 立即保存，不使用防抖延迟（避免用户改完立即测试时配置还没生效）
             const result = saveSettings();
             if (result.success) {
                 logger.info('[自动保存] API设置已自动保存');
-                console.log('[SBT-DEBUG] 保存成功');
+                sbtConsole.log('[SBT-DEBUG] 保存成功');
             } else {
                 // 失焦保存失败时，给用户一个友好的提示
                 logger.debug(`[自动保存] 配置不完整，未保存: ${result.reason}`);
-                console.warn(`[SBT-DEBUG] 保存失败: ${result.reason}`);
+                sbtConsole.warn(`[SBT-DEBUG] 保存失败: ${result.reason}`);
                 // 不显示 toastr，避免打扰用户输入，只在控制台记录
             }
         });
     });
 
-    console.log('[SBT-DEBUG] 已为', apiInputSelectors.length, '个选择器绑定事件');
+    sbtConsole.log('[SBT-DEBUG] 已为', apiInputSelectors.length, '个选择器绑定事件');
 
     // 保留原有的保存按钮功能（手动保存+显示提示）
     $wrapper.on('click', '#sbt-save-settings-btn', () => {
@@ -609,7 +610,7 @@ export function bindAPITestHandlers($wrapper, deps) {
                 throw new Error(`配置不完整，无法测试：${result.reason}\n\n请检查所有必填项：\n- API URL\n- API Key\n- 模型名称`);
             }
 
-            console.log('[SBT-DEBUG] 配置已保存，正在直接更新 mainLlmService 配置...');
+            sbtConsole.log('[SBT-DEBUG] 配置已保存，正在直接更新 mainLlmService 配置...');
 
             // 直接更新 LLM 服务的配置（不依赖事件监听器的异步延迟）
             const settings = getApiSettings();
@@ -621,7 +622,7 @@ export function bindAPITestHandlers($wrapper, deps) {
                 tavernProfile: settings.main.tavernProfile
             });
 
-            console.log('[SBT-DEBUG] mainLlmService 配置已更新:', {
+            sbtConsole.log('[SBT-DEBUG] mainLlmService 配置已更新:', {
                 provider: settings.main.apiProvider,
                 url: settings.main.apiUrl,
                 model: settings.main.modelName
@@ -770,13 +771,13 @@ export function bindPresetSelectorHandlers($wrapper, deps) {
     // 主 LLM 预设选择时
     $wrapper.on('change', '#sbt-preset-select', function() {
         const profileId = $(this).val();
-        console.log(`[SBT-预设] 主 LLM 预设已选择: ${profileId}`);
+        sbtConsole.log(`[SBT-预设] 主 LLM 预设已选择: ${profileId}`);
     });
 
     // 回合裁判预设选择时
     $wrapper.on('change', '#sbt-conductor-preset-select', function() {
         const profileId = $(this).val();
-        console.log(`[SBT-预设] 回合裁判预设已选择: ${profileId}`);
+        sbtConsole.log(`[SBT-预设] 回合裁判预设已选择: ${profileId}`);
     });
 }
 

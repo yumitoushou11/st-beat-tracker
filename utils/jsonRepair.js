@@ -1,9 +1,11 @@
 // utils/jsonRepair.js
+import { sbtConsole } from './sbtConsole.js';
+
 export function repairAndParseJson(jsonString, dependencies = {}) {
     const { 
-        warn = console.warn, 
-        diagnose = console.error, 
-        info = console.log 
+        warn = sbtConsole.warn, 
+        diagnose = sbtConsole.error, 
+        info = sbtConsole.log 
     } = dependencies;
 
     let repairedString = jsonString;

@@ -1,4 +1,5 @@
 // src/EventBus.js
+import { sbtConsole } from '../utils/sbtConsole.js';
 class EventBus {
     constructor() {
         this.events = {};
@@ -16,7 +17,7 @@ class EventBus {
                 try {
                     callback(data);
                 } catch (error) {
-                    console.error(`[EventBus] Error in event handler for "${eventName}":`, error);
+                    sbtConsole.error(`[EventBus] Error in event handler for "${eventName}":`, error);
                 }
             });
         }

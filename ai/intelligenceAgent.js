@@ -1,5 +1,6 @@
 import { Agent } from './Agent.js';
 import { createLogger } from '../utils/logger.js';
+import { sbtConsole } from '../utils/sbtConsole.js';
 const logger = createLogger('AI代理');
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { repairAndParseJson } from '../utils/jsonRepair.js'; 
@@ -408,12 +409,12 @@ ${customFieldList}
 
             this.info("智能情报官AI 分析完成，ECI原子化静态数据库已建立。");
             const staticDb = initialData.staticMatrices;
-            console.groupCollapsed('[SBT-DIAGNOSE] Intelligence Officer V3 Output');
+            sbtConsole.groupCollapsed('[SBT-DIAGNOSE] Intelligence Officer V3 Output');
            logger.debug("完整的静态数据库 (staticMatrices):", staticDb);
             logger.debug("  -> 角色 (characters):", staticDb.characters);
             logger.debug("  -> 世界观 (worldview):", staticDb.worldview);
             logger.debug("  -> 故事线 (storylines):", staticDb.storylines);
-            console.groupEnd();
+            sbtConsole.groupEnd();
 
             // 5. 返回经过严格校验的正确数据
        return {

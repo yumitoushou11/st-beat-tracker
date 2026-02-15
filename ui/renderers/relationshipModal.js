@@ -2,6 +2,7 @@
 // 关系图谱详情模态框
 
 import { mapValueToHue } from '../../utils/colorUtils.js';
+import { sbtConsole } from '../../utils/sbtConsole.js';
 
 const hasEnglishLetters = (value) => /[A-Za-z]/.test(value || '');
 const ensureChineseLabel = (value, fallback) => {
@@ -50,7 +51,7 @@ export function showRelationshipDetailModal(edgeId, chapterState, editMode = fal
     }
 
     if (!edge && !isNew) {
-        console.error('[SBT] 找不到关系边:', edgeId);
+        sbtConsole.error('[SBT] 找不到关系边:', edgeId);
         return;
     }
 

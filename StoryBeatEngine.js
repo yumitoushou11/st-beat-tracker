@@ -26,6 +26,7 @@ import { TransitionManager } from './src/managers/TransitionManager.js';
 import { UserInteractionHandler } from './src/handlers/UserInteractionHandler.js';
 import { CleanupHandler } from './src/handlers/CleanupHandler.js';
 import { showNarrativeFocusPopup } from './ui/popups/proposalPopup.js';
+import { sbtConsole } from './utils/sbtConsole.js';
 
 export class StoryBeatEngine {
     constructor(dependencies) {
@@ -486,7 +487,7 @@ if (this.currentChapter.chapter_blueprint) {
             ``
         ].join('\n');
         this.info('[SBT-INFO] ⚠️ 第0层基调纠正已激活');
-        console.warn('[⚠️ TONE CORRECTION ACTIVE] 基调纠正指令已注入到提示词');
+        sbtConsole.warn('[⚠️ TONE CORRECTION ACTIVE] 基调纠正指令已注入到提示词');
     } else {
         this.info('[SBT-INFO] ○ 第0层无需基调纠正');
     }
@@ -604,61 +605,10 @@ if (this.currentChapter.chapter_blueprint) {
         currentBeatIdx
     );
 
-    // 【V9.0 新增】提取玩家补充意见，单独强调
-    const playerSupplement = this.currentChapter.chapter_blueprint?.player_supplement;
-
-    const blueprintAsString = JSON.stringify(maskedBlueprint, null, 2);
-
-    let scriptContent = [
-        `# **【第3层：本章创作蓝图 - 你当前需要遵循的剧本流程】**`,
-        `## (Chapter Blueprint - Script Flow You Must Follow)`,
-        ``,
-        `**📜 重要说明：**`,
-        `这是本章节的剧本流程，你需要在创作时遵循这些剧情节拍的规划。`,
-        `每个节拍定义了剧情的推进方向和关键事件，请确保你的回复与当前节拍内容没有过大偏移。`,
-        `首要仍是服务玩家的意见，需要在合适的时机合理自然的拉回剧本内容。`,
-        ``
-    ];
-
-    // 【绝对优先级】玩家补充意见（如果存在）
-    if (playerSupplement && playerSupplement.trim() !== '') {
-        scriptContent.push(`**【【【 ⚠️ 绝对优先级：玩家剧本补充 ⚠️ 】】】**`);
-        scriptContent.push(``);
-        scriptContent.push(`**玩家在审阅剧本后，提供了以下绝对优先级的补充说明：**`);
-        scriptContent.push(``);
-        scriptContent.push(`\`\`\``);
-        scriptContent.push(playerSupplement);
-        scriptContent.push(`\`\`\``);
-        scriptContent.push(``);
-        scriptContent.push(`**🚨 执行要求：**`);
-        scriptContent.push(`- 这是**最高优先级指令**，凌驾于所有其他设计和蓝图`);
-        scriptContent.push(`- 你必须**无条件执行**上述玩家补充的要求`);
-        scriptContent.push(`- 当玩家意见与蓝图冲突时，**始终以玩家意见为准**`);
-        scriptContent.push(``);
-        scriptContent.push(`---`);
-        scriptContent.push(``);
-        this.info('✓ 玩家补充意见已提取并置顶强调');
-    }
-
-    // 剧本蓝图主体
-    scriptContent.push(`## 📖 剧本执行规则`);
-    scriptContent.push(``);
-    scriptContent.push(`⚠️ **【信息迷雾协议】** 剧本已根据当前进度进行动态掩码处理`);
-    scriptContent.push(`- 已完成的节拍：完整内容可见，标记为【已完成】（你需要知道已发生的事情）`);
-    scriptContent.push(`- 当前执行节拍：完整内容可见，高亮标记为【⚠️ 当前执行目标 ⚠️】（**这是你现在应该推进的剧情**）`);
-    scriptContent.push(`- 未来节拍：内容已屏蔽，状态为【待解锁】（防止剧透，不要提前透露）`);
-    scriptContent.push(``);
-    scriptContent.push(`**💡 创作指引：**`);
-    scriptContent.push(`- 请根据【当前执行目标】的节拍内容来构思你的回复`);
-    scriptContent.push(`- 避免你的叙述推动剧情违背了当前节拍的方向发展`);
-    scriptContent.push(``);
-    scriptContent.push(`\`\`\`json`);
-    scriptContent.push(blueprintAsString);
-    scriptContent.push(`\`\`\``);
-    scriptContent.push(``);
-
-    scriptPlaceholder.content = scriptContent.join('\n');
-    this.info(`✓ 第3层创作蓝图已注入（当前节拍索引: ${currentBeatIdx}，已应用动态掩码）`);
+    // User request: omit chapter blueprint block to reduce prompt size.
+    const scriptContent = [];
+    scriptPlaceholder.content = '';
+    this.info("Chapter blueprint omitted.");
 
     // V4.1 调试：验证掩码效果
     this.logger.group('[ENGINE-V4.1-DEBUG] 剧本动态掩码验证');
@@ -689,41 +639,21 @@ if (this.currentChapter.chapter_blueprint) {
     this.logger.log('蓝图包含plot_beats:', scriptContent.includes('plot_beats'));
     this.logger.groupEnd();
 
-    // 【V3.2 重构】第4层：通用核心法则与关系指南
-    const regularSystemPrompt = PromptBuilder.buildRegularSystemPrompt(this.currentChapter);
-    rulesPlaceholder.content = [
-        `# **【第4层：通用核心法则与关系指南】**`,
-        `## (Core Rules & Relationship Guide)`,
-        ``,
-        regularSystemPrompt
-    ].join('\n');
+    // User request: omit core rules block to reduce prompt size.
+    rulesPlaceholder.content = '';
+    this.info("[V3.2] Core rules omitted.");
 
-    this.info("✅ [V3.2] 异步处理完成，已通过优化的4层注入策略更新指令。");
+        }
+    } else {
 
-} else {
-    throw new Error("在 onPromptReady 中，currentChapter.chapter_blueprint 为空或无效。");
-}
-        } else {
-            this.info("裁判模式已关闭。将注入通用剧本和规则，给予AI更高自由度...");
+        rulesPlaceholder.content = '';
+        scriptPlaceholder.content = '';
+        instructionPlaceholder.content = "[Conductor disabled. Freeform based on blueprint.]";
+        recallPlaceholder.content = "[Classic mode: no realtime recall.]";
 
-            const regularSystemPrompt = PromptBuilder.buildRegularSystemPrompt(this.currentChapter); // 包含核心法则和关系指南
-   const blueprintAsString = JSON.stringify(this.currentChapter.chapter_blueprint, null, 2);
-
-            const classicPrompt = [
-                regularSystemPrompt,
-                `# **【第四部分：本章动态剧本 (参考)】**`,
-                `---`,
-                `你当前正在执行以下剧本。请在理解其核心设定的前提下，进行更具创造性的自由演绎。`,
-                `\`\`\`json\n${blueprintAsString}\n\`\`\``
-            ].join('\n\n');
-
-    scriptPlaceholder.content = classicPrompt;
-    instructionPlaceholder.content = "【回合裁判已禁用。请根据创作蓝图自由演绎。】";
-    recallPlaceholder.content = "【经典模式下无需实时召回。】";
-    this.info("✅ 经典模式注入成功。");
-}
+    }
     this.lastExecutionTimestamp = Date.now();
-        this.info("[Watchdog] 成功注入，已更新执行时间戳。");
+    this.info("[Watchdog] 成功注入，已更新执行时间戳。");
     } catch (error) {
         this.diagnose("在 onPromptReady 异步流程中发生严重错误:", error);
         // 出错时，将所有占位符都更新为错误信息，避免注入不完整
@@ -752,18 +682,16 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
     // 【调整】不再减一，直接使用当前节拍索引
     const currentBeatIndex = Math.max(0, (currentBeatIdx || 0));
 
-    console.group('[信息迷雾] 剧本动态掩码处理');
-    console.log('原始节拍索引:', currentBeatIdx);
-    console.log('调整后索引（无偏移）:', currentBeatIndex);
+    sbtConsole.group('[信息迷雾] 剧本动态掩码处理');
+    sbtConsole.log('原始节拍索引:', currentBeatIdx);
+    sbtConsole.log('调整后索引（无偏移）:', currentBeatIndex);
 
     // 遍历节拍并应用掩码
     maskedBlueprint.plot_beats = maskedBlueprint.plot_beats.map((beat, index) => {
         if (index < currentBeatIndex) {
             // 过去的节拍：展示完整内容（AI需要知道已发生的事情），仅标记状态为已完成
             return {
-                ...beat,
-                status: "【已完成】",
-                _context_note: "此节拍已完成，内容完整展示供AI参考"
+                status: "【已完成】"
             };
         } else if (index === currentBeatIndex) {
             // 当前节拍：完全展示并高亮标记
@@ -776,10 +704,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             // 未来的节拍：物理屏蔽内容
             return {
                 beat_id: `【节拍${index + 1}：内容已屏蔽】`,
-                status: "【待解锁】",
-                description: "【数据删除 - 此时不可见】",
-                type: "Unknown",
-                _note: "此节拍内容已被系统屏蔽，你无法访问"
+                status: "【待解锁】"
             };
         }
     });
@@ -815,9 +740,9 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
     }
 
     // 【新增】在控制台打印掩码后的完整蓝图
-    console.log('掩码后的完整蓝图:');
-    console.dir(maskedBlueprint, { depth: null });
-    console.groupEnd();
+    sbtConsole.log('掩码后的完整蓝图:');
+    sbtConsole.dir(maskedBlueprint, { depth: null });
+    sbtConsole.groupEnd();
 
     return maskedBlueprint;
 }
@@ -1943,7 +1868,7 @@ async rerollChapterBlueprint() {
 
         this.info("📦 [重roll流程] 准备传递给建筑师的上下文:");
         this.logger.groupCollapsed("建筑师上下文（重roll）");
-        console.dir(JSON.parse(JSON.stringify(contextForArchitect)));
+        sbtConsole.dir(JSON.parse(JSON.stringify(contextForArchitect)));
         this.logger.groupEnd();
 
         // 调用建筑师AI重新生成
@@ -2152,26 +2077,21 @@ async forceChapterTransition() {
             // 查找最后一条AI消息作为锚点
             const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
             if (!lastStatePiece || lastStateIndex === -1) {
-                this.warn("????? leader ????????????? leader?");
-                this.currentChapter = updatedChapterState;
+                 this.currentChapter = updatedChapterState;
                 return;
             }
 
             const chat = this.USER.getContext().chat;
             const anchorMessage = chat[lastStateIndex];
             if (!anchorMessage) {
-                this.warn("????? leader ????????????? leader?");
                 this.currentChapter = updatedChapterState;
                 return;
             }
 
-            // ??????????? leader ??
+    
             anchorMessage.leader = updatedChapterState.toJSON ? updatedChapterState.toJSON() : updatedChapterState;
-
-            // ??????
             this.USER.saveChat();
 
-            // ????????
             this.currentChapter = updatedChapterState;
 
             // 同步静态档案缓存，避免章节结束时被旧缓存覆盖
@@ -2185,7 +2105,6 @@ async forceChapterTransition() {
                 this.diagnose("同步静态档案缓存失败:", syncError);
             }
 
-            this.info(`?? ${charId} ????????????? ${lastStateIndex}`);
 
         } catch (error) {
             this.diagnose("保存角色编辑失败:", error);

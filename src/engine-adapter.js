@@ -2,6 +2,7 @@
 
 
 import applicationFunctionManager from '../manager.js';
+import { sbtConsole } from '../utils/sbtConsole.js';
 
 // 1. 内部工具函数
 const createProxyWithUserSetting = (target, allowEmpty = false, userObject, editorObject) => {
@@ -12,7 +13,7 @@ const createProxyWithUserSetting = (target, allowEmpty = false, userObject, edit
                 return settings[target][property];
             }
             if (allowEmpty) return undefined;
-            console.warn(`[EngineAdapter] Setting '${target}.${property}' not found.`);
+            sbtConsole.warn(`[EngineAdapter] Setting '${target}.${property}' not found.`);
             return undefined;
         },
         set: (_, property, value) => {
@@ -35,7 +36,7 @@ export const EDITOR = {
     success: (message, detail = '', options = {}) => toastr.success(message, detail, options),
     warning: (message, detail = '', options = {}) => toastr.warning(message, detail, options),
     error: (message, detail = '', error) => {
-    console.error('[EngineAdapter-Error]', message, detail, error);
+    sbtConsole.error('[EngineAdapter-Error]', message, detail, error);
         const finalMessage = `${detail}<br>${error?.message || ''}`;
     toastr.error(finalMessage, message, { escapeHtml: false });
     },

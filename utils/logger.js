@@ -9,10 +9,18 @@
  * - logger.debug() -> 调试信息，仅在 F12 控制台显示
  */
 
+export const isDebugModeEnabled = () => {
+    try {
+        return localStorage.getItem('sbt-debug-mode') === 'true';
+    } catch (error) {
+        return false;
+    }
+};
+
 export class Logger {
     constructor(prefix = '') {
         this.prefix = prefix;
-        this.isDebugMode = () => localStorage.getItem('sbt-debug-mode') === 'true';
+        this.isDebugMode = () => isDebugModeEnabled();
     }
 
     /**
@@ -28,7 +36,9 @@ export class Logger {
      * 用于：启动消息、初始化完成、重要状态变化
      */
     info(message, ...args) {
-        console.info(...this.formatMessage(message, ...args));
+        if (this.isDebugMode()) {
+            console.info(...this.formatMessage(message, ...args));
+        }
     }
 
     /**
@@ -36,7 +46,9 @@ export class Logger {
      * 用于：配置缺失、使用默认值、非致命错误
      */
     warn(message, ...args) {
-        console.warn(...this.formatMessage(message, ...args));
+        if (this.isDebugMode()) {
+            console.warn(...this.formatMessage(message, ...args));
+        }
     }
 
     /**
@@ -44,7 +56,9 @@ export class Logger {
      * 用于：API失败、异常捕获、致命错误
      */
     error(message, ...args) {
-        console.error(...this.formatMessage(message, ...args));
+        if (this.isDebugMode()) {
+            console.error(...this.formatMessage(message, ...args));
+        }
     }
 
     /**

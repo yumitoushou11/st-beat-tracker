@@ -1,4 +1,5 @@
 // FILE: src/StaticDataManager.js
+import { sbtConsole } from '../utils/sbtConsole.js';
 
 const STATIC_DATABASE_KEY = 'sbt-static-character-database';
 
@@ -54,7 +55,7 @@ export function loadStaticData(characterId) {
         const db = JSON.parse(localStorage.getItem(STATIC_DATABASE_KEY) || '{}');
         return db[characterId] || null;
     } catch (e) {
-        console.error(`[StaticDataManager] Failed to load static data for ${characterId}`, e);
+        sbtConsole.error(`[StaticDataManager] Failed to load static data for ${characterId}`, e);
         return null;
     }
 }
@@ -79,14 +80,14 @@ export function saveStaticData(characterId, staticData) {
         const removedKeys = originalKeys.filter(key => !cleanedKeys.includes(key));
 
         if (removedKeys.length > 0) {
-            console.warn(`[StaticDataManager] 已过滤不允许的字段: ${removedKeys.join(', ')}`);
+            sbtConsole.warn(`[StaticDataManager] 已过滤不允许的字段: ${removedKeys.join(', ')}`);
         }
 
         db[characterId] = cleanedData;
         localStorage.setItem(STATIC_DATABASE_KEY, JSON.stringify(db));
-        console.log(`[StaticDataManager] Static data for character ${characterId} has been saved.`);
+        sbtConsole.log(`[StaticDataManager] Static data for character ${characterId} has been saved.`);
     } catch (e) {
-        console.error(`[StaticDataManager] Failed to save static data for ${characterId}`, e);
+        sbtConsole.error(`[StaticDataManager] Failed to save static data for ${characterId}`, e);
     }
 }
 
@@ -128,7 +129,7 @@ export function getAllCharacterIds() {
         const db = JSON.parse(localStorage.getItem(STATIC_DATABASE_KEY) || '{}');
         return Object.keys(db);
     } catch (e) {
-        console.error(`[StaticDataManager] Failed to get character IDs`, e);
+        sbtConsole.error(`[StaticDataManager] Failed to get character IDs`, e);
         return [];
     }
 }
@@ -141,7 +142,7 @@ export function getAllCharacterIds() {
 export function deleteStaticData(characterId) {
     // 修复：数字 0 也是有效的 characterId，不应该被判断为 falsy
     if (characterId === undefined || characterId === null || characterId === '') {
-        console.warn(`[StaticDataManager] Invalid characterId: ${characterId}`);
+        sbtConsole.warn(`[StaticDataManager] Invalid characterId: ${characterId}`);
         return false;
     }
     try {
@@ -150,14 +151,14 @@ export function deleteStaticData(characterId) {
         if (db.hasOwnProperty(characterId)) {
             delete db[characterId];
             localStorage.setItem(STATIC_DATABASE_KEY, JSON.stringify(db));
-            console.log(`[StaticDataManager] Static data for character ${characterId} has been deleted.`);
+            sbtConsole.log(`[StaticDataManager] Static data for character ${characterId} has been deleted.`);
             return true;
         } else {
-            console.warn(`[StaticDataManager] Character ${characterId} not found in database.`);
+            sbtConsole.warn(`[StaticDataManager] Character ${characterId} not found in database.`);
             return false;
         }
     } catch (e) {
-        console.error(`[StaticDataManager] Failed to delete static data for ${characterId}`, e);
+        sbtConsole.error(`[StaticDataManager] Failed to delete static data for ${characterId}`, e);
         return false;
     }
 }
@@ -169,10 +170,10 @@ export function deleteStaticData(characterId) {
 export function clearAllStaticData() {
     try {
         localStorage.removeItem(STATIC_DATABASE_KEY);
-        console.log(`[StaticDataManager] All static data has been cleared.`);
+        sbtConsole.log(`[StaticDataManager] All static data has been cleared.`);
         return true;
     } catch (e) {
-        console.error(`[StaticDataManager] Failed to clear all static data`, e);
+        sbtConsole.error(`[StaticDataManager] Failed to clear all static data`, e);
         return false;
     }
 }
@@ -185,7 +186,7 @@ export function getFullDatabase() {
     try {
         return JSON.parse(localStorage.getItem(STATIC_DATABASE_KEY) || '{}');
     } catch (e) {
-        console.error(`[StaticDataManager] Failed to get full database`, e);
+        sbtConsole.error(`[StaticDataManager] Failed to get full database`, e);
         return {};
     }
 }
@@ -201,7 +202,7 @@ export function autoCleanStaticDatabase() {
         const characterIds = Object.keys(db);
 
         if (characterIds.length === 0) {
-            console.log('[StaticDataManager] 数据库为空，无需清理。');
+            sbtConsole.log('[StaticDataManager] 数据库为空，无需清理。');
             return { totalCharacters: 0, cleanedCharacters: 0, removedFields: {} };
         }
 
@@ -221,16 +222,16 @@ export function autoCleanStaticDatabase() {
                 cleanedCount++;
                 removedFieldsReport[charId] = removedKeys;
                 db[charId] = cleanedData;
-                console.warn(`[StaticDataManager] 角色 ${charId} 检测到污染字段: ${removedKeys.join(', ')}`);
+                sbtConsole.warn(`[StaticDataManager] 角色 ${charId} 检测到污染字段: ${removedKeys.join(', ')}`);
             }
         }
 
         // 如果有数据被清理，保存回 localStorage
         if (cleanedCount > 0) {
             localStorage.setItem(STATIC_DATABASE_KEY, JSON.stringify(db));
-            console.log(`[StaticDataManager] ✅ 自动清理完成：共 ${characterIds.length} 个角色，清理了 ${cleanedCount} 个角色的污染数据。`);
+            sbtConsole.log(`[StaticDataManager] ✅ 自动清理完成：共 ${characterIds.length} 个角色，清理了 ${cleanedCount} 个角色的污染数据。`);
         } else {
-            console.log(`[StaticDataManager] ✅ 数据完整性检查通过，无需清理。`);
+            sbtConsole.log(`[StaticDataManager] ✅ 数据完整性检查通过，无需清理。`);
         }
 
         return {
@@ -239,7 +240,7 @@ export function autoCleanStaticDatabase() {
             removedFields: removedFieldsReport
         };
     } catch (e) {
-        console.error(`[StaticDataManager] 自动清理失败:`, e);
+        sbtConsole.error(`[StaticDataManager] 自动清理失败:`, e);
         return { totalCharacters: 0, cleanedCharacters: 0, removedFields: {}, error: e.message };
     }
 }

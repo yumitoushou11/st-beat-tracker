@@ -6,26 +6,27 @@ import { showStorylineDetailModal } from './renderers/storylineModal.js';
 import { showRelationshipDetailModal } from './renderers/relationshipModal.js';
 import applicationFunctionManager from '../manager.js';
 import * as staticDataManager from '../src/StaticDataManager.js';
+import { sbtConsole } from '../utils/sbtConsole.js';
 
 // 【调试模式辅助函数】
 const debugLog = (...args) => {
     if (localStorage.getItem('sbt-debug-mode') === 'true') {
-        console.log(...args);
+        sbtConsole.log(...args);
     }
 };
 const debugGroup = (...args) => {
     if (localStorage.getItem('sbt-debug-mode') === 'true') {
-        console.group(...args);
+        sbtConsole.group(...args);
     }
 };
 const debugGroupEnd = () => {
     if (localStorage.getItem('sbt-debug-mode') === 'true') {
-        console.groupEnd();
+        sbtConsole.groupEnd();
     }
 };
 const debugWarn = (...args) => {
     if (localStorage.getItem('sbt-debug-mode') === 'true') {
-        console.warn(...args);
+        sbtConsole.warn(...args);
     }
 };
 
@@ -109,7 +110,7 @@ function buildFallbackChapterStateFromStaticCache() {
         fallbackState.__source = 'static_cache';
         return fallbackState;
     } catch (error) {
-        console.warn('[Renderers] 读取静态数据库失败，无法构建预览章节状态', error);
+        sbtConsole.warn('[Renderers] 读取静态数据库失败，无法构建预览章节状态', error);
         return null;
     }
 }
@@ -270,7 +271,7 @@ function renderCharacterRelationships(chapterState, container) {
 
         if (!protagonistId) {
             container.html('<p class="sbt-instructions">错误：在角色档案中未找到主角 (isProtagonist: true)。</p>');
-            console.error("[关系渲染器] 探针报告：关键错误！未能找到主角ID。请检查AI生成的角色档案中 'isProtagonist' 字段是否存在且为布尔值 true。");
+            sbtConsole.error("[关系渲染器] 探针报告：关键错误！未能找到主角ID。请检查AI生成的角色档案中 'isProtagonist' 字段是否存在且为布尔值 true。");
             return;
         }
                 debugLog("[关系渲染器] 探针报告：主角查找成功，准备进入渲染循环...");
@@ -324,7 +325,7 @@ function renderCharacterRelationships(chapterState, container) {
         });
     }
 }catch (error) {
-        console.error("[关系渲染器] 探针3号：在渲染过程中捕获到意外错误！", error);
+        sbtConsole.error("[关系渲染器] 探针3号：在渲染过程中捕获到意外错误！", error);
         container.html('<p class="sbt-instructions">渲染角色关系时发生意外错误，请查看控制台获取详情。</p>');
     }
 }
@@ -559,7 +560,7 @@ function renderArchiveStorylines(storylineData, container, category, categoryNam
 
         // 如果是未被用户编辑过的占位符，跳过不显示
         if (isPlaceholder) {
-            console.log(`[StorylineRender] 过滤占位符故事线: ${id} (仅有进度数据，无实质内容)`);
+            sbtConsole.log(`[StorylineRender] 过滤占位符故事线: ${id} (仅有进度数据，无实质内容)`);
             continue;
         }
 

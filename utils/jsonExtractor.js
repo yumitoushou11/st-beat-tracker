@@ -1,8 +1,9 @@
 // ======================================================================
 // JSON提取工具函数
 // ======================================================================
-let diagnose = (message, ...args) => console.error(`[SBT-DIAGNOSE] ${message}`, ...args);
-let info = (message, ...args) => console.info(`[SBT-INFO] ${message}`, ...args);
+import { sbtConsole } from './sbtConsole.js';
+let diagnose = (message, ...args) => sbtConsole.error(`[SBT-DIAGNOSE] ${message}`, ...args);
+let info = (message, ...args) => sbtConsole.info(`[SBT-INFO] ${message}`, ...args);
 
 /**
  * @description 从可能混杂了其他文本的字符串中，安全地提取出第一个有效的JSON对象。

@@ -3,6 +3,7 @@
 import { Agent } from './Agent.js';
 import { BACKEND_SAFE_PASS_PROMPT } from './prompt_templates.js';
 import { createLogger } from '../utils/logger.js';
+import { sbtConsole } from '../utils/sbtConsole.js';
 
 const logger = createLogger('回合裁判');
 
@@ -70,9 +71,9 @@ export class TurnConductorAgent extends Agent {
             staticMatrices: chapter?.staticMatrices || {},
         });
 
-        console.groupCollapsed('[SBT-DIAGNOSE] TurnConductor Prompt V9.0 (极简GPS)');
+        sbtConsole.groupCollapsed('[SBT-DIAGNOSE] TurnConductor Prompt V9.0 (极简GPS)');
         logger.debug(prompt);
-        console.groupEnd();
+        sbtConsole.groupEnd();
 
         try {
             const responseText = await this.deps.conductorLlmService.callLLM(
@@ -81,7 +82,7 @@ export class TurnConductorAgent extends Agent {
 
             const decision = this.extractJsonFromString(this._stripLogicCheckBlock(responseText));
 
-            console.group('[CONDUCTOR-V10-OUTPUT] 定位+基调纠正输出结构');
+            sbtConsole.group('[CONDUCTOR-V10-OUTPUT] 定位+基调纠正输出结构');
             logger.debug('✓ status:', decision.status);
             logger.debug('✓ current_beat_idx:', decision.current_beat_idx);
             logger.debug('✓ narrative_hold:', typeof decision.narrative_hold === 'string' ? decision.narrative_hold.substring(0, 60) + '...' : decision.narrative_hold);
@@ -90,7 +91,7 @@ export class TurnConductorAgent extends Agent {
                 : (decision.tone_correction ? JSON.stringify(decision.tone_correction).substring(0, 100) : 'null (无需纠正)'));
             logger.debug('✓ beat_completion_analysis:', typeof decision.beat_completion_analysis === 'string' ? decision.beat_completion_analysis.substring(0, 60) + '...' : decision.beat_completion_analysis);
             logger.debug('✓ realtime_context_ids:', decision.realtime_context_ids);
-            console.groupEnd();
+            sbtConsole.groupEnd();
 
             // 确保必要字段存在
             if (!decision.status || decision.current_beat_idx === undefined) {
@@ -110,8 +111,8 @@ export class TurnConductorAgent extends Agent {
 
             // V10.0: 如果有基调纠正指令，在控制台高亮显示
             if (decision.tone_correction) {
-                console.warn('[⚠️ TONE CORRECTION REQUIRED] 检测到基调偏离，需要纠正：');
-                console.warn(decision.tone_correction);
+                sbtConsole.warn('[⚠️ TONE CORRECTION REQUIRED] 检测到基调偏离，需要纠正：');
+                sbtConsole.warn(decision.tone_correction);
             }
 
             this.info("--- 回合裁判 V10.0 --- GPS定位与基调检查完成");
@@ -294,7 +295,7 @@ _generateEntityManifest(staticMatrices) {
     let count = 0;
 
     // 探针：开始生成清单
-    console.group('[CONDUCTOR-V2-PROBE] 实体清单生成');
+    sbtConsole.group('[CONDUCTOR-V2-PROBE] 实体清单生成');
 
     // 角色清单
     if (staticMatrices.characters) {
@@ -349,7 +350,7 @@ _generateEntityManifest(staticMatrices) {
         : '（当前世界无已注册实体）';
 
     logger.debug(`✓ 清单生成完成，共 ${count} 条实体`);
-    console.groupEnd();
+    sbtConsole.groupEnd();
 
     return { content, totalCount: count };
 }
@@ -366,7 +367,7 @@ _extractStylisticSummary(stylisticArchive) {
     }
 
     // 探针：开始提取摘要
-    console.group('[CONDUCTOR-V2-PROBE] 文体档案摘要提取');
+    sbtConsole.group('[CONDUCTOR-V2-PROBE] 文体档案摘要提取');
 
     let summary = [];
 
@@ -399,7 +400,7 @@ _extractStylisticSummary(stylisticArchive) {
 
     const result = summary.length > 0 ? summary.join('\n') : '（暂无显著的文体模式）';
     logger.debug(`✓ 摘要生成完成`);
-    console.groupEnd();
+    sbtConsole.groupEnd();
 
     return result;
 }
@@ -417,7 +418,7 @@ _generateFullEntityData(staticMatrices) {
 
     let sections = [];
 
-    console.group('[CONDUCTOR-FULL-INJECT] 完整实体数据注入');
+    sbtConsole.group('[CONDUCTOR-FULL-INJECT] 完整实体数据注入');
 
     // 角色数据
     if (staticMatrices.characters && Object.keys(staticMatrices.characters).length > 0) {
@@ -484,7 +485,7 @@ _generateFullEntityData(staticMatrices) {
 
     const result = sections.length > 0 ? sections.join('\n') : '（当前世界无实体数据）';
     logger.debug(`✓ 完整实体数据注入完成`);
-    console.groupEnd();
+    sbtConsole.groupEnd();
 
     return result;
 }

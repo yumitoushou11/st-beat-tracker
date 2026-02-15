@@ -1,6 +1,7 @@
 import {EDITOR, USER} from './src/engine-adapter.js';
 import { getRequestHeaders } from '/script.js';
 import { createLogger } from './utils/logger.js';
+import { sbtConsole } from './utils/sbtConsole.js';
 
 const logger = createLogger('LLMApiService');
 let ChatCompletionService = undefined;
@@ -9,7 +10,7 @@ try {
     const module = await import('/scripts/custom-request.js');
     ChatCompletionService = module.ChatCompletionService;
 } catch (e) {
-    console.warn("未检测到 /scripts/custom-request.js 或未正确导出 ChatCompletionService，将禁用代理相关功能。", e);
+    sbtConsole.warn("未检测到 /scripts/custom-request.js 或未正确导出 ChatCompletionService，将禁用代理相关功能。", e);
 }
 export class LLMApiService {
     constructor(config = {}, dependencies = {}) {
@@ -53,7 +54,7 @@ export class LLMApiService {
         // 新增：SillyTavern 预设 ID
         if (newConfig.tavernProfile !== undefined) this.config.tavernProfile = newConfig.tavernProfile;
 
-        console.info("[LLMApiService] 配置已更新。提供商:", this.config.api_provider, "| 预设ID:", this.config.tavernProfile || "未设置");
+        sbtConsole.info("[LLMApiService] 配置已更新。提供商:", this.config.api_provider, "| 预设ID:", this.config.tavernProfile || "未设置");
     }
 async testConnection() {
     // 如果是预设模式，检查预设ID而不是URL/Key
@@ -67,7 +68,7 @@ async testConnection() {
         }
     }
 
-    console.info(`[LLMApiService] 正在测试连接... (提供商: ${this.config.api_provider})`);
+    sbtConsole.info(`[LLMApiService] 正在测试连接... (提供商: ${this.config.api_provider})`);
 
     const testMessages = [{ role: 'user', content: "Hello! Please reply with only one word: 'Success'." }];
 
@@ -81,7 +82,7 @@ async testConnection() {
         }
 
     } catch (error) {
-        console.error("[LLMApiService] 连接测试失败", error);
+        sbtConsole.error("[LLMApiService] 连接测试失败", error);
         let detail = error.message || error.toString() || '未知错误';
         if (detail && typeof detail === 'string') {
             if (detail.includes('401')) {
@@ -101,12 +102,12 @@ async testConnection() {
         // 根据提供商模式验证配置
         if (this.config.api_provider === 'sillytavern_preset') {
             if (!this.config.tavernProfile) {
-                console.error('[DEBUG-PROBE-3] SillyTavern 预设未配置:', JSON.stringify(this.config, null, 2));
+                sbtConsole.error('[DEBUG-PROBE-3] SillyTavern 预设未配置:', JSON.stringify(this.config, null, 2));
                 throw new Error("未选择 SillyTavern 预设，请在设置中选择。");
             }
         } else {
             if (!this.config.api_url || !this.config.api_key || !this.config.model_name) {
-                console.error('[DEBUG-PROBE-3] API 配置不完整:', JSON.stringify(this.config, null, 2));
+                sbtConsole.error('[DEBUG-PROBE-3] API 配置不完整:', JSON.stringify(this.config, null, 2));
                 throw new Error("API配置不完整，请在设置中检查。");
             }
         }
@@ -138,7 +139,7 @@ async testConnection() {
                 }
                 
                 lastError = error;
-                console.warn(`[LLMApiService] 第 ${attempt} 次API调用失败:`, {
+                sbtConsole.warn(`[LLMApiService] 第 ${attempt} 次API调用失败:`, {
                     message: error?.message || String(error),
                     name: error?.name,
                     stack: error?.stack?.split('\n')?.[0]
@@ -238,12 +239,12 @@ async testConnection() {
         logger.debug('[预设模式] 使用 SillyTavern 预设调用');
 
         if (abortSignal) {
-            console.warn('[LLMApiService] SillyTavern 预设模式不支持中止操作。');
+            sbtConsole.warn('[LLMApiService] SillyTavern 预设模式不支持中止操作。');
         }
         
         // 注意：ConnectionManagerRequestService 不支持流式传输
         if (streamCallback) {
-            console.warn('[SBT-预设模式] 预设模式暂不支持流式传输，将使用标准响应模式');
+            sbtConsole.warn('[SBT-预设模式] 预设模式暂不支持流式传输，将使用标准响应模式');
         }
 
         // 1. 检查依赖：TavernHelper 是 SillyTavern 提供的辅助工具
@@ -304,7 +305,7 @@ async testConnection() {
                     await window.TavernHelper.triggerSlash(`/profile await=true "${originalProfile.replace(/"/g, '\\"')}"`);
                 }
             } catch (restoreError) {
-                console.error('[SBT-预设模式] 恢复配置文件失败:', restoreError);
+                sbtConsole.error('[SBT-预设模式] 恢复配置文件失败:', restoreError);
             }
         }
 
@@ -325,7 +326,7 @@ async testConnection() {
         } else if (result.text) {
             content = result.text;
         } else {
-            console.warn('[SBT-预设模式] 未知的响应格式:', result);
+            sbtConsole.warn('[SBT-预设模式] 未知的响应格式:', result);
             content = JSON.stringify(result);
         }
 
@@ -352,7 +353,7 @@ async testConnection() {
 
             // 【调试专用】打印完整请求体到前端控制台
             // 使用error级别确保总是显示（这不是真正的错误，只是调试信息）
-            console.error('[🔍 API请求调试 - 非错误] 发送到SillyTavern代理的完整请求:', JSON.stringify({
+            sbtConsole.error('[🔍 API请求调试 - 非错误] 发送到SillyTavern代理的完整请求:', JSON.stringify({
                 模型名称: requestData.model,
                 API来源: requestData.chat_completion_source,
                 反向代理URL: requestData.reverse_proxy,
@@ -387,7 +388,7 @@ async testConnection() {
 
             if (!response.ok) {
                 const errorText = await response.text();
-                console.error('[代理模式] SillyTavern 后端返回错误:', response.status, errorText);
+                sbtConsole.error('[代理模式] SillyTavern 后端返回错误:', response.status, errorText);
 
                 // 针对 503 错误提供更友好的提示
                 if (response.status === 503) {
@@ -438,7 +439,7 @@ async testConnection() {
                 status: error?.status,
                 stack: error?.stack?.split('\n').slice(0, 3).join('\n')
             };
-            console.error("通过 SillyTavern 内部路由调用 LLM API 错误:", errorDetails);
+            sbtConsole.error("通过 SillyTavern 内部路由调用 LLM API 错误:", errorDetails);
             throw error;
         }
     }
@@ -497,7 +498,7 @@ async testConnection() {
                             }
                         }
                     } catch (e) {
-                        console.warn("[代理流式] 解析行 JSON 错误:", e, "行内容:", trimmedLine);
+                        sbtConsole.warn("[代理流式] 解析行 JSON 错误:", e, "行内容:", trimmedLine);
                     }
                 }
             }
@@ -519,14 +520,14 @@ async testConnection() {
                         }
                     }
                 } catch (e) {
-                    console.warn("[代理流式] 处理最终缓冲区错误:", e);
+                    sbtConsole.warn("[代理流式] 处理最终缓冲区错误:", e);
                 }
             }
 
             logger.debug('[代理流式] 流式处理完成。总响应长度:', fullResponse.length);
             return this.#cleanResponse(fullResponse);
         } catch (streamError) {
-            console.error('[代理流式] 流式读取错误:', streamError);
+            sbtConsole.error('[代理流式] 流式读取错误:', streamError);
             throw streamError;
         } finally {
             logger.debug('[代理流式] 释放流锁');
@@ -575,7 +576,7 @@ async testConnection() {
                 status: error?.status,
                 stack: error?.stack?.split('\n').slice(0, 3).join('\n')
             };
-            console.error("直接调用 LLM API 错误:", errorDetails);
+            sbtConsole.error("直接调用 LLM API 错误:", errorDetails);
             throw error;
         }
     }
@@ -669,7 +670,7 @@ async testConnection() {
                              logger.debug('[Stream] Custom API line does not start with "data: ". Skipping.');
                         }
                     } catch (e) {
-                        console.warn("[Stream] Custom API error parsing line JSON:", e, "Line:", trimmedLine); 
+                        sbtConsole.warn("[Stream] Custom API error parsing line JSON:", e, "Line:", trimmedLine); 
                     }
                 }
             }
@@ -690,14 +691,14 @@ async testConnection() {
                          }
                     }
                 } catch (e) {
-                    console.warn("[Stream] Custom API error processing final buffer content:", e);
+                    sbtConsole.warn("[Stream] Custom API error processing final buffer content:", e);
                 }
             }
 
             logger.debug('[Stream] Custom API stream processing complete. Full response length:', fullResponse.length); 
             return this.#cleanResponse(fullResponse);
         } catch (streamError) {
-            console.error('[Stream] Custom API error during stream reading:', streamError); 
+            sbtConsole.error('[Stream] Custom API error during stream reading:', streamError); 
             throw streamError; 
         } finally {
             logger.debug('[Stream] Custom API releasing stream lock.'); 

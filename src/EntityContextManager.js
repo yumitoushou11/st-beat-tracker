@@ -92,7 +92,7 @@ export class EntityContextManager {
 
         const chapter = currentChapter;
         if (!chapter || !chapter.staticMatrices) {
-            console.error('❌ 错误：无法获取章节数据');
+            this.logger.warn('❌ 错误：无法获取章节数据');
             this.logger.groupEnd();
             return '';
         }
@@ -126,14 +126,7 @@ export class EntityContextManager {
             '自由章模式完整档案'
         );
 
-        const finalContent = contextContent ? [
-            ``,
-            `### 🎲 自由章模式 - 完整世界观档案`,
-            ``,
-            `【导演指示】本章为自由章模式，以下是完整的世界观档案供你自由调用：`,
-            ``,
-            contextContent
-        ].join('\n') : '';
+        const finalContent = contextContent ? contextContent : '';
 
         this.logger.log(`✅ 完整世界观档案生成完成，长度: ${finalContent.length} 字符`);
         this.logger.groupEnd();
@@ -187,7 +180,7 @@ export class EntityContextManager {
 
         const chapter = sourceChapter || currentChapter;
         if (!chapter || !chapter.staticMatrices) {
-            console.error('❌ 错误：无法获取 staticMatrices，章节对象为空');
+            this.logger.warn('❌ 错误：无法获取 staticMatrices，章节对象为空');
             this.logger.groupEnd();
             return '';
         }
@@ -305,4 +298,3 @@ export class EntityContextManager {
         return contextContent;
     }
 }
-

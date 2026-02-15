@@ -3,6 +3,8 @@
  * 前端控制台管理器 - 拦截并显示控制台日志
  */
 
+import { isDebugModeEnabled } from '../utils/logger.js';
+
 export class ConsoleManager {
     constructor() {
         this.logs = [];
@@ -259,7 +261,9 @@ export class ConsoleManager {
                 this.consoleEnabled = e.target.checked;
                 if (this.consoleEnabled) {
                     // 开启时，原始console方法中会调用 addLog，此时才会显示
-                    this.originalConsole.info.call(console, '✅ 控制台已启用');
+                    if (isDebugModeEnabled()) {
+                        this.originalConsole.info.call(console, 'Console enabled');
+                    }
                 } else {
                     this.clearLogs();
                 }

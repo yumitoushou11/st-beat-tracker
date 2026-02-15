@@ -1,9 +1,10 @@
 
 import { loadWorldInfo } from '/scripts/world-info.js';
+import { sbtConsole } from '../utils/sbtConsole.js';
 
-let warn = (message, ...args) => console.warn(`[SBT-WARN] ${message}`, ...args);
-let info = (message, ...args) => console.info(`[SBT-INFO] ${message}`, ...args);
-let diagnose = (message, ...args) => console.error(`[SBT-DIAGNOSE] ${message}`, ...args);
+let warn = (message, ...args) => sbtConsole.warn(`[SBT-WARN] ${message}`, ...args);
+let info = (message, ...args) => sbtConsole.info(`[SBT-INFO] ${message}`, ...args);
+let diagnose = (message, ...args) => sbtConsole.error(`[SBT-DIAGNOSE] ${message}`, ...args);
 
 async function safeCharLorebooks(context) {
     diagnose("[Compat Layer] Executing safeCharLorebooks...");

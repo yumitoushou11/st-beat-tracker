@@ -175,13 +175,29 @@ export class PromptBuilder {
         const nextBeat = beats[currentBeatIdx + 1];
         const beatDescription = currentBeat?.physical_event || currentBeat?.description || '未知节拍';
         const isHighlight = currentBeat?.is_highlight === true;
+        const typeMap = {
+            Hybrid_Scene: '混合场景',
+            Dialogue_Scene: '对话场景',
+            Action: '动作场景',
+            Exposition: '说明场景',
+            Transition: '过渡场景'
+        };
+        const beatTypeLabel = typeMap[currentBeat?.type] || currentBeat?.type || '未知';
+        const environmentState = currentBeat?.environment_state || '';
+        const subtextDesign = currentBeat?.subtext_design || '';
+        const exitCondition = currentBeat?.exit_condition || '';
 
         const sections = [
-            `# 🎬 【本回合执导指令】`,
+            `# 🎬 【本回合剧情目标】`,
             ``,
             `## 当前剧情进度`,
             `- **当前节拍 (Index ${currentBeatIdx}):** ${beatDescription}`,
-            `- **下一节拍:** ${nextBeat ? (nextBeat.physical_event || nextBeat.description) : '（最后节拍）'}`,
+            ``,
+            `## 当前节拍详情`,
+            `- **场景类型:** ${beatTypeLabel}`,
+            `- **本回合需要完成的剧情大纲:** ${beatDescription}`,
+            `- **环境状态:** ${environmentState}`,
+            `- **潜台词方向:** ${subtextDesign}`,
             ``
         ];
 
@@ -206,7 +222,6 @@ export class PromptBuilder {
             `- 不要死板纠结字面细节，理解玩家的真实意图`,
             ``,
             `### 2. 对话节点必须等待玩家参与`,
-            `${currentBeat?.exit_condition ? `- **当前节拍有退出条件:** ${currentBeat.exit_condition}` : ''}`,
             `- 如果当前节拍涉及对话或互动，必须等待玩家的实质性回应`,
             `- 不要自问自答，不要替玩家做决定`,
             ``,
