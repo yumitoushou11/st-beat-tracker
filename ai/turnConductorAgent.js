@@ -128,9 +128,29 @@ export class TurnConductorAgent extends Agent {
                 };
             }
 
-            let navigationDecision = typeof decision.navigation_decision === 'string'
-                ? decision.navigation_decision.trim().toUpperCase()
+            const rawNavigationDecision = typeof decision.navigation_decision === 'string'
+                ? decision.navigation_decision.trim()
                 : '';
+
+            const mapNavigationDecision = (value) => {
+                if (!value) return '';
+                const upperValue = value.toUpperCase();
+                if (upperValue === 'STAY' || upperValue === 'SWITCH') {
+                    return upperValue;
+                }
+                const stayKeywords = ['停留', '滞留', '保持', '留在', '驻留', '继续', '不切换', '不推进', '不前进'];
+                const switchKeywords = ['切换', '推进', '前进', '进入', '下一步', '下一个', '转入', '转换'];
+
+                if (stayKeywords.some(keyword => value.includes(keyword))) {
+                    return 'STAY';
+                }
+                if (switchKeywords.some(keyword => value.includes(keyword))) {
+                    return 'SWITCH';
+                }
+                return '';
+            };
+
+            let navigationDecision = mapNavigationDecision(rawNavigationDecision);
 
             if (navigationDecision != 'STAY' && navigationDecision != 'SWITCH') {
                 if (Number.isFinite(Number(decision.current_beat_idx)) && Number.isFinite(Number(currentBeatIdx))) {
@@ -141,6 +161,9 @@ export class TurnConductorAgent extends Agent {
             }
             decision.navigation_decision = navigationDecision;
 
+            if (typeof decision.logic_safety_warning === 'string' && decision.logic_safety_warning.trim() === '无') {
+                decision.logic_safety_warning = 'NONE';
+            }
             if (!decision.logic_safety_warning) {
                 decision.logic_safety_warning = 'NONE';
             }
@@ -224,25 +247,25 @@ _createPrompt(context) {
     }
 
     
-    const currentBeatSummary = currentBeat?.physical_event || currentBeat?.summary || currentBeat?.description || 'UNKNOWN_BEAT';
-    const nextBeatSummary = nextBeat?.physical_event || nextBeat?.summary || nextBeat?.description || 'NONE';
+    const currentBeatSummary = currentBeat?.physical_event || currentBeat?.summary || currentBeat?.description || '未知节拍';
+    const nextBeatSummary = nextBeat?.physical_event || nextBeat?.summary || nextBeat?.description || '无';
     const safeUserMessage = (typeof userLastMessage == 'string' && userLastMessage.trim() != '')
         ? userLastMessage
-        : '[NO USER MESSAGE]';
+        : '[无用户回复]';
     const hasNavigationContext = !!(currentBeat || nextBeat || userLastMessage || Number.isFinite(Number(currentBeatIdx)));
     const navigationContextBlock = hasNavigationContext ? `
-[NAVIGATION GATE]
-Current Beat A (Stay): ${currentBeatSummary}
-Next Beat B (Pending): ${nextBeatSummary}
-User Last Message: "${safeUserMessage}"
+[导航闸门]
+当前节拍A（驻留）：${currentBeatSummary}
+下一节拍B（待办）：${nextBeatSummary}
+用户最新回复："${safeUserMessage}"
 
-Decision Rules:
-- STAY: user shows interaction intent (questions/emotions/actions/refuse to leave).
-- SWITCH: user shows advance/leave intent or passive response (short reply/silence/next).
+决策规则：
+- 停留：用户表现出明显互动意图（提问、情感、动作、拒绝离开）。
+- 切换：用户表现出推进意图或被动回应（简短回复、沉默、明确前进指令）。
 
-Logic Safety:
-- If STAY, check if user behavior would break Beat B preconditions.
-- If conflict, write it into logic_safety_warning.
+逻辑安全检查：
+- 若判定为停留，检查用户行为是否会破坏下一节拍前提。
+- 如有冲突，请写入 logic_safety_warning。
 ` : '';
 
 
@@ -327,30 +350,30 @@ ${lastExchange}
 
   判定规则:
     步骤1: 正常完成节拍定位流程，产出 current_beat_idx
-    步骤2: 若 current_beat_idx 为最后节拍，输出 status 为 TRIGGER_TRANSITION
-    步骤3: 否则输出 status 为 CONTINUE
+    步骤2: 若 current_beat_idx 为最后节拍，输出 status 为 触发切换
+    步骤3: 否则输出 status 为 继续
 
   重要说明: 进入最后节拍即触发章节转换（本次回复完成后切换）
 
   示例:
     plot_beats长度: 5（索引 0-4）
-    current_beat_idx = 4 → TRIGGER_TRANSITION
-    current_beat_idx = 3 → CONTINUE
+    current_beat_idx = 4 → 触发切换
+    current_beat_idx = 3 → 继续
 
 ${navigationContextBlock}
 
 输出格式_JSON:
-  IMPORTANT: Return ONLY a JSON object. No markdown or extra text.
+  重要：只返回一个 JSON 对象，不要输出代码块或额外文字。
   结构:
-    navigation_decision: STAY | SWITCH
-    reasoning: explain user intent and decision
-    logic_safety_warning: NONE | warning details
-    status: CONTINUE或TRIGGER_TRANSITION
+    navigation_decision: 停留 | 切换
+    reasoning: 解释用户意图与选择
+    logic_safety_warning: 无 | 警告内容
+    status: 继续 | 触发切换
     current_beat_idx: 数值，表示当前节拍索引
     narrative_hold: 描述严格禁止的后续内容
     tone_correction: 纠正指令或null
     beat_completion_analysis: 节拍完成度分析
-    realtime_context_ids: 实体ID数组${isEntityRecallEnabled ? '，需要填充规划外实体' : ''}
+    realtime_context_ids: 实体编号数组${isEntityRecallEnabled ? '，需要填写规划外实体' : ''}
 
 ${isEntityRecallEnabled ? `实体召回_规划外实体检索:
   任务: 识别本回合涉及的规划外实体，不在chapter_context_ids中的实体
@@ -363,9 +386,9 @@ ${JSON.stringify(chapterContextIds, null, 2)}
 
   检索规则:
     步骤1: 从对话中提取所有实体关键词
-    步骤2: 与世界实体清单匹配ID
+    步骤2: 与世界实体清单匹配编号
     步骤3: 过滤掉已在chapter_context_ids中的实体
-    步骤4: 将规划外的实体ID输出到realtime_context_ids
+    步骤4: 将规划外的实体编号输出到realtime_context_ids
     步骤5: 如果本回合只涉及规划内实体，输出空数组
 ` : ''}
 `;
@@ -394,7 +417,7 @@ _generateEntityManifest(staticMatrices) {
         manifestLines.push('**角色 (Characters):**');
         Object.entries(staticMatrices.characters).forEach(([id, data]) => {
             const name = data?.core?.name || data?.name || '未命名';
-            manifestLines.push(`  - ${name} (ID: ${id})`);
+            manifestLines.push(`  - ${name} (编号: ${id})`);
             count++;
         });
         logger.debug(`✓ 角色数量: ${Object.keys(staticMatrices.characters).length}`);
@@ -405,7 +428,7 @@ _generateEntityManifest(staticMatrices) {
         manifestLines.push('\n**地点 (Locations):**');
         Object.entries(staticMatrices.worldview.locations).forEach(([id, data]) => {
             const name = data?.name || '未命名';
-            manifestLines.push(`  - ${name} (ID: ${id})`);
+            manifestLines.push(`  - ${name} (编号: ${id})`);
             count++;
         });
         logger.debug(`✓ 地点数量: ${Object.keys(staticMatrices.worldview.locations).length}`);
@@ -416,7 +439,7 @@ _generateEntityManifest(staticMatrices) {
         manifestLines.push('\n**物品 (Items):**');
         Object.entries(staticMatrices.worldview.items).forEach(([id, data]) => {
             const name = data?.name || '未命名';
-            manifestLines.push(`  - ${name} (ID: ${id})`);
+            manifestLines.push(`  - ${name} (编号: ${id})`);
             count++;
         });
         logger.debug(`✓ 物品数量: ${Object.keys(staticMatrices.worldview.items).length}`);
@@ -429,7 +452,7 @@ _generateEntityManifest(staticMatrices) {
             if (quests && Object.keys(quests).length > 0) {
                 Object.entries(quests).forEach(([id, data]) => {
                     const title = data?.title || '未命名';
-                    manifestLines.push(`  - ${title} (ID: ${id}, 分类: ${category})`);
+                    manifestLines.push(`  - ${title} (编号: ${id}, 分类: ${category})`);
                     count++;
                 });
             }
@@ -516,7 +539,7 @@ _generateFullEntityData(staticMatrices) {
     if (staticMatrices.characters && Object.keys(staticMatrices.characters).length > 0) {
         sections.push('**=== 角色档案 (Characters) ===**\n');
         Object.entries(staticMatrices.characters).forEach(([id, data]) => {
-            sections.push(`### ${data?.core?.name || data?.name || '未命名'} (ID: ${id})`);
+            sections.push(`### ${data?.core?.name || data?.name || '未命名'} (编号: ${id})`);
             sections.push('```json');
             sections.push(JSON.stringify(data, null, 2));
             sections.push('```\n');
@@ -528,7 +551,7 @@ _generateFullEntityData(staticMatrices) {
     if (staticMatrices.worldview?.locations && Object.keys(staticMatrices.worldview.locations).length > 0) {
         sections.push('**=== 地点档案 (Locations) ===**\n');
         Object.entries(staticMatrices.worldview.locations).forEach(([id, data]) => {
-            sections.push(`### ${data?.name || '未命名'} (ID: ${id})`);
+            sections.push(`### ${data?.name || '未命名'} (编号: ${id})`);
             sections.push('```json');
             sections.push(JSON.stringify(data, null, 2));
             sections.push('```\n');
@@ -540,7 +563,7 @@ _generateFullEntityData(staticMatrices) {
     if (staticMatrices.worldview?.items && Object.keys(staticMatrices.worldview.items).length > 0) {
         sections.push('**=== 物品档案 (Items) ===**\n');
         Object.entries(staticMatrices.worldview.items).forEach(([id, data]) => {
-            sections.push(`### ${data?.name || '未命名'} (ID: ${id})`);
+            sections.push(`### ${data?.name || '未命名'} (编号: ${id})`);
             sections.push('```json');
             sections.push(JSON.stringify(data, null, 2));
             sections.push('```\n');
@@ -564,7 +587,7 @@ _generateFullEntityData(staticMatrices) {
                 if (quests && Object.keys(quests).length > 0) {
                     sections.push(`#### 分类: ${category}\n`);
                     Object.entries(quests).forEach(([id, data]) => {
-                        sections.push(`##### ${data?.title || '未命名'} (ID: ${id})`);
+                        sections.push(`##### ${data?.title || '未命名'} (编号: ${id})`);
                         sections.push('```json');
                         sections.push(JSON.stringify(data, null, 2));
                         sections.push('```\n');

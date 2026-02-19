@@ -253,26 +253,28 @@ export class PromptBuilder {
      * @returns {string}
      */
     static buildStayPrompt(currentBeatIdx, currentBeat, nextBeat, beats, options = {}) {
-        const nextPreview = nextBeat?.physical_event || nextBeat?.summary || nextBeat?.description || 'NONE';
-        const warning = options?.logicSafetyWarning || '';
+        const nextPreview = nextBeat?.physical_event || nextBeat?.summary || nextBeat?.description || '无';
+        const warningRaw = options?.logicSafetyWarning;
+        const warning = typeof warningRaw === 'string' ? warningRaw.trim() : '';
 
         const header = [
-            '# STAY MODE: Scene Retention',
+            '# 滞留模式：场景驻留与延展',
             '',
-            'Core Directives:',
-            `- Lock scope to current beat only (Index ${currentBeatIdx}).`,
-            '- Do NOT advance plot or end the scene.',
-            '- Freeze time; keep scene state consistent.',
-            '- Focus on user interaction, inner thoughts, sensory detail.',
+            '核心指令：',
+            `- 锁定范围：只在当前节拍内描写（索引 ${currentBeatIdx}）。`,
+            '- 禁止进入下一节拍或结束场景。',
+            '- 当用户意图支持时，可在当前节拍内延伸/扩写。',
+            '- 允许在当前节拍内推进时间（例如吃饭延续到下午），但不得与下一节拍冲突。',
+            '- 重点回应用户互动、内心活动、感官细节。',
             '',
-            'Logic Firewall (read-only):',
-            `- Next beat preview: ${nextPreview}`,
-            '- Do NOT foreshadow or tease the next beat.',
-            '- Ensure current actions do NOT break next-beat preconditions.'
+            '逻辑防火墙（只读）：',
+            `- 下一节拍预览：${nextPreview}`,
+            '- 禁止剧透或暗示下一节拍。',
+            '- 当前描写不得破坏下一节拍的前提条件。'
         ];
 
-        if (warning && warning !== 'NONE') {
-            header.push(`- Logic safety warning: ${warning}`);
+        if (warning && warning !== 'NONE' && warning !== '无') {
+            header.push(`- 逻辑安全警告：${warning}`);
         }
 
         header.push('');
@@ -291,16 +293,16 @@ export class PromptBuilder {
      * @returns {string}
      */
     static buildSwitchPrompt(previousBeat, nextBeat, nextBeatIdx, beats) {
-        const exitCondition = previousBeat?.exit_condition || 'N/A';
-        const nextSummary = nextBeat?.summary || nextBeat?.physical_event || nextBeat?.description || 'UNKNOWN_BEAT';
+        const exitCondition = previousBeat?.exit_condition || '无';
+        const nextSummary = nextBeat?.summary || nextBeat?.physical_event || nextBeat?.description || '未知节拍';
 
         const header = [
-            '# SWITCH MODE: Narrative Advance',
+            '# 切换模式：剧情推进',
             '',
-            '- Transition: close the previous scene in 1-2 sentences.',
-            `- If useful, respect exit condition: ${exitCondition}`,
-            '- Immediately enter the new beat.',
-            `- Focus on establishing the new scene: ${nextSummary}`,
+            '- 过渡：用 1-2 句话自然收束上一场景。',
+            `- 如有必要，遵循退出条件：${exitCondition}`,
+            '- 立即进入新节拍。',
+            `- 重点建立新场景：${nextSummary}`,
             ''
         ];
 
