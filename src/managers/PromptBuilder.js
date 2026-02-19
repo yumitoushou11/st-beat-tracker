@@ -191,7 +191,7 @@ export class PromptBuilder {
             `# 🎬 【本回合剧情目标】`,
             ``,
             `## 当前剧情进度`,
-            `- **当前节拍 (Index ${currentBeatIdx}):** ${beatDescription}`,
+            `- **当前节拍（索引 ${currentBeatIdx}）：** ${beatDescription}`,
             ``,
             `## 当前节拍详情`,
             `- **场景类型:** ${beatTypeLabel}`,
@@ -231,7 +231,7 @@ export class PromptBuilder {
             `- 专注于当前节拍的演绎，不要猜测或暗示后续内容`,
             ``,
             `### 4. 停止位置`,
-            `- **本回合目标:** 完成当前节拍 (Index ${currentBeatIdx})`,
+            `- **本回合目标:** 完成当前节拍（索引 ${currentBeatIdx}）`,
             `- **停止位置:** 在当前节拍的核心事件完成后结束`,
             `- 可以自然延伸对话和互动，但不要触发下一节拍的核心事件`,
             ``
@@ -253,7 +253,22 @@ export class PromptBuilder {
      * @returns {string}
      */
     static buildStayPrompt(currentBeatIdx, currentBeat, nextBeat, beats, options = {}) {
+        const compactPreview = (value, maxLen = 120) => {
+            if (!value) return '无';
+            const text = String(value).trim();
+            if (!text) return '无';
+            return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+        };
+
+        const prevBeat = Number.isInteger(currentBeatIdx) && currentBeatIdx > 0
+            ? beats[currentBeatIdx - 1]
+            : null;
+        const prevPreview = prevBeat?.physical_event || prevBeat?.summary || prevBeat?.description || '无';
+        const prevIdxLabel = prevBeat ? currentBeatIdx - 1 : '无';
+
         const nextPreview = nextBeat?.physical_event || nextBeat?.summary || nextBeat?.description || '无';
+        const nextIdxLabel = nextBeat ? currentBeatIdx + 1 : '无';
+
         const warningRaw = options?.logicSafetyWarning;
         const warning = typeof warningRaw === 'string' ? warningRaw.trim() : '';
 
@@ -267,8 +282,11 @@ export class PromptBuilder {
             '- 允许在当前节拍内推进时间（例如吃饭延续到下午），但不得与下一节拍冲突。',
             '- 重点回应用户互动、内心活动、感官细节。',
             '',
+            '节拍上下文（只读）：',
+            `- 上一节拍预览（索引 ${prevIdxLabel}）：${compactPreview(prevPreview)}`,
+            `- 下一节拍预览（索引 ${nextIdxLabel}）：${compactPreview(nextPreview)}`,
+            '',
             '逻辑防火墙（只读）：',
-            `- 下一节拍预览：${nextPreview}`,
             '- 禁止剧透或暗示下一节拍。',
             '- 当前描写不得破坏下一节拍的前提条件。'
         ];
@@ -293,8 +311,20 @@ export class PromptBuilder {
      * @returns {string}
      */
     static buildSwitchPrompt(previousBeat, nextBeat, nextBeatIdx, beats) {
+        const compactPreview = (value, maxLen = 120) => {
+            if (!value) return '无';
+            const text = String(value).trim();
+            if (!text) return '无';
+            return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+        };
+
         const exitCondition = previousBeat?.exit_condition || '无';
-        const nextSummary = nextBeat?.summary || nextBeat?.physical_event || nextBeat?.description || '未知节拍';
+        const prevPreview = previousBeat?.physical_event || previousBeat?.summary || previousBeat?.description || '无';
+        const prevIdxLabel = Number.isInteger(nextBeatIdx) ? nextBeatIdx - 1 : '无';
+
+        const followingBeat = Number.isInteger(nextBeatIdx) ? beats[nextBeatIdx + 1] : null;
+        const followingPreview = followingBeat?.physical_event || followingBeat?.summary || followingBeat?.description || '无';
+        const followingIdxLabel = followingBeat ? nextBeatIdx + 1 : '无';
 
         const header = [
             '# 切换模式：剧情推进',
@@ -302,7 +332,11 @@ export class PromptBuilder {
             '- 过渡：用 1-2 句话自然收束上一场景。',
             `- 如有必要，遵循退出条件：${exitCondition}`,
             '- 立即进入新节拍。',
-            `- 重点建立新场景：${nextSummary}`,
+            '- 重点建立新场景（详见下方“本回合剧情目标”）。',
+            '',
+            '节拍上下文（只读）：',
+            `- 上一节拍预览（索引 ${prevIdxLabel}）：${compactPreview(prevPreview)}`,
+            `- 下一节拍预览（索引 ${followingIdxLabel}）：${compactPreview(followingPreview)}`,
             ''
         ];
 

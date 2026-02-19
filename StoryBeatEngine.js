@@ -282,7 +282,7 @@ const spoilerBlockPlaceholder = {
         is_SBT_turn_instruction: true // 1. 回合指令
     };
     const recallPlaceholder = {
-        role: 'system',
+        role: 'assistant', // keep recall as a separate message (avoid merging into system prompt)
         content: "【SBT 引擎正在编译实时召回上下文...】",
         is_SBT_script: true,
         is_SBT_realtime_recall: true // 2. 实时召回（动态）
@@ -306,11 +306,11 @@ const spoilerBlockPlaceholder = {
             finalChatContext.splice(i, 1);
         }
     }
-   finalChatContext.unshift(rulesPlaceholder);
+    finalChatContext.unshift(rulesPlaceholder);
     finalChatContext.unshift(scriptPlaceholder);
-    finalChatContext.unshift(recallPlaceholder);
     finalChatContext.unshift(instructionPlaceholder);
     finalChatContext.unshift(spoilerBlockPlaceholder); // 剧透封锁放在最前面
+    finalChatContext.splice(4, 0, recallPlaceholder); // 召回档案独立消息（避免合并到系统提示）
     this.info("同步占位完成（5层注入：剧透封锁/指令/召回/剧本/法则）。即将进入异步处理阶段...");
 
     try {
