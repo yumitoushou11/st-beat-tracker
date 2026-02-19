@@ -46,7 +46,10 @@ export class StoryBeatEngine {
         this.currentChapter = null; // 初始化为 null
         this.isGenesisStatePendingCommit = false;
         this.isTransitionPending = false; // 用于章节转换的旗标
-        this.pendingTransitionPayload = null; // 用于存储转换的附带信息
+        this.pendingTransitionPayload = null;
+        this.pendingBeatIndexUpdate = null;
+        this.pendingBeatIndexAnchorIndex = null;
+ // 用于存储转换的附带信息
 
         this.syncDebounceTimer = null;
         this.uiSyncRetryTimer = null; // 用于重试的计时器ID
@@ -258,7 +261,7 @@ onPromptReady = async (eventData) => {
         return;
     }
     
-    const { piece: lastStatePiece } = this.USER.findLastMessageWithLeader();
+    const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
     if (!lastStatePiece || !Chapter.isValidStructure(lastStatePiece.leader)) {
         this.info(`[Guard-Inject] 流程中止：未找到有效的叙事状态，本次不进行注入。`);
         return;
@@ -406,11 +409,29 @@ const spoilerBlockPlaceholder = {
             lastExchange = historicalContext + lastExchange;
 
             // V2.0: 准备 TurnConductor 所需的完整上下文
+            const beats = this.currentChapter.chapter_blueprint?.plot_beats || [];
+            const storedBeatIdxRaw = this.currentChapter?.meta?.currentBeatIndex;
+            const storedBeatIdx = Number.isInteger(storedBeatIdxRaw) ? storedBeatIdxRaw : null;
+            const clampedStoredBeatIdx = (storedBeatIdx !== null && beats.length > 0)
+                ? Math.max(0, Math.min(storedBeatIdx, beats.length - 1))
+                : storedBeatIdx;
+            const currentBeatForConductor = (clampedStoredBeatIdx !== null && beats.length > 0)
+                ? beats[clampedStoredBeatIdx]
+                : null;
+            const nextBeatForConductor = (clampedStoredBeatIdx !== null && beats.length > 0)
+                ? beats[clampedStoredBeatIdx + 1]
+                : null;
+            const lastUserMessage = lastUserMsg?.mes || '';
+
             this.logger.group('[ENGINE-V2-PROBE] 准备 TurnConductor 输入上下文');
             const conductorContext = {
                 lastExchange: lastExchange,
                 chapterBlueprint: this.currentChapter.chapter_blueprint,
-                chapter: this.currentChapter // V2.0: 传递完整的 chapter 实例
+                chapter: this.currentChapter, // V2.0: pass full chapter instance
+                currentBeat: currentBeatForConductor,
+                nextBeat: nextBeatForConductor,
+                currentBeatIdx: clampedStoredBeatIdx,
+                userLastMessage: lastUserMessage
             };
             this.logger.log('✓ chapter 实例已传递（包含 staticMatrices 和 stylistic_archive）');
 
@@ -429,26 +450,60 @@ const spoilerBlockPlaceholder = {
             this.info('[PROBE][CONDUCTOR-V10] 收到回合裁判的GPS定位与基调检查:', JSON.parse(JSON.stringify(conductorDecision)));
 
             // 【V9.0】检查是否触发章节转换
-            if (conductorDecision.status === 'TRIGGER_TRANSITION') {
-                this.info(`PROBE [PENDING-TRANSITION]: 回合裁判已发出章节转换信号`);
-                this.isTransitionPending = true;
-                this.pendingTransitionPayload = { decision: conductorDecision.status };
-            }
-            // V10.1: 终章节拍触发（不依赖 LLM status）
-            const plotBeats = this.currentChapter.chapter_blueprint?.plot_beats || [];
-            const lastBeatIndex = plotBeats.length - 1;
+            // Navigation Gate: resolve beat pointer and decision
             const conductorBeatIdx = Number.isFinite(Number(conductorDecision.current_beat_idx))
                 ? Number(conductorDecision.current_beat_idx)
-                : 0;
-            if (plotBeats.length > 0 && conductorBeatIdx >= lastBeatIndex) {
-                if (!this.isTransitionPending) {
-                    this.info(`PROBE [PENDING-TRANSITION]: 检测到已进入最后节拍（index=${conductorBeatIdx}），将于本次回复后触发章节转换。`);
-                }
-                this.isTransitionPending = true;
-                this.pendingTransitionPayload = this.pendingTransitionPayload || { decision: 'LAST_BEAT_AUTO' };
+                : null;
+
+            let currentBeatIdx = Number.isInteger(clampedStoredBeatIdx)
+                ? clampedStoredBeatIdx
+                : (Number.isInteger(conductorBeatIdx) ? conductorBeatIdx : 0);
+
+            if (beats.length > 0) {
+                currentBeatIdx = Math.max(0, Math.min(currentBeatIdx, beats.length - 1));
             }
 
-            // V2.0: 处理实时上下文召回
+            let navigationDecision = typeof conductorDecision.navigation_decision === 'string'
+                ? conductorDecision.navigation_decision.trim().toUpperCase()
+                : 'STAY';
+
+            if (navigationDecision !== 'STAY' && navigationDecision !== 'SWITCH') {
+                if (Number.isInteger(conductorBeatIdx) && Number.isInteger(currentBeatIdx)) {
+                    navigationDecision = conductorBeatIdx > currentBeatIdx ? 'SWITCH' : 'STAY';
+                } else {
+                    navigationDecision = 'STAY';
+                }
+            }
+
+            const currentBeat = beats[currentBeatIdx];
+            const nextBeat = beats[currentBeatIdx + 1];
+
+            const shouldSwitch = navigationDecision === 'SWITCH' && !!nextBeat;
+            const isEndSwitch = navigationDecision === 'SWITCH' && !nextBeat;
+            const effectiveBeatIdx = shouldSwitch ? currentBeatIdx + 1 : currentBeatIdx;
+
+            const needsBeatIndexInit = !Number.isInteger(storedBeatIdxRaw)
+                || (Number.isInteger(storedBeatIdxRaw) && clampedStoredBeatIdx !== storedBeatIdxRaw);
+
+            this.pendingBeatIndexUpdate = null;
+            this.pendingBeatIndexAnchorIndex = null;
+            if (shouldSwitch) {
+                this.pendingBeatIndexUpdate = effectiveBeatIdx;
+                this.pendingBeatIndexAnchorIndex = lastStateIndex;
+            } else if (needsBeatIndexInit && Number.isInteger(currentBeatIdx)) {
+                this.pendingBeatIndexUpdate = currentBeatIdx;
+                this.pendingBeatIndexAnchorIndex = lastStateIndex;
+            }
+
+            if (isEndSwitch) {
+                this.info(`PROBE [PENDING-TRANSITION]: End of beats reached by SWITCH (index=${currentBeatIdx}).`);
+                this.isTransitionPending = true;
+                this.pendingTransitionPayload = this.pendingTransitionPayload || { decision: 'END_SWITCH' };
+            }
+
+            this.info(`[PROBE][NAVIGATION] decision=${navigationDecision}, current=${currentBeatIdx}, effective=${effectiveBeatIdx}`);
+
+            // V2.0: realtime context recall
             let dynamicContextInjection = '';
             if (conductorDecision.realtime_context_ids && conductorDecision.realtime_context_ids.length > 0) {
                 this.logger.group('[ENGINE-V2-PROBE] 实时上下文召回流程');
@@ -516,11 +571,17 @@ if (this.currentChapter.chapter_blueprint) {
     }
 
     // 【V9.0 新增】第2层：硬编码通用执导规则（不再由裁判生成）
-    const currentBeatIdx = conductorDecision.current_beat_idx || 0;
-    const beats = this.currentChapter.chapter_blueprint.plot_beats || [];
-    const currentBeat = beats[currentBeatIdx];
+        // Turn instruction (dynamic based on navigation decision)
+    const logicSafetyWarning = conductorDecision.logic_safety_warning || 'NONE';
+    let hardcodedInstructions;
 
-    const hardcodedInstructions = PromptBuilder.buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats);
+    if (navigationDecision === 'SWITCH' && nextBeat) {
+        hardcodedInstructions = PromptBuilder.buildSwitchPrompt(currentBeat, nextBeat, effectiveBeatIdx, beats);
+    } else {
+        hardcodedInstructions = PromptBuilder.buildStayPrompt(currentBeatIdx, currentBeat, nextBeat, beats, {
+            logicSafetyWarning: logicSafetyWarning
+        });
+    }
 
     instructionPlaceholder.content = hardcodedInstructions;
 
@@ -602,7 +663,7 @@ if (this.currentChapter.chapter_blueprint) {
     // 【V9.0 修改】第3层：本章创作蓝图（纯净版，使用信息迷雾）
     const maskedBlueprint = this._applyBlueprintMask(
         this.currentChapter.chapter_blueprint,
-        currentBeatIdx
+        effectiveBeatIdx
     );
 
     // User request: omit chapter blueprint block to reduce prompt size.
@@ -612,7 +673,7 @@ if (this.currentChapter.chapter_blueprint) {
 
     // V4.1 调试：验证掩码效果
     this.logger.group('[ENGINE-V4.1-DEBUG] 剧本动态掩码验证');
-    this.logger.log('当前节拍索引:', currentBeatIdx);
+    this.logger.log('当前节拍索引:', effectiveBeatIdx);
     this.logger.log('原始节拍数量:', this.currentChapter.chapter_blueprint.plot_beats?.length || 0);
     this.logger.log('掩码后节拍结构:');
     maskedBlueprint.plot_beats?.forEach((beat, idx) => {
@@ -987,7 +1048,9 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             if (anchorMessage && !anchorMessage.is_user) {
                 anchorMessage.leader = this.currentChapter.toJSON();
                 this.USER.saveChat();
-                this.isGenesisStatePendingCommit = false; 
+                this.isGenesisStatePendingCommit = false;
+                this.pendingBeatIndexUpdate = null;
+                this.pendingBeatIndexAnchorIndex = null; 
                 this.info(`PROBE [COMMIT-4-SUCCESS]: 创世纪状态已成功锚定。旗标已重置。`);
                 this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
             } else {
@@ -1004,6 +1067,8 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
 
             this.isTransitionPending = false;
             this.pendingTransitionPayload = null;
+            this.pendingBeatIndexUpdate = null;
+            this.pendingBeatIndexAnchorIndex = null;
             this.info("PROBE [COMMIT-4-SUCCESS]: 章节转换流程已触发。旗标已重置。");
 
         } else if (this.isNewChapterPendingCommit && this.currentChapter) {
@@ -1017,11 +1082,48 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
                 anchorMessage.leader = this.currentChapter.toJSON();
                 this.USER.saveChat();
                 this.isNewChapterPendingCommit = false;
+                this.pendingBeatIndexUpdate = null;
+                this.pendingBeatIndexAnchorIndex = null;
                 this.warn(`PROBE [COMMIT-4-LEGACY-SUCCESS]: 新章节状态已通过后备逻辑锚定（UID: ${this.currentChapter.uid}）。`);
                 this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
             } else {
                 this.warn(`PROBE [COMMIT-4-LEGACY-FAIL]: 后备锚定失败，目标消息无效。`);
             }
+
+        } else if (this.pendingBeatIndexUpdate !== null && this.currentChapter) {
+            const targetBeatIndex = this.pendingBeatIndexUpdate;
+            const anchorIndex = Number.isInteger(this.pendingBeatIndexAnchorIndex)
+                ? this.pendingBeatIndexAnchorIndex
+                : null;
+
+            if (!this.currentChapter.meta) {
+                this.currentChapter.meta = {};
+            }
+            this.currentChapter.meta.currentBeatIndex = targetBeatIndex;
+            this.currentChapter.checksum = simpleHash(JSON.stringify(this.currentChapter) + Date.now());
+
+            const chat = this.USER.getContext().chat;
+            let anchorMessage = null;
+            if (anchorIndex !== null && chat && chat[anchorIndex]) {
+                anchorMessage = chat[anchorIndex];
+            } else {
+                const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
+                if (lastStatePiece && lastStateIndex !== -1) {
+                    anchorMessage = chat[lastStateIndex];
+                }
+            }
+
+            if (anchorMessage && !anchorMessage.is_user) {
+                anchorMessage.leader = this.currentChapter.toJSON();
+                this.USER.saveChat();
+                this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
+                this.info(`PROBE [COMMIT-BEAT]: currentBeatIndex -> ${targetBeatIndex} (anchor=${anchorIndex ?? 'auto'})`);
+            } else {
+                this.warn('PROBE [COMMIT-BEAT]: failed to persist beat index (no valid anchor).');
+            }
+
+            this.pendingBeatIndexUpdate = null;
+            this.pendingBeatIndexAnchorIndex = null;
 
         } else {
             this.info("PROBE [COMMIT-2-SKIP]: 无待处理的创世纪或转换任务。");

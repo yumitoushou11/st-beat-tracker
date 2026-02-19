@@ -171,7 +171,7 @@ export class PromptBuilder {
      * @example
      * const instructions = PromptBuilder.buildHardcodedDirectorInstructions(0, currentBeat, allBeats);
      */
-    static buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats) {
+    static buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats, options = {}) {
         const nextBeat = beats[currentBeatIdx + 1];
         const beatDescription = currentBeat?.physical_event || currentBeat?.description || '未知节拍';
         const isHighlight = currentBeat?.is_highlight === true;
@@ -238,6 +238,74 @@ export class PromptBuilder {
         );
 
         return sections.join('\n');
+    }
+
+    /**
+     * Build STAY-mode turn instructions (scene retention).
+     *
+     * @static
+     * @param {number} currentBeatIdx
+     * @param {Object} currentBeat
+     * @param {Object} nextBeat
+     * @param {Array} beats
+     * @param {Object} options
+     * @param {string} options.logicSafetyWarning
+     * @returns {string}
+     */
+    static buildStayPrompt(currentBeatIdx, currentBeat, nextBeat, beats, options = {}) {
+        const nextPreview = nextBeat?.physical_event || nextBeat?.summary || nextBeat?.description || 'NONE';
+        const warning = options?.logicSafetyWarning || '';
+
+        const header = [
+            '# STAY MODE: Scene Retention',
+            '',
+            'Core Directives:',
+            `- Lock scope to current beat only (Index ${currentBeatIdx}).`,
+            '- Do NOT advance plot or end the scene.',
+            '- Freeze time; keep scene state consistent.',
+            '- Focus on user interaction, inner thoughts, sensory detail.',
+            '',
+            'Logic Firewall (read-only):',
+            `- Next beat preview: ${nextPreview}`,
+            '- Do NOT foreshadow or tease the next beat.',
+            '- Ensure current actions do NOT break next-beat preconditions.'
+        ];
+
+        if (warning && warning !== 'NONE') {
+            header.push(`- Logic safety warning: ${warning}`);
+        }
+
+        header.push('');
+        const base = PromptBuilder.buildHardcodedDirectorInstructions(currentBeatIdx, currentBeat, beats);
+        return header.join('\n') + '\n' + base;
+    }
+
+    /**
+     * Build SWITCH-mode turn instructions (narrative advance).
+     *
+     * @static
+     * @param {Object} previousBeat
+     * @param {Object} nextBeat
+     * @param {number} nextBeatIdx
+     * @param {Array} beats
+     * @returns {string}
+     */
+    static buildSwitchPrompt(previousBeat, nextBeat, nextBeatIdx, beats) {
+        const exitCondition = previousBeat?.exit_condition || 'N/A';
+        const nextSummary = nextBeat?.summary || nextBeat?.physical_event || nextBeat?.description || 'UNKNOWN_BEAT';
+
+        const header = [
+            '# SWITCH MODE: Narrative Advance',
+            '',
+            '- Transition: close the previous scene in 1-2 sentences.',
+            `- If useful, respect exit condition: ${exitCondition}`,
+            '- Immediately enter the new beat.',
+            `- Focus on establishing the new scene: ${nextSummary}`,
+            ''
+        ];
+
+        const base = PromptBuilder.buildHardcodedDirectorInstructions(nextBeatIdx, nextBeat, beats);
+        return header.join('\n') + '\n' + base;
     }
 
     /**

@@ -30,13 +30,14 @@ export class TurnConductorAgent extends Agent {
     getCompleteDefaultPrompt() {
         // 创建示例上下文数据用于生成完整模板
         const exampleContext = {
-            lastExchange: {
-                user: '示例用户输入',
-                assistant: '示例AI回复'
-            },
+            lastExchange: '[EXAMPLE] Recent AI/User exchange',
+            userLastMessage: 'Example user input',
+            currentBeatIdx: 0,
+            currentBeat: { physical_event: 'Example Beat A (Current)' },
+            nextBeat: { physical_event: 'Example Beat B (Next)' },
             chapterBlueprint: {
-                title: '示例章节',
-                plot_beats: ['示例节拍1', '示例节拍2']
+                title: 'Example Chapter',
+                plot_beats: ['Example Beat 1', 'Example Beat 2']
             },
             staticMatrices: {
                 characters: {},
@@ -61,17 +62,29 @@ export class TurnConductorAgent extends Agent {
     }
 
     async execute(context) {
-        this.diagnose(`--- 回合裁判 V10.0 (GPS定位+基调纠正+严格顺序) 启动 ---`);
+        this.diagnose(`--- TurnConductor V11.0 (Navigation Gate + GPS/Fallback) START ---`);
 
-        const { lastExchange, chapterBlueprint, chapter } = context;
+        const {
+            lastExchange,
+            chapterBlueprint,
+            chapter,
+            currentBeat,
+            nextBeat,
+            currentBeatIdx,
+            userLastMessage
+        } = context;
 
         const prompt = this._createPrompt({
             lastExchange,
             chapterBlueprint,
             staticMatrices: chapter?.staticMatrices || {},
+            currentBeat,
+            nextBeat,
+            currentBeatIdx,
+            userLastMessage
         });
 
-        sbtConsole.groupCollapsed('[SBT-DIAGNOSE] TurnConductor Prompt V9.0 (极简GPS)');
+        sbtConsole.groupCollapsed('[SBT-DIAGNOSE] TurnConductor Prompt V11.0');
         logger.debug(prompt);
         sbtConsole.groupEnd();
 
@@ -80,25 +93,75 @@ export class TurnConductorAgent extends Agent {
                 [{ role: 'user', content: prompt }]
             );
 
-            const decision = this.extractJsonFromString(this._stripLogicCheckBlock(responseText));
+            const strippedResponse = this._stripLogicCheckBlock(responseText);
+            const hasJsonMarkers = typeof strippedResponse === 'string'
+                && (strippedResponse.includes('```json') || strippedResponse.includes('{'));
 
-            sbtConsole.group('[CONDUCTOR-V10-OUTPUT] 定位+基调纠正输出结构');
-            logger.debug('✓ status:', decision.status);
-            logger.debug('✓ current_beat_idx:', decision.current_beat_idx);
-            logger.debug('✓ narrative_hold:', typeof decision.narrative_hold === 'string' ? decision.narrative_hold.substring(0, 60) + '...' : decision.narrative_hold);
-            logger.debug('✓ tone_correction:', typeof decision.tone_correction === 'string'
-                ? decision.tone_correction.substring(0, 100) + '...'
-                : (decision.tone_correction ? JSON.stringify(decision.tone_correction).substring(0, 100) : 'null (无需纠正)'));
-            logger.debug('✓ beat_completion_analysis:', typeof decision.beat_completion_analysis === 'string' ? decision.beat_completion_analysis.substring(0, 60) + '...' : decision.beat_completion_analysis);
-            logger.debug('✓ realtime_context_ids:', decision.realtime_context_ids);
-            sbtConsole.groupEnd();
-
-            // 确保必要字段存在
-            if (!decision.status || decision.current_beat_idx === undefined) {
-                throw new Error("裁判AI返回的JSON缺少必要字段 (status 或 current_beat_idx)");
+            if (!hasJsonMarkers) {
+                this.warn('[CONDUCTOR-V11] No JSON detected in response. Falling back to STAY.');
+                return {
+                    navigation_decision: "STAY",
+                    reasoning: "fallback: no JSON in response",
+                    logic_safety_warning: 'NONE',
+                    status: "CONTINUE",
+                    current_beat_idx: Number.isFinite(Number(currentBeatIdx)) ? Number(currentBeatIdx) : 0,
+                    narrative_hold: 'NONE',
+                    tone_correction: null,
+                    beat_completion_analysis: 'NO_JSON',
+                    realtime_context_ids: []
+                };
             }
 
-            // 确保可选字段有默认值
+            const decision = this.extractJsonFromString(strippedResponse);
+            if (!decision || typeof decision !== 'object') {
+                this.warn('[CONDUCTOR-V11] Invalid JSON decision. Falling back to STAY.');
+                return {
+                    navigation_decision: "STAY",
+                    reasoning: "fallback: invalid or missing JSON",
+                    logic_safety_warning: 'NONE',
+                    status: "CONTINUE",
+                    current_beat_idx: Number.isFinite(Number(currentBeatIdx)) ? Number(currentBeatIdx) : 0,
+                    narrative_hold: 'NONE',
+                    tone_correction: null,
+                    beat_completion_analysis: 'INVALID_JSON',
+                    realtime_context_ids: []
+                };
+            }
+
+            let navigationDecision = typeof decision.navigation_decision === 'string'
+                ? decision.navigation_decision.trim().toUpperCase()
+                : '';
+
+            if (navigationDecision != 'STAY' && navigationDecision != 'SWITCH') {
+                if (Number.isFinite(Number(decision.current_beat_idx)) && Number.isFinite(Number(currentBeatIdx))) {
+                    navigationDecision = Number(decision.current_beat_idx) > Number(currentBeatIdx) ? 'SWITCH' : 'STAY';
+                } else {
+                    navigationDecision = 'STAY';
+                }
+            }
+            decision.navigation_decision = navigationDecision;
+
+            if (!decision.logic_safety_warning) {
+                decision.logic_safety_warning = 'NONE';
+            }
+            if (!decision.reasoning) {
+                decision.reasoning = 'N/A';
+            }
+
+            sbtConsole.group('[CONDUCTOR-V11-OUTPUT] Navigation + GPS/Tone Output');
+            logger.debug('navigation_decision:', decision.navigation_decision);
+            logger.debug('reasoning:', typeof decision.reasoning === 'string' ? decision.reasoning.substring(0, 100) + '...' : decision.reasoning);
+            logger.debug('logic_safety_warning:', typeof decision.logic_safety_warning === 'string' ? decision.logic_safety_warning.substring(0, 100) + '...' : decision.logic_safety_warning);
+            logger.debug('status:', decision.status);
+            logger.debug('current_beat_idx:', decision.current_beat_idx);
+            logger.debug('narrative_hold:', typeof decision.narrative_hold === 'string' ? decision.narrative_hold.substring(0, 60) + '...' : decision.narrative_hold);
+            logger.debug('tone_correction:', typeof decision.tone_correction === 'string'
+                ? decision.tone_correction.substring(0, 100) + '...'
+                : (decision.tone_correction ? JSON.stringify(decision.tone_correction).substring(0, 100) : 'null (none)'));
+            logger.debug('beat_completion_analysis:', typeof decision.beat_completion_analysis === 'string' ? decision.beat_completion_analysis.substring(0, 60) + '...' : decision.beat_completion_analysis);
+            logger.debug('realtime_context_ids:', decision.realtime_context_ids);
+            sbtConsole.groupEnd();
+
             if (!decision.realtime_context_ids) {
                 decision.realtime_context_ids = [];
             }
@@ -106,35 +169,35 @@ export class TurnConductorAgent extends Agent {
                 decision.tone_correction = null;
             }
             if (!decision.beat_completion_analysis) {
-                decision.beat_completion_analysis = "未提供完成度分析";
+                decision.beat_completion_analysis = 'NO_ANALYSIS';
             }
 
-            // V10.0: 如果有基调纠正指令，在控制台高亮显示
             if (decision.tone_correction) {
-                sbtConsole.warn('[⚠️ TONE CORRECTION REQUIRED] 检测到基调偏离，需要纠正：');
+                sbtConsole.warn('[TONE CORRECTION REQUIRED] Tone deviation detected.');
                 sbtConsole.warn(decision.tone_correction);
             }
 
-            this.info("--- 回合裁判 V10.0 --- GPS定位与基调检查完成");
+            this.info('--- TurnConductor V11.0 --- Navigation Gate + GPS/Tone DONE');
             return decision;
 
         } catch (error) {
-            this.diagnose("--- 回合裁判 V10.0 执行失败 ---", error);
+            this.diagnose('--- TurnConductor V11.0 FAILED ---', error);
             if (this.toastr) {
-                this.toastr.error(`裁判执行失败: ${error.message}`, "裁判AI错误");
+                this.toastr.error(`Conductor failed: ${error.message}`, 'Conductor Error');
             }
-            // 降级策略：默认继续当前，无特殊限制
             return {
+                navigation_decision: "STAY",
+                reasoning: "fallback: conductor failed",
+                logic_safety_warning: 'NONE',
                 status: "CONTINUE",
-                current_beat_idx: 0,
-                narrative_hold: "无",
+                current_beat_idx: Number.isFinite(Number(currentBeatIdx)) ? Number(currentBeatIdx) : 0,
+                narrative_hold: 'NONE',
                 tone_correction: null,
-                beat_completion_analysis: "执行失败，无法分析",
+                beat_completion_analysis: 'EXECUTION_FAILED',
                 realtime_context_ids: []
             };
         }
     }
-
 // ai/turnConductorAgent.js
 
 _createPrompt(context) {
@@ -146,7 +209,7 @@ _createPrompt(context) {
     }
 
     // 极简模式：只提取必要数据
-    const { lastExchange, chapterBlueprint, staticMatrices } = context;
+    const { lastExchange, chapterBlueprint, staticMatrices, currentBeat, nextBeat, currentBeatIdx, userLastMessage } = context;
     const beats = chapterBlueprint?.plot_beats || [];
 
     // 【实体召回开关检测】默认关闭
@@ -160,7 +223,30 @@ _createPrompt(context) {
         chapterContextIds = chapterBlueprint?.chapter_context_ids || [];
     }
 
-    // V10.0 Prompt：GPS定位 + 基调纠正 + 严格顺序
+    
+    const currentBeatSummary = currentBeat?.physical_event || currentBeat?.summary || currentBeat?.description || 'UNKNOWN_BEAT';
+    const nextBeatSummary = nextBeat?.physical_event || nextBeat?.summary || nextBeat?.description || 'NONE';
+    const safeUserMessage = (typeof userLastMessage == 'string' && userLastMessage.trim() != '')
+        ? userLastMessage
+        : '[NO USER MESSAGE]';
+    const hasNavigationContext = !!(currentBeat || nextBeat || userLastMessage || Number.isFinite(Number(currentBeatIdx)));
+    const navigationContextBlock = hasNavigationContext ? `
+[NAVIGATION GATE]
+Current Beat A (Stay): ${currentBeatSummary}
+Next Beat B (Pending): ${nextBeatSummary}
+User Last Message: "${safeUserMessage}"
+
+Decision Rules:
+- STAY: user shows interaction intent (questions/emotions/actions/refuse to leave).
+- SWITCH: user shows advance/leave intent or passive response (short reply/silence/next).
+
+Logic Safety:
+- If STAY, check if user behavior would break Beat B preconditions.
+- If conflict, write it into logic_safety_warning.
+` : '';
+
+
+// V10.0 Prompt：GPS定位 + 基调纠正 + 严格顺序
     return BACKEND_SAFE_PASS_PROMPT + `
 指令: 剧情定位与基调纠正 V10.0
 
@@ -251,8 +337,14 @@ ${lastExchange}
     current_beat_idx = 4 → TRIGGER_TRANSITION
     current_beat_idx = 3 → CONTINUE
 
+${navigationContextBlock}
+
 输出格式_JSON:
+  IMPORTANT: Return ONLY a JSON object. No markdown or extra text.
   结构:
+    navigation_decision: STAY | SWITCH
+    reasoning: explain user intent and decision
+    logic_safety_warning: NONE | warning details
     status: CONTINUE或TRIGGER_TRANSITION
     current_beat_idx: 数值，表示当前节拍索引
     narrative_hold: 描述严格禁止的后续内容
