@@ -71,9 +71,63 @@ html {
 #beat-tracker-component-wrapper .drawer-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; background-color: var(--sbt-bg-dark); border-bottom: 1px solid var(--sbt-border-color); }
 #beat-tracker-component-wrapper .drawer-header h3 { margin: 0; font-size: 1.1em; }
 #beat-tracker-component-wrapper .drawer-header i { margin-right: 8px; }
+
+@media (max-width: 680px) {
+    #beat-tracker-component-wrapper .drawer-header h3 {
+        display: none;
+    }
+    #beat-tracker-component-wrapper .drawer-header {
+        justify-content: flex-end;
+    }
+    #beat-tracker-component-wrapper .drawer-header .sbt-header-indicators {
+        margin-left: auto;
+    }
+}
 /* --- 标签页导航与面板  --- */
-#sbt-tab-nav { display: flex; background-color: var(--sbt-bg-dark); }
-.sbt-tab-btn { flex-grow: 1; padding: 10px; border: none; background-color: transparent; color: var(--sbt-text-medium); font-size: 1em; cursor: pointer; border-bottom: 3px solid transparent; }
+#sbt-tab-nav {
+    display: flex;
+    background-color: var(--sbt-bg-dark);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    cursor: grab;
+    user-select: none;
+}
+
+#sbt-tab-nav.is-dragging {
+    cursor: grabbing;
+}
+
+#sbt-tab-nav::-webkit-scrollbar {
+    height: 0;
+}
+
+#sbt-tab-nav::-webkit-scrollbar-thumb {
+    background: transparent;
+}
+
+#sbt-tab-nav::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+#sbt-tab-nav::-webkit-scrollbar-thumb:hover {
+    background: transparent;
+}
+
+.sbt-tab-btn {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    border: none;
+    background-color: transparent;
+    color: var(--sbt-text-medium);
+    font-size: 1em;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    white-space: nowrap;
+}
 .sbt-tab-btn:hover { background-color: var(--sbt-bg-medium); }
 .sbt-tab-btn.active { color: var(--sbt-primary-accent); border-bottom: 3px solid var(--sbt-primary-accent); }
 .sbt-tab-btn i { margin-right: 6px; }
@@ -108,8 +162,16 @@ html {
     margin-top: 0;
 }
 
+.sbt-panel-col #sbt-conductor-summary-panel {
+    margin-top: 0;
+}
+
 @media (min-width: 1200px) {
     .sbt-panel-grid.sbt-panel-grid-monitor.sbt-monitor-has-stream {
+        grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
+    }
+
+    .sbt-panel-grid.sbt-panel-grid-monitor.sbt-monitor-has-side {
         grid-template-columns: minmax(0, 1.35fr) minmax(0, 0.65fr);
     }
 
@@ -122,7 +184,7 @@ html {
     }
 }
 
-.sbt-panel-grid-monitor:not(.sbt-monitor-has-stream) .sbt-col-side {
+.sbt-panel-grid-monitor:not(.sbt-monitor-has-side) .sbt-col-side {
     display: none;
 }
 
@@ -1044,6 +1106,14 @@ input:checked + .sbt-slider:before {
     overflow-y: auto;
     width: 100%;
     box-sizing: border-box;
+}
+
+.sbt-category-header.sbt-no-toggle {
+    cursor: default;
+}
+
+.sbt-category-header.sbt-no-toggle::after {
+    content: '';
 }
 
 #sbt-settings-panel .sbt-library-items {
@@ -3065,6 +3135,130 @@ input:checked + .sbt-slider:before {
 /* ====================================================================
    [SECTION] 流式输出面板 (Stream Output Panel)
    ==================================================================== */
+
+/* ====================================================================
+   [SECTION] 回合执导摘要面板 (Conductor Summary Panel)
+   ==================================================================== */
+
+#sbt-conductor-summary-panel {
+    margin-top: 0;
+    border: none;
+    border-radius: 0;
+    background: transparent;
+    overflow: visible;
+    transition: none;
+}
+
+#sbt-conductor-summary-panel.collapsed .sbt-summary-body {
+    display: none;
+}
+
+.sbt-summary-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--sbt-bg-medium);
+    border-bottom: 1px solid var(--sbt-border-color);
+    cursor: pointer;
+    user-select: none;
+}
+
+.sbt-summary-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.sbt-summary-header-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.9em;
+    font-weight: 600;
+    color: var(--sbt-text-light);
+}
+
+.sbt-summary-header-title i {
+    color: var(--sbt-primary-accent);
+    font-size: 1.1em;
+}
+
+.sbt-summary-toggle-btn {
+    padding: 4px 10px;
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+    background: transparent;
+    border: 1px solid var(--sbt-border-color);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.sbt-summary-toggle-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--sbt-text-light);
+}
+
+.sbt-summary-body {
+    padding: 0;
+    background: transparent;
+}
+
+.sbt-summary-progress {
+    position: relative;
+    height: 8px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+    margin-bottom: 8px;
+}
+
+.sbt-summary-progress-bar {
+    height: 100%;
+    width: 0%;
+    border-radius: 999px;
+    background: linear-gradient(90deg, var(--sbt-primary-accent), rgba(255, 255, 255, 0.6));
+    transition: width 0.3s ease;
+}
+
+.sbt-summary-progress-text {
+    font-size: 0.85em;
+    color: var(--sbt-text-medium);
+    margin-bottom: 10px;
+}
+
+.sbt-summary-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.sbt-summary-chip {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    font-size: 0.82em;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--sbt-text-light);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.sbt-summary-text {
+    font-size: 0.88em;
+    line-height: 1.5;
+    color: var(--sbt-text-light);
+    white-space: pre-wrap;
+}
+
+.sbt-summary-footer {
+    padding: 8px 0 0;
+    font-size: 0.82em;
+    color: var(--sbt-text-medium);
+    background: transparent;
+    border-top: 1px dashed var(--sbt-border-color);
+    text-align: left;
+}
 
 /* 流式输出容器 */
 #sbt-conductor-stream-panel {

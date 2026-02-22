@@ -165,6 +165,14 @@ export const commandsToDelta = (commands = [], options = {}) => {
                 warn(`updateEntity skipped: unknown category ${normalized}`);
                 return;
             }
+            case 'keepEntity': {
+                const [category, id] = args;
+                const normalized = normalizeCategory(category);
+                if (!normalized || !id) {
+                    warn(`keepEntity skipped: invalid args`);
+                }
+                return;
+            }
             case 'deleteEntity': {
                 warn(`deleteEntity ignored: deletion not supported`);
                 return;
@@ -178,6 +186,14 @@ export const commandsToDelta = (commands = [], options = {}) => {
                 }
                 const updates = ensureUpdates();
                 ensurePath(updates, ['storylines', storyCategory])[id] = data;
+                return;
+            }
+            case 'keepStoryline': {
+                const [category, id] = args;
+                const storyCategory = normalizeStorylineCategory(category);
+                if (!storyCategory || !id) {
+                    warn(`keepStoryline skipped: invalid args`);
+                }
                 return;
             }
             case 'appendRelationshipEdge': {

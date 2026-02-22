@@ -455,9 +455,17 @@ const spoilerBlockPlaceholder = {
                 ? Number(conductorDecision.current_beat_idx)
                 : null;
 
-            let currentBeatIdx = Number.isInteger(clampedStoredBeatIdx)
+            const hasConductorBeatIdx = Number.isInteger(conductorBeatIdx);
+            const hasStoredBeatIdx = Number.isInteger(clampedStoredBeatIdx);
+
+            let currentBeatIdx = hasStoredBeatIdx
                 ? clampedStoredBeatIdx
-                : (Number.isInteger(conductorBeatIdx) ? conductorBeatIdx : 0);
+                : (hasConductorBeatIdx ? conductorBeatIdx : 0);
+
+            if (hasConductorBeatIdx && (!hasStoredBeatIdx || conductorBeatIdx !== clampedStoredBeatIdx)) {
+                this.info(`[PROBE][NAVIGATION] Beat index mismatch. stored=${clampedStoredBeatIdx ?? 'none'}, conductor=${conductorBeatIdx}. Using conductor.`);
+                currentBeatIdx = conductorBeatIdx;
+            }
 
             if (beats.length > 0) {
                 currentBeatIdx = Math.max(0, Math.min(currentBeatIdx, beats.length - 1));
@@ -484,11 +492,16 @@ const spoilerBlockPlaceholder = {
 
             const needsBeatIndexInit = !Number.isInteger(storedBeatIdxRaw)
                 || (Number.isInteger(storedBeatIdxRaw) && clampedStoredBeatIdx !== storedBeatIdxRaw);
+            const needsBeatIndexSync = hasConductorBeatIdx
+                && (!hasStoredBeatIdx || conductorBeatIdx !== clampedStoredBeatIdx);
 
             this.pendingBeatIndexUpdate = null;
             this.pendingBeatIndexAnchorIndex = null;
             if (shouldSwitch) {
                 this.pendingBeatIndexUpdate = effectiveBeatIdx;
+                this.pendingBeatIndexAnchorIndex = lastStateIndex;
+            } else if (needsBeatIndexSync && Number.isInteger(currentBeatIdx)) {
+                this.pendingBeatIndexUpdate = currentBeatIdx;
                 this.pendingBeatIndexAnchorIndex = lastStateIndex;
             } else if (needsBeatIndexInit && Number.isInteger(currentBeatIdx)) {
                 this.pendingBeatIndexUpdate = currentBeatIdx;
@@ -502,6 +515,65 @@ const spoilerBlockPlaceholder = {
             }
 
             this.info(`[PROBE][NAVIGATION] decision=${navigationDecision}, current=${currentBeatIdx}, effective=${effectiveBeatIdx}`);
+
+            // V11.1: Conductor summary for UI (processed, no raw text)
+            const totalBeats = Array.isArray(beats) ? beats.length : 0;
+            const displayBeatIdx = Number.isInteger(effectiveBeatIdx) ? effectiveBeatIdx : currentBeatIdx;
+            const displayBeatNumber = totalBeats > 0 && Number.isInteger(displayBeatIdx) ? displayBeatIdx + 1 : 0;
+            const progressPercentRaw = totalBeats > 0 ? Math.round((displayBeatNumber / totalBeats) * 100) : 0;
+            const progressPercent = Math.max(0, Math.min(100, progressPercentRaw));
+
+            const decisionLabel = navigationDecision === 'SWITCH' ? '切换' : '停留';
+            let intentLabel = navigationDecision === 'SWITCH' ? '推进' : '互动';
+
+            const analysisTag = String(conductorDecision?.beat_completion_analysis || '').toUpperCase();
+            const isFallbackDecision = ['NO_JSON', 'INVALID_JSON', 'EXECUTION_FAILED'].includes(analysisTag);
+
+            const warningTextRaw = typeof conductorDecision?.logic_safety_warning === 'string'
+                ? conductorDecision.logic_safety_warning.trim()
+                : '';
+            const warningUpper = warningTextRaw.toUpperCase();
+            const hasWarning = !!warningTextRaw && !['NONE', '无', 'NULL', 'N/A'].includes(warningUpper);
+
+            if (isFallbackDecision) {
+                intentLabel = '未知';
+            }
+
+            const summaryLines = [];
+            if (isFallbackDecision) {
+                summaryLines.push('裁判输出异常，已按默认停留处理。');
+            } else if (navigationDecision === 'SWITCH') {
+                summaryLines.push(isEndSwitch
+                    ? '判定为切换：已到节拍末尾，准备触发章节转换。'
+                    : '判定为切换：用户倾向推进，准备进入下一节拍。');
+            } else {
+                summaryLines.push('判定为停留：用户倾向互动，继续扩展当前节拍。');
+            }
+            if (hasWarning) {
+                summaryLines.push('注意：当前行动可能影响下一节拍前提，需避免冲突。');
+            }
+
+            const conductorSummary = {
+                chapterUid: this.currentChapter?.uid || null,
+                decision: navigationDecision,
+                decisionLabel,
+                intentLabel,
+                currentBeatIndex: Number.isInteger(displayBeatIdx) ? displayBeatIdx : 0,
+                currentBeatNumber: displayBeatNumber,
+                totalBeats: totalBeats,
+                progressPercent,
+                summaryText: summaryLines.join('\n'),
+                hasWarning,
+                updatedAt: Date.now()
+            };
+
+            if (this.currentChapter) {
+                if (!this.currentChapter.meta) this.currentChapter.meta = {};
+                this.currentChapter.meta.conductorSummary = conductorSummary;
+            }
+            if (this.eventBus) {
+                this.eventBus.emit('CONDUCTOR_SUMMARY_UPDATED', conductorSummary);
+            }
 
             // V2.0: realtime context recall
             let dynamicContextInjection = '';
@@ -1005,20 +1077,7 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
             this.info(`   → Leader UID: ${piece.leader?.uid || '未知'}`);
             this.info(`   → 章节标题: ${piece.leader?.meta?.chapter_title || '未设置'}`);
             this.info(`   → 聊天总消息数: ${this.USER.getContext().chat.length}`);
-            this.info(`   → Leader 完整数据（JSON格式，不省略）:`);
-            try {
-                const leaderJson = JSON.stringify(piece.leader, null, 2);
-                // 分段输出，每400字符一段
-                const chunkSize = 400;
-                for (let i = 0; i < leaderJson.length; i += chunkSize) {
-                    const chunk = leaderJson.substring(i, i + chunkSize);
-                    const partNum = Math.floor(i / chunkSize) + 1;
-                    const totalParts = Math.ceil(leaderJson.length / chunkSize);
-                    this.info(`[Part ${partNum}/${totalParts}] ${chunk}`);
-                }
-            } catch (err) {
-                this.info(`JSON序列化失败: ${err.message}`);
-            }
+            this.info(`   → Leader 完整数据（JSON格式）：已省略（避免拆分刷屏）`);
             this.info("════════════════════════════════════════════════════");
         } else {
             $anchorIndex.text(`--`);

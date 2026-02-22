@@ -122,6 +122,7 @@ $('#extensions-settings-button').after(html);
     // -- 维护当前章节状态的全局引用 --
     let currentChapterState = null;
     let isLockedInStaticMode = false; // 标记是否锁定在静态数据库模式
+    let lastConductorSummary = null;
 
     // 辅助函数：在交互时获取"最真实"的章节状态
     // 如果锁定在静态模式，则不再尝试切换到leader状态
@@ -151,6 +152,49 @@ $('#extensions-settings-button').after(html);
         }
     };
 
+    const applyConductorSummary = (summary) => {
+        if (!summary || typeof summary !== 'object') return;
+        const $panel = $('#sbt-conductor-summary-panel');
+        if ($panel.length === 0) return;
+
+        const totalBeats = Number.isFinite(Number(summary.totalBeats)) ? Number(summary.totalBeats) : 0;
+        const beatNumber = Number.isFinite(Number(summary.currentBeatNumber)) ? Number(summary.currentBeatNumber) : 0;
+        const progressPercentRaw = Number.isFinite(Number(summary.progressPercent))
+            ? Number(summary.progressPercent)
+            : (totalBeats > 0 && beatNumber > 0 ? Math.round((beatNumber / totalBeats) * 100) : 0);
+        const progressPercent = Math.max(0, Math.min(100, progressPercentRaw));
+
+        const decisionLabel = summary.decisionLabel || summary.decision || '-';
+        const intentLabel = summary.intentLabel || '-';
+        const summaryText = summary.summaryText || summary.summary || '暂无回合执导记录。';
+
+        $('#sbt-conductor-progress-bar').css('width', `${progressPercent}%`);
+        $('#sbt-conductor-progress-text').text(totalBeats > 0 && beatNumber > 0
+            ? `节拍进度：${beatNumber} / ${totalBeats}`
+            : '节拍进度：- / -');
+        $('#sbt-conductor-decision-chip').text(`裁判：${decisionLabel}`);
+        $('#sbt-conductor-intent-chip').text(`倾向：${intentLabel}`);
+        $('#sbt-conductor-summary-text').text(summaryText);
+
+        let updatedLabel = '--';
+        if (summary.updatedAt) {
+            const date = new Date(summary.updatedAt);
+            if (!Number.isNaN(date.getTime())) {
+                updatedLabel = date.toLocaleString();
+            }
+        }
+        $('#sbt-conductor-summary-time').text(`最近更新：${updatedLabel}`);
+    };
+
+    const syncConductorSummaryFromChapter = (chapterState) => {
+        const summary = chapterState?.meta?.conductorSummary;
+        if (!summary || typeof summary !== 'object') return;
+        lastConductorSummary = summary;
+        if ($('#sbt-conductor-summary-panel').is(':visible')) {
+            applyConductorSummary(summary);
+        }
+    };
+
     // 监听CHAPTER_UPDATED事件，保存最新的章节状态
     if (deps.eventBus) {
         deps.eventBus.on('CHAPTER_UPDATED', (chapterState) => {
@@ -165,6 +209,7 @@ $('#extensions-settings-button').after(html);
                     }
                 }
                 refreshStaticModeBanner();
+                syncConductorSummaryFromChapter(resolvedState);
             }
         });
     }
@@ -227,6 +272,7 @@ $('#extensions-settings-button').after(html);
                     window.__sbtLiveLeaderAvailable = true;
                 }
                 updateDashboard(liveState);
+                syncConductorSummaryFromChapter(liveState);
                 deps.info('[UIManager] 检测到动态章节状态，已成功加载。');
                 refreshStaticModeBanner();
                 return;
@@ -284,6 +330,7 @@ $('#extensions-settings-button').after(html);
                 currentChapterState = tempChapterState;
                 isLockedInStaticMode = true; // 锁定在静态数据库模式
                 updateDashboard(tempChapterState);
+                syncConductorSummaryFromChapter(tempChapterState);
                 deps.info('[UIManager] 已显示缓存数据预览，锁定在静态数据库模式');
             } else {
                 deps.info('[UIManager] 检测到真实章节状态，跳过缓存数据加载（避免覆盖）');
@@ -334,7 +381,45 @@ $('#extensions-settings-button').after(html);
     });
 
     
+    // -- Tab 导航：支持鼠标拖拽横向滚动 --
+    let isTabDragging = false;
+    let tabDragStartX = 0;
+    let tabDragScrollLeft = 0;
+    let tabDragMoved = false;
+    let tabDragLastTime = 0;
+
+    $wrapper.on('mousedown', '#sbt-tab-nav', function(e) {
+        if (e.button !== 0) return;
+        isTabDragging = true;
+        tabDragMoved = false;
+        tabDragStartX = e.pageX;
+        tabDragScrollLeft = this.scrollLeft;
+        $(this).addClass('is-dragging');
+    });
+
+    $wrapper.on('mousemove', '#sbt-tab-nav', function(e) {
+        if (!isTabDragging) return;
+        const deltaX = e.pageX - tabDragStartX;
+        if (Math.abs(deltaX) > 3) {
+            tabDragMoved = true;
+        }
+        this.scrollLeft = tabDragScrollLeft - deltaX;
+        e.preventDefault();
+    });
+
+    $(document).on('mouseup', () => {
+        if (!isTabDragging) return;
+        isTabDragging = false;
+        tabDragLastTime = tabDragMoved ? Date.now() : 0;
+        $('#sbt-tab-nav').removeClass('is-dragging');
+    });
+
         $wrapper.on('click', '#sbt-tab-nav .sbt-tab-btn', function() {
+        if (tabDragMoved && Date.now() - tabDragLastTime < 200) {
+            tabDragMoved = false;
+            return;
+        }
+        tabDragMoved = false;
         const $button = $(this);
         const targetPanelId = $button.data('panel');
 
@@ -354,6 +439,9 @@ $('#extensions-settings-button').after(html);
     // -- 通用: 所有面板的分类折叠逻辑（世界档案 + 创作工坊）--
     $wrapper.on('click', '.sbt-category-header', function() {
         const $header = $(this);
+        if ($header.hasClass('sbt-no-toggle') || $header.data('noToggle')) {
+            return;
+        }
         const $content = $header.next('.sbt-library-items');
         $header.toggleClass('collapsed');
         $content.toggleClass('collapsed');
@@ -1501,17 +1589,49 @@ $('#extensions-settings-button').after(html);
     localStorage.setItem('sbt-focus-popup-enabled', 'true');
     localStorage.setItem('sbt-conductor-enabled', 'true');
     localStorage.setItem('sbt-conductor-stream-enabled', 'false');
+    if (localStorage.getItem('sbt-conductor-summary-enabled') === null) {
+        localStorage.setItem('sbt-conductor-summary-enabled', 'false');
+    }
 
     // -- V3.1: 流式显示回合裁判 --
     const updateMonitorLayout = () => {
         const $grid = $('.sbt-panel-grid-monitor');
         const hasVisibleStream = $('#sbt-conductor-stream-panel').is(':visible');
         $grid.toggleClass('sbt-monitor-has-stream', hasVisibleStream);
+        $grid.toggleClass('sbt-monitor-has-side', hasVisibleStream);
     };
 
     const isConductorStreamEnabled = () => localStorage.getItem('sbt-conductor-stream-enabled') === 'true';
+    const isConductorSummaryEnabled = () => localStorage.getItem('sbt-conductor-summary-enabled') === 'true';
     $('#sbt-conductor-stream-panel').hide();
+
+    const refreshConductorSummaryPanel = () => {
+        const $category = $('#sbt-conductor-summary-category');
+        if (isConductorSummaryEnabled()) {
+            $category.show();
+            if (lastConductorSummary) {
+                applyConductorSummary(lastConductorSummary);
+            }
+        } else {
+            $category.hide();
+        }
+        updateMonitorLayout();
+    };
+
+    const $summaryToggle = $('#sbt-conductor-summary-toggle');
+    $summaryToggle.prop('checked', isConductorSummaryEnabled());
+    refreshConductorSummaryPanel();
     updateMonitorLayout();
+
+    $wrapper.on('change', '#sbt-conductor-summary-toggle', function() {
+        const isChecked = $(this).is(':checked');
+        localStorage.setItem('sbt-conductor-summary-enabled', isChecked);
+        refreshConductorSummaryPanel();
+        deps.toastr.info(
+            `回合执导摘要已${isChecked ? '开启' : '关闭'}`,
+            '设置已更新'
+        );
+    });
 
     // -- 实体召回开关（测试功能） --
     const $entityRecallToggle = $('#sbt-enable-entity-recall-toggle');
@@ -1663,6 +1783,14 @@ $('#extensions-settings-button').after(html);
 
     // -- V3.1: EventBus 监听流式事件 --
     if (deps.eventBus) {
+        deps.eventBus.on('CONDUCTOR_SUMMARY_UPDATED', (summary) => {
+            if (!summary || typeof summary !== 'object') return;
+            lastConductorSummary = summary;
+            if (isConductorSummaryEnabled()) {
+                applyConductorSummary(summary);
+            }
+        });
+
         // 流式开始
         deps.eventBus.on('CONDUCTOR_STREAM_START', () => {
             if (!isConductorStreamEnabled()) return;

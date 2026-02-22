@@ -392,6 +392,8 @@ _createPrompt(context) {
             chapter.dynamicState
         );
         const longTermStorySummary = chapter?.meta?.longTermStorySummary || "故事刚刚开始。";
+        const chapterNumberRaw = chapter?.meta?.chapterNumber;
+        const chapterNumber = Number.isInteger(chapterNumberRaw) && chapterNumberRaw > 0 ? chapterNumberRaw : 1;
         const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
         // V4.2: 获取玩家设置的章节节拍数量区间
         const beatCountSetting = parseBeatCountSetting(safeLocalStorageGet('sbt-beat-count-range'));
@@ -430,6 +432,11 @@ _createPrompt(context) {
 
     let basePrompt = `
 指令_自省式叙事蓝图创作_V13.0:
+
+  章节编号信息:
+    当前章节号: 第${chapterNumber}章
+    规则: 标题与章节描述必须体现当前章节号，不要固定写“第一章”。
+
 
   身份确认: 你是一位顶级的懂得克制与聚焦艺术的叙事建筑师，你的任务是设计一个高度专注的服务于单一核心情感体验的创作蓝图
 

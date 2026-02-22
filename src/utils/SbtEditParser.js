@@ -8,6 +8,8 @@ export const DEFAULT_ALLOWED_FUNCTIONS = new Set([
     'updateEntity',
     'deleteEntity',
     'updateStoryline',
+    'keepEntity',
+    'keepStoryline',
     'updateRelationshipEdge',
     'appendRelationshipEdge',
     'updateCharacterRelationship',

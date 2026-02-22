@@ -129,6 +129,7 @@ export class Chapter {
                 lastChapterHandoff: null,
                 freeRoamMode: false, // 是否为自由章模式（跳过建筑师和回合执导）
                 currentBeatIndex: 0, // current beat pointer (stay/switch)
+                chapterNumber: 1, // ???????????????
                 // V4.0: 叙事控制塔 (Narrative Control Tower) - 一体化节奏管理系统
                 // 所有节奏相关决策的统一数据源
                 narrative_control_tower: {

@@ -212,13 +212,36 @@ export class HistorianAgent extends Agent {
         logger.debug('生成的故事线列表:', storylineList);
         sbtConsole.groupEnd();
 
+        const formatEntityList = (entries, nameGetter) => {
+            const list = Object.entries(entries || {}).map(([id, data]) => {
+                const name = nameGetter ? nameGetter(data, id) : (data?.name || data?.core?.name || id);
+                return `- ${name} (ID: ${id})`;
+            });
+            return list.length > 0 ? list.join('\n') : '（暂无）';
+        };
+
         const existingEntityManifest = `
 <existing_characters>
-${Object.entries(staticMatrices.characters).map(([id, data]) => `- ${data?.core?.name || data?.name || id} (ID: ${id})`).join('\n')}
+${formatEntityList(staticMatrices.characters, (data, id) => data?.core?.name || data?.name || id)}
 </existing_characters>
 <existing_locations>
-${Object.entries(staticMatrices.worldview.locations).map(([id, data]) => `- ${data.name} (ID: ${id})`).join('\n')}
+${formatEntityList(staticMatrices.worldview?.locations)}
 </existing_locations>
+<existing_items>
+${formatEntityList(staticMatrices.worldview?.items)}
+</existing_items>
+<existing_factions>
+${formatEntityList(staticMatrices.worldview?.factions)}
+</existing_factions>
+<existing_concepts>
+${formatEntityList(staticMatrices.worldview?.concepts)}
+</existing_concepts>
+<existing_events>
+${formatEntityList(staticMatrices.worldview?.events)}
+</existing_events>
+<existing_races>
+${formatEntityList(staticMatrices.worldview?.races)}
+</existing_races>
 <existing_storylines>
 ${storylineList.length > 0 ? storylineList.join('\n') : '（暂无故事线）'}
 </existing_storylines>
@@ -378,6 +401,15 @@ ${existingEntityManifest}
     字段清单:
 ${customFieldList}
 
+  方法M4.5_全量条目覆盖输出_强制:
+    目标: 现有每一个条目都必须出现在输出中，避免遗漏
+    规则:
+      - 清单中的每个角色/地点/物品/势力/概念/事件/种族/故事线条目必须逐条输出
+      - 需要修改的条目: 使用 updateEntity 或 updateStoryline 按原规则更新
+      - 无需修改的条目: 使用占位指令 keepEntity(category,id) 或 keepStoryline(category,id)
+      - 禁止在 summary/current_summary 等字段写“暂无/未更新/无变化”等占位文字
+      - keep* 仅用于占位，不应携带任何数据
+
   方法M5_条状章节梗概:
     输出字段: new_long_term_summary
     目标: 章节梗概改为“按章条状追加”的短句列表
@@ -421,6 +453,8 @@ ${customFieldList}
     createEntity(category,id,data)
     updateEntity(category,id,data)
     updateStoryline(category,id,data)
+    keepEntity(category,id)
+    keepStoryline(category,id)
     appendRelationshipEdge(data)
     updateRelationshipEdge(edgeId,updates)
     updateCharacterRelationship(charId,targetId,data)
@@ -544,6 +578,7 @@ ${customFieldList}
   项目13: 是否识别并入网了未解决困境/难题/未完成目标/未闭环事件?
   项目14: 是否为每个未完成事项提供storylines记录?
   项目15: 是否避免只叙述不建档?
+  项目16: 是否为清单中的每个现有条目输出了更新或 keep* 占位?
 
 现在，开始因果律审计。
 `;

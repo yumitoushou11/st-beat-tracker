@@ -371,6 +371,20 @@ export class TransitionManager {
             const newChapter = new Chapter(newChapterData);
     
             let updatedNewChapter = this.engine.stateUpdateManager.applyStateUpdates(newChapter, reviewDelta);
+
+            if (!updatedNewChapter.meta) {
+                updatedNewChapter.meta = {};
+            }
+            const baseChapterNumberRaw = workingChapter?.meta?.chapterNumber;
+            const baseChapterNumber = Number.isInteger(baseChapterNumberRaw) && baseChapterNumberRaw > 0
+                ? baseChapterNumberRaw
+                : 1;
+            const pendingStatus = this.LEADER?.pendingTransition?.status;
+            const isPendingResume = pendingStatus === 'awaiting_architect' || pendingStatus === 'historian_saved';
+            updatedNewChapter.meta.chapterNumber = isPendingResume
+                ? baseChapterNumber
+                : baseChapterNumber + 1;
+
             updatedNewChapter.playerNarrativeFocus = finalNarrativeFocus;
             updatedNewChapter.meta.freeRoamMode = this.LEADER.pendingTransition.freeRoamMode || false;
     
@@ -673,6 +687,11 @@ export class TransitionManager {
                 if (!this.currentChapter || this.currentChapter.characterId !== activeCharId) {
                     this.currentChapter = new Chapter({ characterId: activeCharId });
                 }
+
+                if (!this.currentChapter.meta) {
+                    this.currentChapter.meta = {};
+                }
+                this.currentChapter.meta.chapterNumber = 1;
     
                 // --- 阶段一：优先检查静态数据库 (用户预编辑的最新数据) ---
                 loadingToast.find('.toast-message').text("读取世界观设定...");

@@ -1,4 +1,4 @@
-<!-- drawer-component.html (V4 - Final Fix) -->
+﻿<!-- drawer-component.html (V4 - Final Fix) -->
 
 <!-- 
     核心修改：
@@ -55,7 +55,28 @@
                 <div class="sbt-panel-grid sbt-panel-grid-monitor">
                     <div class="sbt-panel-col sbt-col-main">
                         <!-- 故事摘要 -->
-                        <div class="sbt-library-category">
+                                        
+                        <div id="sbt-conductor-summary-category" class="sbt-library-category" style="display: none;">
+                            <h5 class="sbt-category-header collapsed">
+                                <i class="fa-solid fa-gauge-high fa-fw"></i> 回合执导概览
+                            </h5>
+                            <div id="sbt-conductor-summary-panel" class="sbt-library-items collapsed">
+                                <div class="sbt-summary-body">
+                                    <div class="sbt-summary-progress">
+                                        <div class="sbt-summary-progress-bar" id="sbt-conductor-progress-bar"></div>
+                                    </div>
+                                    <div class="sbt-summary-progress-text" id="sbt-conductor-progress-text">节拍进度：- / -</div>
+                                    <div class="sbt-summary-meta">
+                                        <span class="sbt-summary-chip" id="sbt-conductor-decision-chip">裁判：-</span>
+                                        <span class="sbt-summary-chip" id="sbt-conductor-intent-chip">倾向：-</span>
+                                    </div>
+                                    <div class="sbt-summary-text" id="sbt-conductor-summary-text">暂无回合执导记录。</div>
+                                </div>
+                                <div class="sbt-summary-footer" id="sbt-conductor-summary-time">最近更新：--</div>
+                            </div>
+                        </div>
+
+<div class="sbt-library-category">
                             <h5 class="sbt-category-header collapsed">
                                 <i class="fa-solid fa-scroll fa-fw"></i> 故事摘要
                             </h5>
@@ -85,8 +106,7 @@
                     </div>
 
                     <div class="sbt-panel-col sbt-col-side">
-                        <!-- V3.1: 回合裁判流式输出 -->
-                        <div id="sbt-conductor-stream-panel" style="display: none;">
+<div id="sbt-conductor-stream-panel" style="display: none;">
                             <div class="sbt-stream-header">
                                 <div class="sbt-stream-header-title">
                                     <i class="fa-solid fa-satellite-dish"></i>
@@ -451,6 +471,20 @@
                                 </div>
                                 <div class="sbt-toggle-switch">
                                     <input type="checkbox" id="sbt-debug-mode-toggle">
+                                    <span class="sbt-slider"></span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- 回合执导摘要展示开关 -->
+                        <div class="sbt-control-card">
+                            <label for="sbt-conductor-summary-toggle" class="sbt-toggle-switch-container">
+                                <div class="sbt-toggle-label">
+                                    <span class="sbt-toggle-text">显示回合执导摘要</span>
+                                    <i class="fa-solid fa-circle-info fa-fw" title="开启后，在创作工坊侧栏显示回合执导的进度与摘要。默认关闭。"></i>
+                                </div>
+                                <div class="sbt-toggle-switch">
+                                    <input type="checkbox" id="sbt-conductor-summary-toggle">
                                     <span class="sbt-slider"></span>
                                 </div>
                             </label>
