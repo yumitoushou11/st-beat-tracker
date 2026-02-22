@@ -14,6 +14,18 @@ export class ConsoleManager {
         this.uiInitialized = false; // UI事件是否已绑定
         this.filterEnabled = true; // 是否启用过滤
         this.consoleEnabled = false; // 🔧 控制台总开关，默认关闭
+        this.fatalOnly = true; // 🔧 前端控制台仅显示致命错误
+        this.fatalPatterns = [
+            /\bfatal\b/i,
+            /\bcritical\b/i,
+            /\bpanic\b/i,
+            /致命/,
+            /关键错误/,
+            /严重错误/,
+            /不可恢复/,
+            /无法继续/,
+            /崩溃/
+        ];
         this.originalConsole = {
             log: console.log,
             info: console.info,
@@ -75,32 +87,25 @@ export class ConsoleManager {
 
     /**
      * 拦截原生console方法
-     * 注意：只拦截 info、warn、error，不拦截 log 和 debug
-     * 这样前端控制台只显示重要信息，避免被大量调试日志淹没
+     * 注意：仅拦截 error
+     * 前端控制台只显示致命错误，避免被非致命信息淹没
      */
     setupConsoleIntercept() {
         const self = this;
 
-        // 只拦截重要的日志类型
-        ['info', 'warn', 'error'].forEach(method => {
-            console[method] = function(...args) {
-                // 调用原始方法
-                self.originalConsole[method].apply(console, args);
-
-                // 记录到前端控制台
-                self.addLog(method, ...args);
-            };
-        });
-
-        // log 和 debug 不拦截，只在浏览器控制台显示
+        // 仅拦截 error，其他类型不进入前端控制台
+        console.error = function(...args) {
+            self.originalConsole.error.apply(console, args);
+            self.addLog('error', ...args);
+        };
     }
 
     /**
      * 添加日志
      */
     addLog(type, ...args) {
-        // 🔧 控制台总开关检查 - error级别总是显示，其他类型需要开关启用
-        if (!this.consoleEnabled && type !== 'error') {
+        // 仅允许 error 进入前端控制台
+        if (type !== 'error') {
             return;
         }
 
@@ -139,8 +144,13 @@ export class ConsoleManager {
             return String(arg);
         }).join(' ');
 
-        // 过滤黑名单 - 但 warn 和 error 永远不过滤，且只在启用过滤时才应用
-        if (this.filterEnabled && type !== 'warn' && type !== 'error' && this.isBlacklisted(message)) {
+        // 致命错误过滤：仅保留致命级别
+        if (this.fatalOnly && !this.isFatalMessage(message, args)) {
+            return;
+        }
+
+        // 过滤黑名单 - error 不过滤，且只在启用过滤时才应用
+        if (this.filterEnabled && type !== 'error' && this.isBlacklisted(message)) {
             return;
         }
 
@@ -186,6 +196,26 @@ export class ConsoleManager {
 
         // 更新UI
         this.appendLogToUI(logEntry);
+    }
+
+    /**
+     * 判断是否为致命错误
+     */
+    isFatalMessage(message, args) {
+        if (typeof message === 'string' && this.fatalPatterns.some(pattern => pattern.test(message))) {
+            return true;
+        }
+
+        if (Array.isArray(args)) {
+            for (const arg of args) {
+                if (arg && typeof arg === 'object') {
+                    if (arg.fatal === true || arg.isFatal === true) return true;
+                    if (typeof arg.code === 'string' && /fatal|critical/i.test(arg.code)) return true;
+                    if (typeof arg.name === 'string' && /fatal|critical/i.test(arg.name)) return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
