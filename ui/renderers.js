@@ -1454,6 +1454,32 @@ export function updateDashboard(chapterState) {
                 `;
             }
 
+            // 8.5 节拍折叠率 (深青)
+            let densityHtml = '';
+            if (notes.beat_density_strategy) {
+                densityHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #16a085;">
+                        <h6 style="margin: 0 0 4px 0; color: #16a085; font-size: 0.95em;"><i class="fa-solid fa-layer-group fa-fw"></i> 节拍折叠率</h6>
+                        ${renderField('fa-solid fa-compress', '策略', notes.beat_density_strategy)}
+                    </div>
+                `;
+            }
+
+            // 8.6 章节节奏审核 (深蓝绿)
+            let pacingAuditHtml = '';
+            if (notes.chapter_pacing_audit && typeof notes.chapter_pacing_audit === 'object') {
+                const audit = notes.chapter_pacing_audit;
+                pacingAuditHtml = `
+                    <div style="background: var(--sbt-background-dark); padding: 8px; border-radius: 6px; margin-bottom: 8px; border-left: 3px solid #0f7c8c;">
+                        <h6 style="margin: 0 0 4px 0; color: #0f7c8c; font-size: 0.95em;"><i class="fa-solid fa-gauge-high fa-fw"></i> 章节节奏审核</h6>
+                        ${renderField('fa-solid fa-book', '故事概述', audit.story_summary)}
+                        ${renderField('fa-solid fa-list-ol', '节拍数量', audit.beat_count)}
+                        ${renderField('fa-solid fa-pen-nib', '目标字数', audit.total_word_target)}
+                        ${renderField('fa-solid fa-scale-balanced', '节奏判断', audit.pacing_assessment)}
+                    </div>
+                `;
+            }
+
             // 9. 非剧情对话遵守说明 (青色)
             let nonDialogueHtml = '';
             if (notes.non_dialogue_compliance_note) {
@@ -1488,6 +1514,8 @@ export function updateDashboard(chapterState) {
                 ${logicHtml}
                 ${endingHtml}
                 ${interactionHtml}
+                ${densityHtml}
+                ${pacingAuditHtml}
                 ${nonDialogueHtml}
                 ${scrutinyHtml}
             `;

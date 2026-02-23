@@ -222,6 +222,13 @@ _generateOutputSpecification(config) {
     },
     "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
     "interaction_self_check": "[每个节拍是否都具有极高的扩写潜力，可以被扩容为几千字的描写与对话？]",
+    "beat_density_strategy": "[必填：说明你如何设计“节拍信息折叠率”，以维持【节拍数 * 3500字】的总量节奏；若发现剧情规模不足以支撑该总量，你如何合并/减少节拍来达标？]",
+    "chapter_pacing_audit": {
+      "story_summary": "[必填：一句话概括本章讲了一个什么故事]",
+      "beat_count": "[必填：本章节拍数量]",
+      "total_word_target": "[必填：节拍数 * 3500 的目标字数]",
+      "pacing_assessment": "[必填：以现代网文节奏视角判断该故事是否适配该字数；禁止以意识流细节扩写凑字，若不适配说明如何调整节拍/合并]"
+    },
     "non_dialogue_compliance_note": "[遵守说明：非剧情对话计数=【X/2】；分布节拍=【列出节拍ID或写无】；连续检查=【无连续】；其余均为Dialogue_Scene。讲述你的节点设计是如何严格符合这个要求的]",
 
     "event_priority_report": {
@@ -393,7 +400,10 @@ _createPrompt(context) {
         );
         const longTermStorySummary = chapter?.meta?.longTermStorySummary || "故事刚刚开始。";
         const chapterNumberRaw = chapter?.meta?.chapterNumber;
-        const chapterNumber = Number.isInteger(chapterNumberRaw) && chapterNumberRaw > 0 ? chapterNumberRaw : 1;
+        const chapterNumberParsed = parseInt(chapterNumberRaw, 10);
+        const chapterNumber = Number.isFinite(chapterNumberParsed) && chapterNumberParsed > 0
+            ? chapterNumberParsed
+            : 1;
         const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
         // V4.2: 获取玩家设置的章节节拍数量区间
         const beatCountSetting = parseBeatCountSetting(safeLocalStorageGet('sbt-beat-count-range'));
@@ -569,6 +579,7 @@ _createPrompt(context) {
   法则零_高密度节拍:
     定义: 每个节拍必须满足“1:3000-5000字的信息折叠率”
     总量目标: 章节目标字数最低 = 节拍数 * 3500。节拍设计和剧情规模必须保证剧情节奏正常推进
+    重要风格: 这是现代网文小说节奏，不是意识流细节扩写。字数必须来自剧情推进、场景切换、冲突升级与互动展开，而不是单点细节反复放大
     语言: 只能使用总结性和指导性语言（例如“ A试图掩盖真相，却在B的层层逼问下精神崩溃 ”）
     禁止: 使用描述性语言（例如“ A说了一句话，B喝了一口水 ”）
   执行标准:
@@ -585,6 +596,14 @@ _createPrompt(context) {
     要求: physical_event 必须显式包含互动动作与外部反馈并标注扩写焦点
       正确示例: A因小事与路人短暂争执仅用于展现性格随即回归主线严禁升级
       错误示例: A与路人发生冲突，未标注控制指令易被扩写成大段对话甚至肢体冲突
+  输出强制:
+    design_notes.beat_density_strategy 必须详细说明：
+      1) 你如何设计节拍来维持【节拍数 * 3500字】的总量节奏
+      2) 哪些节拍被合并或减少以避免“洗脚/走路”等不可扩容小动作独立成拍
+    design_notes.chapter_pacing_audit 必须详细说明：
+      1) 本章讲了一个什么故事（1句话）
+      2) 节拍数量与目标字数（节拍数 * 3500）
+      3) 作为小说节奏是否匹配该字数，不匹配必须说明如何合并/减少节拍
 
   角色弧光锁定协议:
     核心: 只有被选定故事线照亮的角色才有资格在本章展现内心深度

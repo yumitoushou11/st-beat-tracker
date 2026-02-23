@@ -381,8 +381,9 @@ export class TransitionManager {
                 updatedNewChapter.meta = {};
             }
             const baseChapterNumberRaw = workingChapter?.meta?.chapterNumber;
-            const baseChapterNumber = Number.isInteger(baseChapterNumberRaw) && baseChapterNumberRaw > 0
-                ? baseChapterNumberRaw
+            const baseChapterNumberParsed = parseInt(baseChapterNumberRaw, 10);
+            const baseChapterNumber = Number.isFinite(baseChapterNumberParsed) && baseChapterNumberParsed > 0
+                ? baseChapterNumberParsed
                 : 1;
             const pendingStatus = this.LEADER?.pendingTransition?.status;
             const isPendingResume = pendingStatus === 'awaiting_architect' || pendingStatus === 'historian_saved';
