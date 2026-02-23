@@ -31,18 +31,20 @@ const createProxyWithUserSetting = (target, allowEmpty = false, userObject, edit
 
 // 2. 构建并导出【EDITOR】对象
 const { callGenericPopup, generateRaw } = applicationFunctionManager;
+const resolveToastr = () => (typeof window !== 'undefined' && window.sbtToastr) ? window.sbtToastr : toastr;
 export const EDITOR = {
-    info: (message, detail = '', options = {}) => toastr.info(message, detail, options),
-    success: (message, detail = '', options = {}) => toastr.success(message, detail, options),
-    warning: (message, detail = '', options = {}) => toastr.warning(message, detail, options),
+    info: (message, detail = '', options = {}) => resolveToastr().info(message, detail, options),
+    success: (message, detail = '', options = {}) => resolveToastr().success(message, detail, options),
+    warning: (message, detail = '', options = {}) => resolveToastr().warning(message, detail, options),
     error: (message, detail = '', error) => {
     sbtConsole.error('[EngineAdapter-Error]', message, detail, error);
         const finalMessage = `${detail}<br>${error?.message || ''}`;
-    toastr.error(finalMessage, message, { escapeHtml: false });
+    resolveToastr().error(finalMessage, message, { escapeHtml: false });
     },
     clear: (toast) => {
-        if (toastr && typeof toastr.clear === 'function' && toast) {
-            toastr.clear(toast);
+        const toastRef = resolveToastr();
+        if (toastRef && typeof toastRef.clear === 'function' && toast) {
+            toastRef.clear(toast);
         }
     },
 

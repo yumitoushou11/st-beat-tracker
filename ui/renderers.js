@@ -53,13 +53,17 @@ function buildFallbackChapterStateFromStaticCache() {
         const hasBaseline = baselineData && Object.keys(baselineData.characters || {}).length > 0;
 
         const db = staticDataManager.getFullDatabase() || {};
-        const characterIds = Object.keys(db);
-        if (!hasBaseline && characterIds.length === 0) return null;
+        if (!activeCharId) {
+            debugWarn('[Renderers] 未检测到当前角色ID，跳过静态缓存兜底。');
+            return null;
+        }
 
-        const firstCharId = hasBaseline
-            ? activeCharId
-            : ((activeCharId && db[activeCharId]) ? activeCharId : characterIds[0]);
-        const cachedData = hasBaseline ? baselineData : db[firstCharId];
+        if (!hasBaseline && (!db || !db[activeCharId])) {
+            debugWarn('[Renderers] 当前角色无静态缓存，跳过兜底。', { activeCharId });
+            return null;
+        }
+
+        const cachedData = hasBaseline ? baselineData : db[activeCharId];
         if (!cachedData) return null;
 
         const safeWorldview = cachedData.worldview || {};
@@ -1182,6 +1186,11 @@ function renderChapterBlueprint(blueprint) {
 
 export function updateDashboard(chapterState) {
     if ($('#beat-tracker-component-wrapper').length === 0) return;
+    const $drawer = $('#beat-tracker-content-panel');
+    if ($drawer.length > 0 && !$drawer.hasClass('openDrawer')) {
+        // 抽屉关闭时不做重渲染，避免后台大量DOM更新导致卡顿
+        return;
+    }
 
     let effectiveState = resolveRenderableChapterState(chapterState);
 
@@ -1195,9 +1204,12 @@ export function updateDashboard(chapterState) {
     debugLog('章节UID:', chapterState.uid);
     debugGroupEnd();
 
+    const isMonitorVisible = $('#sbt-monitor-panel').is(':visible');
+    const isArchiveVisible = $('#sbt-archive-panel').is(':visible');
+
     // --- 1. 【V3.6 革新】渲染故事摘要 ---
     const summaryContainer = $('#sbt-story-summary-content');
-    if(summaryContainer.length > 0) {
+    if (isMonitorVisible && summaryContainer.length > 0) {
         const longTermSummary = chapterState.meta?.longTermStorySummary || "暂无故事摘要。";
 
         let html = '';
@@ -1234,7 +1246,7 @@ export function updateDashboard(chapterState) {
 
     // --- 2. 【V3.5 革新】渲染章节剧本 - 使用新的卡片式布局 ---
     const scriptContainer = $('#sbt-active-script-content');
-    if(scriptContainer.length > 0) {
+    if (isMonitorVisible && scriptContainer.length > 0) {
         const blueprintHtml = renderChapterBlueprint(chapterState.chapter_blueprint);
         scriptContainer.html(blueprintHtml);
 
@@ -1249,7 +1261,7 @@ export function updateDashboard(chapterState) {
 
     // --- 3. 【革新】渲染全新的"自省式"设计笔记 ---
     const notesContainer = $('#sbt-design-notes-content');
-    if (notesContainer.length > 0) {
+    if (isMonitorVisible && notesContainer.length > 0) {
         const notes = chapterState.activeChapterDesignNotes;
         if (notes && typeof notes === 'object') {
             // 通用渲染函数（保持原有风格）
@@ -1427,31 +1439,35 @@ export function updateDashboard(chapterState) {
 
     // --- 4. 渲染角色关系图谱 ---
     const relationshipContainer = $('#sbt-character-chart');
-    if (relationshipContainer.length > 0) {
+    if (isArchiveVisible && relationshipContainer.length > 0) {
         renderCharacterRelationships(chapterState, relationshipContainer);
     }
 
     // --- 5. 渲染故事线网络 ---
-    // 【修复】合并所有分类的静态和动态故事线数据
-    const allStorylines = {};
-    const categories = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
+    if (isArchiveVisible) {
+        // 【修复】合并所有分类的静态和动态故事线数据
+        const allStorylines = {};
+        const categories = ['main_quests', 'side_quests', 'relationship_arcs', 'personal_arcs'];
 
-    for (const category of categories) {
-        const staticData = chapterState.staticMatrices.storylines[category] || {};
-        const dynamicData = chapterState.dynamicState.storylines[category] || {};
+        for (const category of categories) {
+            const staticData = chapterState.staticMatrices.storylines[category] || {};
+            const dynamicData = chapterState.dynamicState.storylines[category] || {};
 
-        for (const id in staticData) {
-            allStorylines[id] = {
-                ...staticData[id],  // 静态字段
-                ...dynamicData[id]  // 动态字段
-            };
+            for (const id in staticData) {
+                allStorylines[id] = {
+                    ...staticData[id],  // 静态字段
+                    ...dynamicData[id]  // 动态字段
+                };
+            }
         }
+
+        renderLineMatrix(allStorylines, $('#sbt-line-matrix-list'));
     }
 
-    renderLineMatrix(allStorylines, $('#sbt-line-matrix-list'));
-
     // --- 6. 更新世界档案面板 ---
-    updateArchivePanel(chapterState);
+    if (isArchiveVisible) {
+        updateArchivePanel(chapterState);
+    }
 }
 
 // 导出模态框函数，供外部使用

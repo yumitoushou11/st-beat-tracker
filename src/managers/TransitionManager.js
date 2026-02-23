@@ -703,12 +703,16 @@ export class TransitionManager {
                 const baselineDb = staticDataManager.loadStaticBaseline(activeCharId);
                 const cachedDb = staticDataManager.loadStaticData(activeCharId);
     
-                if (baselineDb && Object.keys(baselineDb.characters || {}).length > 0) {
+                const baselineCount = Object.keys(baselineDb?.characters || {}).length;
+                const cachedCount = Object.keys(cachedDb?.characters || {}).length;
+                this.info(`GENESIS: 静态库检查 activeCharId=${activeCharId}, baseline=${baselineCount}, cached=${cachedCount}`);
+
+                if (baselineDb && baselineCount > 0) {
                     this.info("GENESIS: Loaded static baseline (highest priority).");
                     finalStaticMatrices = baselineDb;
                     sourceLabel = "static baseline";
                 }
-                else if (cachedDb && Object.keys(cachedDb.characters || {}).length > 0) {
+                else if (cachedDb && cachedCount > 0) {
                     this.info("GENESIS: 已从静态数据库加载最新数据（优先级最高）。");
                     finalStaticMatrices = cachedDb;
                     sourceLabel = "静态数据库";

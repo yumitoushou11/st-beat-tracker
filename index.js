@@ -30,10 +30,42 @@ applicationFunctionManager.eventSource.on(applicationFunctionManager.event_types
     // 创建统一的日志实例供所有模块使用
     const sbtLogger = createLogger('SBT');
 
+    const normalizeToastOptions = (type, options = {}) => {
+        if (!options || typeof options !== 'object') {
+            options = {};
+        }
+        // 如果明确传入 timeOut/extendedTimeOut=0，保留不自动关闭
+        if (options.timeOut === 0 || options.extendedTimeOut === 0) {
+            return options;
+        }
+        const base = {
+            info: { timeOut: 3200, extendedTimeOut: 1200, closeButton: false, progressBar: false, tapToDismiss: true },
+            success: { timeOut: 2400, extendedTimeOut: 1000, closeButton: false, progressBar: false, tapToDismiss: true },
+            warning: { timeOut: 3800, extendedTimeOut: 1400, closeButton: false, progressBar: false, tapToDismiss: true },
+            error: { timeOut: 6500, extendedTimeOut: 2000, closeButton: true, progressBar: false, tapToDismiss: true }
+        };
+        return { ...base[type], ...options };
+    };
+
+    const sbtToastr = {
+        info: (message, detail = '', options = {}) => toastr.info(message, detail, normalizeToastOptions('info', options)),
+        success: (message, detail = '', options = {}) => toastr.success(message, detail, normalizeToastOptions('success', options)),
+        warning: (message, detail = '', options = {}) => toastr.warning(message, detail, normalizeToastOptions('warning', options)),
+        error: (message, detail = '', options = {}) => toastr.error(message, detail, normalizeToastOptions('error', options)),
+        clear: (toast) => {
+            if (toastr && typeof toastr.clear === 'function' && toast) {
+                toastr.clear(toast);
+            }
+        }
+    };
+
+    // 暴露给其他模块（例如 engine-adapter）
+    window.sbtToastr = sbtToastr;
+
     const applicationDependencies = {
         applicationFunctionManager,
         LLMApiService,
-        toastr,
+        toastr: sbtToastr,
         ...stateManager,
         ...textUtils,
         ...jsonUtils,
