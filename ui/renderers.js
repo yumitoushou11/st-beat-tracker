@@ -43,14 +43,47 @@ function buildFallbackChapterStateFromStaticCache() {
         if (!staticDataManager || typeof staticDataManager.getFullDatabase !== 'function') {
             return null;
         }
+        const hasMeaningfulStaticCache = (cached) => {
+            if (!cached || typeof cached !== 'object') return false;
+            const charactersCount = Object.keys(cached.characters || {}).length;
+            const worldview = cached.worldview || {};
+            const worldviewCount =
+                Object.keys(worldview.locations || {}).length +
+                Object.keys(worldview.items || {}).length +
+                Object.keys(worldview.factions || {}).length +
+                Object.keys(worldview.concepts || {}).length +
+                Object.keys(worldview.events || {}).length +
+                Object.keys(worldview.races || {}).length;
+            const storylines = cached.storylines || {};
+            const storylinesCount =
+                Object.keys(storylines.main_quests || {}).length +
+                Object.keys(storylines.side_quests || {}).length +
+                Object.keys(storylines.relationship_arcs || {}).length +
+                Object.keys(storylines.personal_arcs || {}).length;
+            const relCount = Array.isArray(cached.relationship_graph?.edges)
+                ? cached.relationship_graph.edges.length
+                : 0;
+            return (charactersCount + worldviewCount + storylinesCount + relCount) > 0;
+        };
+        const resolveProtagonistName = (cached) => {
+            const chars = cached?.characters || {};
+            for (const [id, data] of Object.entries(chars)) {
+                if (data?.core?.isProtagonist || data?.isProtagonist) {
+                    return data?.core?.name || data?.name || id;
+                }
+            }
+            return null;
+        };
+
         const ctx = typeof applicationFunctionManager?.getContext === 'function'
             ? applicationFunctionManager.getContext()
             : null;
         const activeCharId = ctx?.characterId;
+        const activeCharName = ctx?.name2 || '';
         const baselineData = (typeof staticDataManager.loadStaticBaseline === 'function' && activeCharId)
             ? staticDataManager.loadStaticBaseline(activeCharId)
             : null;
-        const hasBaseline = baselineData && Object.keys(baselineData.characters || {}).length > 0;
+        const hasBaseline = hasMeaningfulStaticCache(baselineData);
 
         const db = staticDataManager.getFullDatabase() || {};
         if (!activeCharId) {
@@ -58,22 +91,34 @@ function buildFallbackChapterStateFromStaticCache() {
             return null;
         }
 
-        if (!hasBaseline && (!db || !db[activeCharId])) {
+        const cachedData = db?.[activeCharId];
+        const hasCached = hasMeaningfulStaticCache(cachedData);
+
+        if (!hasBaseline && !hasCached) {
             debugWarn('[Renderers] 当前角色无静态缓存，跳过兜底。', { activeCharId });
             return null;
         }
 
-        const cachedData = hasBaseline ? baselineData : db[activeCharId];
-        if (!cachedData) return null;
+        const selectedData = hasBaseline ? baselineData : cachedData;
+        if (!selectedData || !hasMeaningfulStaticCache(selectedData)) return null;
+        const protagonistName = resolveProtagonistName(selectedData);
+        if (activeCharName && protagonistName && activeCharName !== protagonistName) {
+            debugWarn('[Renderers] 静态缓存角色名不匹配，已忽略。', {
+                activeCharId,
+                activeCharName,
+                protagonistName
+            });
+            return null;
+        }
 
-        const safeWorldview = cachedData.worldview || {};
-        const safeStorylines = cachedData.storylines || {};
+        const safeWorldview = selectedData.worldview || {};
+        const safeStorylines = selectedData.storylines || {};
 
         const fallbackState = {
-            uid: `static_cache_${firstCharId}`,
-            characterId: firstCharId,
+            uid: `static_cache_${activeCharId}`,
+            characterId: activeCharId,
             staticMatrices: {
-                characters: cachedData.characters || {},
+                characters: selectedData.characters || {},
                 worldview: {
                     locations: safeWorldview.locations || {},
                     items: safeWorldview.items || {},
@@ -88,7 +133,7 @@ function buildFallbackChapterStateFromStaticCache() {
                     relationship_arcs: safeStorylines.relationship_arcs || {},
                     personal_arcs: safeStorylines.personal_arcs || {}
                 },
-                relationship_graph: cachedData.relationship_graph || { edges: [] }
+                relationship_graph: selectedData.relationship_graph || { edges: [] }
             },
             dynamicState: {
                 characters: {},
@@ -108,11 +153,11 @@ function buildFallbackChapterStateFromStaticCache() {
                 }
             },
             meta: {
-                longTermStorySummary: cachedData.longTermStorySummary || '（静态数据预览）',
-                narrative_control_tower: cachedData.narrative_control_tower || { storyline_progress: {} }
+                longTermStorySummary: selectedData.longTermStorySummary || '（静态数据预览）',
+                narrative_control_tower: selectedData.narrative_control_tower || { storyline_progress: {} }
             },
-            chapter_blueprint: cachedData.chapter_blueprint || {},
-            activeChapterDesignNotes: cachedData.activeChapterDesignNotes || null
+            chapter_blueprint: selectedData.chapter_blueprint || {},
+            activeChapterDesignNotes: selectedData.activeChapterDesignNotes || null
         };
 
         if (!fallbackState.meta.narrative_control_tower) {
@@ -185,6 +230,19 @@ function getLeaderStateFromChat() {
 
 export function resolveRenderableChapterState(chapterState) {
     let effectiveState = chapterState;
+    const ctx = typeof applicationFunctionManager?.getContext === 'function'
+        ? applicationFunctionManager.getContext()
+        : null;
+    const activeCharId = ctx?.characterId;
+
+    if (effectiveState && isStaticSnapshot(effectiveState) && activeCharId && effectiveState.characterId && effectiveState.characterId !== activeCharId) {
+        debugWarn('[Renderers] 检测到跨角色静态快照，已丢弃。', {
+            snapshotCharacterId: effectiveState.characterId,
+            activeCharId
+        });
+        effectiveState = null;
+    }
+
     if (!effectiveState || !effectiveState.staticMatrices || isStaticSnapshot(effectiveState)) {
         const leaderState = getLeaderStateFromChat();
         if (leaderState) {
@@ -198,6 +256,9 @@ export function resolveRenderableChapterState(chapterState) {
         if (fallbackState) {
             debugWarn('[Renderers] 未找到有效章节状态，使用静态缓存作为兜底。');
             effectiveState = fallbackState;
+        } else if (effectiveState && isStaticSnapshot(effectiveState)) {
+            // 静态快照无数据兜底时直接丢弃，避免误进入预编辑模式
+            effectiveState = null;
         }
     }
 

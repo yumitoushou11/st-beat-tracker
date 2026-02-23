@@ -124,6 +124,7 @@ $('#extensions-settings-button').after(html);
     // -- 维护当前章节状态的全局引用 --
     let currentChapterState = null;
     let isLockedInStaticMode = false; // 标记是否锁定在静态数据库模式
+    let lastActiveCharacterId = null;
     let lastConductorSummary = null;
 
     // 辅助函数：在交互时获取"最真实"的章节状态
@@ -252,7 +253,6 @@ $('#extensions-settings-button').after(html);
     });
 
     const resetStaleStaticView = (reason, characterId) => {
-        if (!isStaticArchiveState(currentChapterState)) return;
         const resolvedId = characterId || resolveStaticCharacterId(currentChapterState);
         currentChapterState = buildEmptyChapterState(resolvedId);
         isLockedInStaticMode = false;
@@ -265,6 +265,51 @@ $('#extensions-settings-button').after(html);
 
     async function loadAndDisplayCachedStaticData() {
         try {
+            const resolveProtagonistName = (cached) => {
+                const chars = cached?.characters || {};
+                for (const [id, data] of Object.entries(chars)) {
+                    if (data?.core?.isProtagonist || data?.isProtagonist) {
+                        return data?.core?.name || data?.name || id;
+                    }
+                }
+                return null;
+            };
+
+            const hasMeaningfulStaticCache = (cached) => {
+                if (!cached || typeof cached !== 'object') return false;
+                const charactersCount = Object.keys(cached.characters || {}).length;
+                const worldview = cached.worldview || {};
+                const worldviewCount =
+                    Object.keys(worldview.locations || {}).length +
+                    Object.keys(worldview.items || {}).length +
+                    Object.keys(worldview.factions || {}).length +
+                    Object.keys(worldview.concepts || {}).length +
+                    Object.keys(worldview.events || {}).length +
+                    Object.keys(worldview.races || {}).length;
+                const storylines = cached.storylines || {};
+                const storylinesCount =
+                    Object.keys(storylines.main_quests || {}).length +
+                    Object.keys(storylines.side_quests || {}).length +
+                    Object.keys(storylines.relationship_arcs || {}).length +
+                    Object.keys(storylines.personal_arcs || {}).length;
+                const relCount = Array.isArray(cached.relationship_graph?.edges)
+                    ? cached.relationship_graph.edges.length
+                    : 0;
+                return (charactersCount + worldviewCount + storylinesCount + relCount) > 0;
+            };
+
+            const context = applicationFunctionManager.getContext ? applicationFunctionManager.getContext() : null;
+            const activeCharId = context?.characterId;
+            const activeCharName = context?.name2 || '';
+
+            if (activeCharId && activeCharId !== lastActiveCharacterId) {
+                lastActiveCharacterId = activeCharId;
+                currentChapterState = null;
+                isLockedInStaticMode = false;
+                refreshStaticModeBanner();
+                deps.info(`[UIManager] 角色切换检测：已重置缓存状态 (${activeCharId})`);
+            }
+
             const liveState = await getDynamicStateWithRetry();
 
             if (liveState) {
@@ -283,12 +328,12 @@ $('#extensions-settings-button').after(html);
             // 如果轮询失败，则降级到静态缓存
             deps.info('[UIManager] 降级到静态缓存预览模式。');
             const db = staticDataManager.getFullDatabase();
-            const context = applicationFunctionManager.getContext ? applicationFunctionManager.getContext() : null;
-            const activeCharId = context?.characterId;
             const baselineData = (typeof staticDataManager.loadStaticBaseline === 'function')
                 ? staticDataManager.loadStaticBaseline(activeCharId)
                 : null;
-            const hasBaseline = baselineData && Object.keys(baselineData.characters || {}).length > 0;
+            const hasBaseline = hasMeaningfulStaticCache(baselineData);
+            const cachedData = activeCharId ? db?.[activeCharId] : null;
+            const hasCached = hasMeaningfulStaticCache(cachedData);
 
             if (!activeCharId) {
                 resetStaleStaticView('No active character id; cleared stale static view.');
@@ -296,31 +341,44 @@ $('#extensions-settings-button').after(html);
                 return;
             }
 
-            if (!hasBaseline && (!db || Object.keys(db).length === 0)) {
+            if (!hasBaseline && !hasCached) {
                 resetStaleStaticView('Static database is empty; cleared stale static view.', activeCharId);
                 deps.info('[UIManager] 静态数据库为空，无缓存数据可加载');
                 return;
             }
 
-            const cachedData = hasBaseline ? baselineData : db[activeCharId];
+            const selectedData = hasBaseline ? baselineData : cachedData;
+            const protagonistName = resolveProtagonistName(selectedData);
+            if (activeCharName && protagonistName && activeCharName !== protagonistName) {
+                resetStaleStaticView(
+                    `Static cache mismatch: ${protagonistName} != ${activeCharName}`,
+                    activeCharId
+                );
+                deps.warn(`[UIManager] 静态缓存与当前角色不匹配，已忽略。`, {
+                    activeCharId,
+                    activeCharName,
+                    protagonistName
+                });
+                return;
+            }
 
-            if (!cachedData || !cachedData.characters || !cachedData.worldview) {
+            if (!selectedData || !selectedData.characters || !selectedData.worldview || !hasMeaningfulStaticCache(selectedData)) {
                 resetStaleStaticView(`No cached static data for ${activeCharId}; cleared stale static view.`, activeCharId);
                 deps.info(`[UIManager] 角色 ${activeCharId} 暂无静态缓存数据，跳过加载`);
                 return;
             }
 
-            deps.info(`[UIManager] 找到缓存数据，正在加载角色: ${activeCharId}`);
+            deps.info(`[UIManager] 找到缓存数据，正在加载角色: ${activeCharId} (name=${activeCharName || 'unknown'}, protagonist=${protagonistName || 'unknown'})`);
 
             const tempChapterState = {
                 uid: TEMP_CACHE_UID,
                 __source: STATIC_CACHE_SOURCE,
                 characterId: activeCharId,
                 staticMatrices: {
-                    characters: cachedData.characters || {},
-                    worldview: cachedData.worldview || { locations: {}, items: {}, factions: {}, concepts: {}, events: {}, races: {} },
-                    storylines: cachedData.storylines || { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} },
-                    relationship_graph: cachedData.relationship_graph || { edges: [] }
+                    characters: selectedData.characters || {},
+                    worldview: selectedData.worldview || { locations: {}, items: {}, factions: {}, concepts: {}, events: {}, races: {} },
+                    storylines: selectedData.storylines || { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} },
+                    relationship_graph: selectedData.relationship_graph || { edges: [] }
                 },
                 dynamicState: { characters: {}, worldview: {}, storylines: { main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {} } },
                 meta: { longTermStorySummary: '（缓存数据预览）' },

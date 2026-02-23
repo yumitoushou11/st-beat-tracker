@@ -702,28 +702,84 @@ export class TransitionManager {
                 loadingToast.find('.toast-message').text("读取世界观设定...");
                 const baselineDb = staticDataManager.loadStaticBaseline(activeCharId);
                 const cachedDb = staticDataManager.loadStaticData(activeCharId);
-    
+
+                const resolveProtagonistName = (cached) => {
+                    const chars = cached?.characters || {};
+                    for (const [id, data] of Object.entries(chars)) {
+                        if (data?.core?.isProtagonist || data?.isProtagonist) {
+                            return data?.core?.name || data?.name || id;
+                        }
+                    }
+                    return null;
+                };
+
+                const isValidStaticCacheForCharacter = (cached, expectedName) => {
+                    if (!cached || typeof cached !== 'object') return false;
+                    const charactersCount = Object.keys(cached.characters || {}).length;
+                    if (charactersCount === 0) return false;
+                    if (!expectedName) return true;
+                    const protagonistName = resolveProtagonistName(cached);
+                    if (!protagonistName) return false;
+                    return protagonistName === expectedName;
+                };
+
                 const baselineCount = Object.keys(baselineDb?.characters || {}).length;
                 const cachedCount = Object.keys(cachedDb?.characters || {}).length;
-                this.info(`GENESIS: 静态库检查 activeCharId=${activeCharId}, baseline=${baselineCount}, cached=${cachedCount}`);
+                const expectedName = context?.name2 || this.USER.getContext()?.name2 || window?.name2 || '';
+                const baselineValid = isValidStaticCacheForCharacter(baselineDb, expectedName);
+                const cachedValid = isValidStaticCacheForCharacter(cachedDb, expectedName);
+                const memoryMatrices = this.currentChapter?.staticMatrices || null;
+                const memoryCount = Object.keys(memoryMatrices?.characters || {}).length;
+                const memoryProtagonist = resolveProtagonistName(memoryMatrices);
+                const memoryValid = isValidStaticCacheForCharacter(memoryMatrices, expectedName);
+                const memorySource = this.currentChapter?.__source || this.currentChapter?.uid || 'unknown';
+                const isStaticPreview = this.currentChapter?.__source === 'static_cache'
+                    || (typeof this.currentChapter?.uid === 'string' && (
+                        this.currentChapter.uid.startsWith('static_cache_')
+                        || this.currentChapter.uid === 'temp_cached_view'
+                        || this.currentChapter.uid === 'sbt-empty-state'
+                    ));
+                let aiAttempted = false;
+                let aiSucceeded = false;
+                let worldInfoCount = null;
+                this.info(`GENESIS: 静态库检查 activeCharId=${activeCharId}, baseline=${baselineCount}, cached=${cachedCount}, expectedName=${expectedName || 'unknown'}`);
 
-                if (baselineDb && baselineCount > 0) {
+                if (baselineDb && baselineCount > 0 && !baselineValid) {
+                    this.warn("GENESIS: 基线缓存与当前角色不匹配，已忽略。", {
+                        baselineProtagonist: resolveProtagonistName(baselineDb),
+                        expectedName
+                    });
+                }
+                if (cachedDb && cachedCount > 0 && !cachedValid) {
+                    this.warn("GENESIS: 静态缓存与当前角色不匹配，已忽略。", {
+                        cachedProtagonist: resolveProtagonistName(cachedDb),
+                        expectedName
+                    });
+                }
+                if (memoryMatrices && memoryCount > 0 && !memoryValid) {
+                    this.warn("GENESIS: 内存缓存与当前角色不匹配，已忽略。", {
+                        memoryProtagonist,
+                        expectedName,
+                        memorySource,
+                        isStaticPreview
+                    });
+                }
+
+                if (baselineDb && baselineValid) {
                     this.info("GENESIS: Loaded static baseline (highest priority).");
                     finalStaticMatrices = baselineDb;
                     sourceLabel = "static baseline";
                 }
-                else if (cachedDb && cachedCount > 0) {
+                else if (cachedDb && cachedValid) {
                     this.info("GENESIS: 已从静态数据库加载最新数据（优先级最高）。");
                     finalStaticMatrices = cachedDb;
                     sourceLabel = "静态数据库";
                 }
                 // --- 阶段二：降级检查内存 (如果静态数据库为空) ---
-                else if (this.currentChapter &&
-                    this.currentChapter.staticMatrices &&
-                    Object.keys(this.currentChapter.staticMatrices.characters || {}).length > 0) {
+                else if (memoryMatrices && memoryCount > 0 && memoryValid) {
     
                     this.info("GENESIS: 静态数据库为空，使用内存中的数据作为fallback。");
-                    finalStaticMatrices = this.currentChapter.staticMatrices;
+                    finalStaticMatrices = memoryMatrices;
                     sourceLabel = "内存fallback";
                 }
                 // --- 阶段三：降级执行AI分析 (实时生成) ---
@@ -740,9 +796,10 @@ export class TransitionManager {
                     this._bindStopButton('创世纪-智能分析阶段');
 
                     // V8.0: 获取完整的用户/主角信息
-                    const context = this.USER.getContext();
-                    const userName = window.name1 || context.name1 || '未知';
-                    const personaDescription = context.powerUserSettings?.persona_description || '';
+                    aiAttempted = true;
+                    const userContext = this.USER.getContext();
+                    const userName = window.name1 || userContext?.name1 || '未知';
+                    const personaDescription = userContext?.powerUserSettings?.persona_description || '';
                     const persona = window.personas?.[window.main_persona];
 
                     // 整合主角信息
@@ -757,7 +814,8 @@ export class TransitionManager {
                     // V8.0: 使用创世纪资料源管理器获取世界书条目（支持手动精选模式）
                     const { getWorldbookEntriesForGenesis } = await import('../../genesis-worldbook/worldbookManager.js');
                     const worldInfoEntries = await getWorldbookEntriesForGenesis();
-                    this.info(`GENESIS: 已获取 ${worldInfoEntries.length} 个世界书条目用于分析`);
+                    worldInfoCount = Array.isArray(worldInfoEntries) ? worldInfoEntries.length : 0;
+                    this.info(`GENESIS: 已获取 ${worldInfoCount} 个世界书条目用于分析`);
 
                     const dossierSchema = stateManager.loadDossierSchemaFromCharacter();
                     const agentOutput = await this.intelligenceAgent.execute({
@@ -770,6 +828,7 @@ export class TransitionManager {
                         this.info("GENESIS: AI分析成功，生成了新的数据。");
                         finalStaticMatrices = agentOutput.staticMatrices;
                         sourceLabel = "AI实时分析";
+                        aiSucceeded = true;
     
                         // 顺手存入缓存
                         staticDataManager.saveStaticData(activeCharId, finalStaticMatrices);
@@ -787,6 +846,21 @@ export class TransitionManager {
                     this.engine.narrativeControlTowerManager.normalizeStorylineStaticData(this.currentChapter);
                     this.info(`GENESIS: 数据注入完成。数据来源: [${sourceLabel}]`);
                 } else {
+                    this.diagnose('GENESIS: 未能构建静态矩阵，诊断信息如下：', {
+                        activeCharId,
+                        expectedName,
+                        baselineCount,
+                        cachedCount,
+                        baselineValid,
+                        cachedValid,
+                        memoryCount,
+                        memoryValid,
+                        memorySource,
+                        isStaticPreview,
+                        aiAttempted,
+                        aiSucceeded,
+                        worldInfoCount
+                    });
                     throw new Error("严重错误：未能从任何来源获取到静态数据矩阵。");
                 }
                 // 4. 【验证日志】

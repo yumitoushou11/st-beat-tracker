@@ -967,14 +967,56 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         try {
             const context = this.USER.getContext ? this.USER.getContext() : {};
             const charId = context?.characterId;
+            const charName = context?.name2 || (typeof window !== 'undefined' ? window.name2 : '') || '';
             if (!charId) {
                 this.info('[Engine] 当前会话缺少角色ID，静态缓存预览跳过。');
                 return null;
             }
 
             const cachedData = staticDataManager.loadStaticData?.(charId) || null;
-            if (!cachedData) {
+            const hasMeaningfulStaticCache = (cached) => {
+                if (!cached || typeof cached !== 'object') return false;
+                const charactersCount = Object.keys(cached.characters || {}).length;
+                const worldview = cached.worldview || {};
+                const worldviewCount =
+                    Object.keys(worldview.locations || {}).length +
+                    Object.keys(worldview.items || {}).length +
+                    Object.keys(worldview.factions || {}).length +
+                    Object.keys(worldview.concepts || {}).length +
+                    Object.keys(worldview.events || {}).length +
+                    Object.keys(worldview.races || {}).length;
+                const storylines = cached.storylines || {};
+                const storylinesCount =
+                    Object.keys(storylines.main_quests || {}).length +
+                    Object.keys(storylines.side_quests || {}).length +
+                    Object.keys(storylines.relationship_arcs || {}).length +
+                    Object.keys(storylines.personal_arcs || {}).length;
+                const relCount = Array.isArray(cached.relationship_graph?.edges)
+                    ? cached.relationship_graph.edges.length
+                    : 0;
+                return (charactersCount + worldviewCount + storylinesCount + relCount) > 0;
+            };
+            const resolveProtagonistName = (cached) => {
+                const chars = cached?.characters || {};
+                for (const [id, data] of Object.entries(chars)) {
+                    if (data?.core?.isProtagonist || data?.isProtagonist) {
+                        return data?.core?.name || data?.name || id;
+                    }
+                }
+                return null;
+            };
+
+            if (!cachedData || !hasMeaningfulStaticCache(cachedData)) {
                 this.info(`[Engine] 角色 ${charId} 暂无静态缓存数据。`);
+                return null;
+            }
+            const protagonistName = resolveProtagonistName(cachedData);
+            if (charName && protagonistName && charName !== protagonistName) {
+                this.warn(`[Engine] 静态缓存角色名不匹配，已忽略。`, {
+                    charId,
+                    charName,
+                    protagonistName
+                });
                 return null;
             }
 
