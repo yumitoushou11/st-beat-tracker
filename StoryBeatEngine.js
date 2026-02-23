@@ -2240,13 +2240,15 @@ async forceChapterTransition() {
             // 查找最后一条AI消息作为锚点
             const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
             if (!lastStatePiece || lastStateIndex === -1) {
-                 this.currentChapter = updatedChapterState;
+                this.warn('[saveCharacterEdit] 未找到 leader 锚点，无法写入聊天记录，仅更新内存状态。');
+                this.currentChapter = updatedChapterState;
                 return;
             }
 
             const chat = this.USER.getContext().chat;
             const anchorMessage = chat[lastStateIndex];
             if (!anchorMessage) {
+                this.warn('[saveCharacterEdit] 找到的 leader 锚点消息为空，跳过写入，仅更新内存状态。');
                 this.currentChapter = updatedChapterState;
                 return;
             }
@@ -2257,15 +2259,21 @@ async forceChapterTransition() {
 
             this.currentChapter = updatedChapterState;
 
-            // 同步静态档案缓存，避免章节结束时被旧缓存覆盖
-            try {
-                const staticMatrices = updatedChapterState?.staticMatrices;
-                const characterId = updatedChapterState?.characterId;
-                if (staticMatrices && characterId) {
-                    staticDataManager.saveStaticData(characterId, staticMatrices);
+            // 静态数据库只允许在“预编辑/手动管理”时写入，默认不从 leader 回写
+            const allowStaticSync = localStorage.getItem('sbt-static-sync-enabled') === 'true';
+            if (allowStaticSync) {
+                try {
+                    const staticMatrices = updatedChapterState?.staticMatrices;
+                    const characterId = updatedChapterState?.characterId;
+                    if (staticMatrices && characterId) {
+                        staticDataManager.saveStaticData(characterId, staticMatrices);
+                        this.info('[saveCharacterEdit] 已启用静态同步：leader -> 静态数据库');
+                    }
+                } catch (syncError) {
+                    this.diagnose("同步静态档案缓存失败:", syncError);
                 }
-            } catch (syncError) {
-                this.diagnose("同步静态档案缓存失败:", syncError);
+            } else {
+                this.info('[saveCharacterEdit] 静态同步已禁用：leader 修改不会写入静态数据库');
             }
 
 

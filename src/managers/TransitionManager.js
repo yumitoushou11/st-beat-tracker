@@ -159,17 +159,21 @@ export class TransitionManager {
             }
             this.engine.narrativeControlTowerManager.syncStorylineProgressWithStorylines(workingChapter);
 
-            // 确保静态数据是最新的
-            if (hasLeaderSnapshot && workingChapter?.staticMatrices) {
+            // ✅ 静态数据库只允许在“预编辑/手动管理”时写入
+            // 默认禁止将动态对话中的静态矩阵回写到静态数据库，防止污染新对话
+            const allowStaticSync = localStorage.getItem('sbt-static-sync-enabled') === 'true';
+            if (allowStaticSync && hasLeaderSnapshot && workingChapter?.staticMatrices) {
                 try {
                     staticDataManager.saveStaticData(activeCharId, workingChapter.staticMatrices);
+                    this.info('已启用静态同步：动态静态矩阵已回写静态数据库。');
                 } catch (syncError) {
                     this.warn('静态数据库同步失败，继续使用现有缓存。', syncError);
                 }
             }
             const staticData = staticDataManager.loadStaticData(activeCharId);
             if (staticData) {
-                workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, staticData);
+                // 以静态数据库为底座，动态章节为覆盖层，避免旧静态覆盖现有剧情
+                workingChapter.staticMatrices = deepmerge(staticData, workingChapter.staticMatrices);
             }
     
             // V7.2: 提前获取目标消息引用（用于分两次写入）
@@ -207,7 +211,8 @@ export class TransitionManager {
                             //【关键修复】在恢复中间状态后，必须重新合并最新的静态数据，以包含用户在重试期间可能做出的修改
                             const freshStaticData = staticDataManager.loadStaticData(activeCharId);
                             if (freshStaticData) {
-                                workingChapter.staticMatrices = deepmerge(workingChapter.staticMatrices, freshStaticData);
+                                // 以静态数据库为底座，动态章节为覆盖层
+                                workingChapter.staticMatrices = deepmerge(freshStaticData, workingChapter.staticMatrices);
                                 this.info("✓ 最新的前端数据已合并，进入建筑师阶段。");
                             }
                         }

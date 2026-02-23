@@ -64,6 +64,7 @@ export function initializeUIManager(dependencies) {
     const originalSaveHandler = typeof deps.onSaveCharacterEdit === 'function' ? deps.onSaveCharacterEdit : null;
     deps.onSaveCharacterEdit = async (actionType, chapterState) => {
         if (isStaticArchiveState(chapterState)) {
+            deps.info(`[UIManager] 静态档案编辑保存: action=${actionType}, source=${chapterState?.__source || 'unknown'}`);
             const characterId = resolveStaticCharacterId(chapterState);
             if (!characterId) {
                 deps.warn(`[UIManager] 静态档案保存失败：缺少 characterId（action=${actionType}）`);
@@ -83,6 +84,7 @@ export function initializeUIManager(dependencies) {
             }
             return;
         }
+        deps.info(`[UIManager] 非静态档案保存，写入 leader: action=${actionType}`);
         if (originalSaveHandler) {
             return originalSaveHandler(actionType, chapterState);
         }
