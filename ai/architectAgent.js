@@ -274,7 +274,7 @@ _generateOutputSpecification(config) {
         "beat_id": "【节拍1：完整事件名称】",
         "type": "Action",  // 类型值: Dialogue_Scene / Hybrid_Scene 为剧情对话；Action/Transition/Internal_Transition/Reflection 为非剧情对话
         "environment_state": "[可选：光影/声音/氛围的引导建议]",
-        "physical_event": "[情景设置：环境与人物的张力] + [互动动作] + [扩写焦点：指定一个具体的物体/感官/回忆作为描写的核心] + [目的：为了达成【XX】]",
+        "physical_event": "[情景设置：环境与人物的张力] + [互动动作] + [目的：为了达成【XX】]",
         "state_change": "[关系/任务更新] + [认知/情绪的不可逆转折 (X/10)]",
         "exit_condition": "[场景结束的明确物理信号]",
         "is_highlight": false
@@ -401,9 +401,14 @@ _createPrompt(context) {
         const longTermStorySummary = chapter?.meta?.longTermStorySummary || "故事刚刚开始。";
         const chapterNumberRaw = chapter?.meta?.chapterNumber;
         const chapterNumberParsed = parseInt(chapterNumberRaw, 10);
-        const chapterNumber = Number.isFinite(chapterNumberParsed) && chapterNumberParsed > 0
-            ? chapterNumberParsed
-            : 1;
+        const appContext = this.deps?.applicationFunctionManager?.getContext?.();
+        const leaderCount = Array.isArray(appContext?.chat)
+            ? appContext.chat.filter(piece => piece && piece.leader).length
+            : null;
+        const chapterNumberFromLeaders = Number.isFinite(leaderCount) ? leaderCount + 1 : null;
+        const chapterNumber = Number.isFinite(chapterNumberFromLeaders) && chapterNumberFromLeaders > 0
+            ? chapterNumberFromLeaders
+            : (Number.isFinite(chapterNumberParsed) && chapterNumberParsed > 0 ? chapterNumberParsed : 1);
         const playerNarrativeFocus = chapter?.playerNarrativeFocus || '由AI自主创新。';
         // V4.2: 获取玩家设置的章节节拍数量区间
         const beatCountSetting = parseBeatCountSetting(safeLocalStorageGet('sbt-beat-count-range'));
@@ -593,7 +598,7 @@ _createPrompt(context) {
     标准5_冲突滑坡预防:
       警告: 小矛盾如路人冲突小误会小吃醋极易被正文AI扩大化导致滑坡失控
       设计原则: 如包含易扩大内容必须在physical_event中明确标注快速带过或严格控制强度
-    要求: physical_event 必须显式包含互动动作与外部反馈并标注扩写焦点
+    要求: physical_event 必须显式包含互动动作与外部反馈，并明确本节拍的目的
       正确示例: A因小事与路人短暂争执仅用于展现性格随即回归主线严禁升级
       错误示例: A与路人发生冲突，未标注控制指令易被扩写成大段对话甚至肢体冲突
   输出强制:
@@ -779,10 +784,10 @@ ${JSON.stringify(chronology, null, 2)}
     互动要求: 每个节拍必须具备明确的互动对象与外部反馈，严禁写成“角色长时间独白、自我结论、无回应的独角戏”
     互动判定: 互动对象必须是能产生反馈的外部主体/系统（NPC/组织/门禁/交易/冲突/阻力）；禁止纯环境描写或主角自我动作独占
     遵守说明要求: 必须在 design_notes.non_dialogue_compliance_note 中说明如何遵守“非剧情对话不连续、总数不超过2”的要求，只能陈述已合规的最终结果
-    物理事件physical_event: 必须包含“情景设置/互动动作/扩写焦点/目的”，使用总结性与指导性语言
+    物理事件physical_event: 必须包含“情景设置/互动动作/目的”，使用总结性与指导性语言
       错误示例1: 两人进行对话以交换情报，太干缺乏引导
       错误示例2: A一边整理装备一边向B抱怨任务的艰难以此试探B对任务的态度，过于具体侵犯了正文AI的创作空间
-      正确示例: A试图在整理装备时掩盖任务风险，却被B的追问逼出真实态度，扩写焦点为“工具箱里颤抖的手”，目的是迫使A承认隐瞒
+      正确示例: A试图在整理装备时掩盖任务风险，却被B的追问逼出真实态度，目的是迫使A承认隐瞒
     状态变更state_change: 必须包含关系/任务变化 + 认知/情绪的不可逆转折
     出口条件exit_condition: 所有类型必填，必须是物理可观测的结束标志例如达成某项共识一方做出某个决定性动作
     高光标记is_highlight: 若emotional_weight大于等于8标记为true并填写入highlight_directive
