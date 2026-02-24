@@ -63,6 +63,13 @@ export class StoryBeatEngine {
         this.status = ENGINE_STATUS.IDLE;
         this.isConductorActive = false;
         this.lastExecutionTimestamp = 0;
+        // Prompt gating to avoid background/quiet generations triggering SBT
+        this._promptGate = {
+            pendingUserSend: false,
+            lastUserSendAt: 0,
+            lastUserMessageId: null,
+            lastGeneration: null
+        };
         this.intelligenceAgent = null;
         this.architectAgent = null;
         this.historianAgent = null;
@@ -198,6 +205,12 @@ export class StoryBeatEngine {
         const { eventSource, event_types } = this.deps.applicationFunctionManager;
 
         this.info("正在注册事件监听器...");
+        if (event_types.GENERATION_STARTED) {
+            eventSource.on(event_types.GENERATION_STARTED, this._onGenerationStarted);
+        }
+        if (event_types.MESSAGE_SENT) {
+            eventSource.on(event_types.MESSAGE_SENT, this._onMessageSent);
+        }
         eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, this.onPromptReady);
                 eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, this.onCommitState);
         this.info("  -> [onCommitState] 已成功绑定到 CHARACTER_MESSAGE_RENDERED 事件。");
@@ -223,6 +236,63 @@ export class StoryBeatEngine {
         this.onStateChange();
 
         this.info("叙事流引擎已准备就绪。");
+    }
+
+    _onGenerationStarted = (type, params, dryRun) => {
+        this._promptGate.lastGeneration = {
+            type,
+            params,
+            dryRun,
+            at: Date.now()
+        };
+        // If this is a user-initiated regenerate/swipe, allow prompt processing
+        if (type === 'regenerate' || type === 'swipe' || params?.regenerate || params?.swipe) {
+            this._promptGate.pendingUserSend = true;
+            this._promptGate.lastUserSendAt = Date.now();
+        }
+    };
+
+    _onMessageSent = (messageId) => {
+        this._promptGate.pendingUserSend = true;
+        this._promptGate.lastUserSendAt = Date.now();
+        this._promptGate.lastUserMessageId = messageId;
+    };
+
+    _extractGenerationContext(eventData) {
+        if (eventData && typeof eventData === 'object') {
+            return {
+                type: eventData.type ?? eventData.generationType ?? this._promptGate.lastGeneration?.type,
+                params: eventData.params ?? eventData.generationParams ?? this._promptGate.lastGeneration?.params,
+                dryRun: eventData.dryRun ?? this._promptGate.lastGeneration?.dryRun
+            };
+        }
+        return this._promptGate.lastGeneration || {};
+    }
+
+    _shouldSkipPromptReady(eventData) {
+        if (eventData && typeof eventData === 'object' && eventData._sbt_force === true) return false;
+        const ctx = this._extractGenerationContext(eventData);
+        const params = ctx.params || {};
+        if (params?._sbt_force === true) return false;
+
+        const type = ctx.type || '';
+        const isQuiet = type === 'quiet' || !!params.quiet_prompt || params.quiet === true || params.is_quiet === true;
+        const isAuto = !!params.automatic_trigger || !!params.background || !!params.is_background;
+
+        if (isQuiet || isAuto) {
+            return true;
+        }
+
+        // If no recent user send and not a regenerate/swipe, treat as background
+        const isRegen = type === 'regenerate' || type === 'swipe' || params.regenerate || params.swipe;
+        const now = Date.now();
+        const lastUserSendAt = this._promptGate.lastUserSendAt || 0;
+        const recentUserSend = lastUserSendAt > 0 && (now - lastUserSendAt) < 45000;
+
+        if (!this._promptGate.pendingUserSend && !recentUserSend && !isRegen) {
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -252,15 +322,32 @@ onPromptReady = async (eventData) => {
         return;
     }
 
+    if (typeof eventData !== 'object' || eventData === null || eventData.dryRun) {
+        return;
+    }
+
+    if (this._promptGate.pendingUserSend && this._promptGate.lastUserSendAt) {
+        if (now - this._promptGate.lastUserSendAt > 120000) {
+            this._promptGate.pendingUserSend = false;
+        }
+    }
+
+    if (this._shouldSkipPromptReady(eventData)) {
+        const ctx = this._extractGenerationContext(eventData);
+        const type = ctx.type || 'unknown';
+        this.info(`[Guard-PromptReady] skip background/quiet generation (type=${type})`);
+        return;
+    }
+
+    // This prompt is considered user-facing; consume the pending flag.
+    this._promptGate.pendingUserSend = false;
+
     // 通过守卫后才输出调试日志
     this.info(`PROBE [PROMPT-READY-ENTRY]: onPromptReady 事件触发。当前锁状态: ${this.isConductorActive}`);
     if (this.currentChapter) {
         this.info('[SBE DEBUG] Chapter State Snapshot (Before Turn):', JSON.parse(JSON.stringify(this.currentChapter)));
     }
-    if (typeof eventData !== 'object' || eventData === null || eventData.dryRun) {
-        return;
-    }
-    
+
     const { piece: lastStatePiece, index: lastStateIndex } = this.USER.findLastMessageWithLeader();
     if (!lastStatePiece || !Chapter.isValidStructure(lastStatePiece.leader)) {
         this.info(`[Guard-Inject] 流程中止：未找到有效的叙事状态，本次不进行注入。`);

@@ -99,7 +99,7 @@ applicationFunctionManager.eventSource.on(applicationFunctionManager.event_types
 
     // 2.将引擎的方法绑定到SillyTavern的事件上
     // 使用 .bind(engine) 来确保 onPromptReady 方法内部的 'this' 永远指向 engine 实例
-    eventSource.on(event_types.CHAT_COMPLETION_PROMPT_READY, engine.onPromptReady.bind(engine));
+    // onPromptReady is bound inside StoryBeatEngine.start()
 
     // V8.0: 监听角色和聊天切换事件，更新创世纪资料源
     eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, onCharacterChanged);

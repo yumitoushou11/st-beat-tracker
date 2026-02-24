@@ -215,30 +215,15 @@ _generateOutputSpecification(config) {
       "conflict_resolution": "[如果玩家意见与关系图谱、故事线、节奏塔等数据产生冲突，你是如何处理的？必须说明：你是否遵循了'始终以玩家意见为准'的原则]"
         },
     "dual_horizon_analysis": "[平衡短期焦点与长期故事线的策略]",
-    "emotional_tone_strategy": {
-        "core_emotional_tone": "[你判断本章的核心情感基调是什么？]",
-        "chosen_storylines_and_reasoning": "[你最终选择了哪几条故事线？]",
-        "compatibility_check": "[详细解释你选择的次要故事线，是如何与核心基调达成'相容'的]"
-    },
     "chronology_compliance": "[时段/光线/NPC调度的合理性说明]",
     "interaction_self_check": "[每个节拍是否都具有极高的扩写潜力，可以被扩容为几千字的描写与对话？]",
-    "beat_density_strategy": "[必填：说明你如何设计“节拍信息折叠率”，以维持【节拍数 * 3500字】的总量节奏；若发现剧情规模不足以支撑该总量，你如何合并/减少节拍来达标？]",
     "chapter_pacing_audit": {
       "story_summary": "[必填：一句话概括本章讲了一个什么故事]",
       "beat_count": "[必填：本章节拍数量]",
       "total_word_target": "[必填：节拍数 * 3500 的目标字数]",
       "pacing_assessment": "[必填：以现代网文节奏视角判断该故事是否适配该字数；禁止以意识流细节扩写凑字，若不适配说明如何调整节拍/合并]"
     },
-    "non_dialogue_compliance_note": "[遵守说明：非剧情对话计数=【X/2】；分布节拍=【列出节拍ID或写无】；连续检查=【无连续】；其余均为Dialogue_Scene。讲述你的节点设计是如何严格符合这个要求的]",
 
-    "event_priority_report": {
-        "S_tier_events": ["[本章的绝对核心，占据主导地位]"],      "A_tier_events": ["[核心物理目标]"],
-        "B_tier_events": ["[日常/次要互动 - 严禁包含被压缩的高能事件]"],
-        "deferred_events": ["[为了保证质量而完整推迟的高压事件]"],
-        "priority_conflict_resolution": "[必填：你是否为了保护S级事件的纯度，而牺牲了物理任务的篇幅？或者为了保护S级事件的质量，而选择了延后？]",
-        "beat_allocation": { "S_tier_beats": 0, "A_tier_beats": 0, "B_tier_beats": 0, "total_beats": 0 }
-    },
-    // ========== 多巴胺工程验证 ==========
     "dopamine_blueprint": {
       "exclusivity_justification": "[为什么只有主角能做到？基于什么独特性？]",
       "trope_innovation": "[使用了什么套路？如何翻新？]",
@@ -249,17 +234,9 @@ _generateOutputSpecification(config) {
 
     // 添加通用字段
     outputSpec += `
-    // ========== 双层动机论 - 逻辑自辩 ==========
-    "affinity_logic_audit": {
-      "target_character": "[本章主要互动的NPC名]",
-      "current_affinity_stage": "[数值] (例如：20-熟悉/中立)",
-      "planned_action": "[你设计的核心互动行为]",
-      "biological_layer_check": "[第一层检验：剥离性格后，这个好感度数值是否足以支撑这个行为？是否符合生物引力法则？]",
-      "personality_layer_justification": "[第二层说明：性格如何修饰这个行为的表达方式？例如：'傲娇角色虽然关心，但会用反话表达']"
-    },
 
     "new_entities_proposal": "[可选：NEW:前缀实体的定义说明]",
-    "storyline_weaving": "[选择了哪1-2条故事线及理由（若有次要线请说明如何兼容）]",
+    "storyline_weaving": "[选择了哪几条故事线及理由（若有次要线请说明如何兼容）]",
     "deus_ex_machina_check": {
       "conflict_origin": "[本章冲突的逻辑源头]",
       "hook_rationality": "[钩子如何从本章自然延伸]"
@@ -281,14 +258,7 @@ _generateOutputSpecification(config) {
       }
       // 数量必须严格符合 ${beatCountRange}
     ],
-    "chapter_core_and_highlight": {
-      "creative_core": "[唯一核心体验]",
-      "highlight_design_logic": {
-        "target_beat_id": "[对应哪个节拍？]",
-        "amplification_technique": "[你建议使用什么技法？例如：'时间拉伸'、'感官剥夺']",
-        "unique_execution": "[艺术指导方向：**重点是指导方向**而非具体内容。例如：'建议聚焦物理细节层面（如物体状态变化、微观生理反应），避免直接描写心理活动'。]",
-        "emotional_impact_goal": "[预期的情感目标：让玩家感到困惑/震撼/窒息，而不是获得信息]"
-      },
+
       "highlight_directive": {
         "target_beat": "[高光节拍ID]",
         "instructions": [
@@ -394,9 +364,6 @@ _createPrompt(context) {
 
     // 【默认流程】使用系统默认提示词（带动态数据注入）
     const { chapter, firstMessageContent, leaderMessageContent } = context;
-        const rerollChapterTranscript = typeof context?.rerollChapterTranscript === 'string'
-            ? context.rerollChapterTranscript.trim()
-            : '';
             const currentWorldState = deepmerge(
             chapter.staticMatrices,
             chapter.dynamicState
@@ -408,9 +375,7 @@ _createPrompt(context) {
         const leaderCount = Array.isArray(appContext?.chat)
             ? appContext.chat.filter(piece => piece && piece.leader).length
             : null;
-        const chapterNumberFromLeaders = Number.isFinite(leaderCount) && leaderCount > 0
-            ? leaderCount
-            : null;
+        const chapterNumberFromLeaders = Number.isFinite(leaderCount) ? leaderCount + 1 : null;
         const chapterNumber = Number.isFinite(chapterNumberFromLeaders) && chapterNumberFromLeaders > 0
             ? chapterNumberFromLeaders
             : (Number.isFinite(chapterNumberParsed) && chapterNumberParsed > 0 ? chapterNumberParsed : 1);
@@ -494,17 +459,6 @@ _createPrompt(context) {
   法则1_单章推进上限:
     绝对禁令: 严禁在一个章节内试图推进超过3条核心故事线
 
-  法则1点5_基调锚定协议:
-    锚定法则: 本章的情感基调是最高优先级的设计约束，一切元素必须服从或强化这个基调
-    执行流程:
-      步骤1_提取情感锚点: 从playerNarrativeFocus或最高优先级事件中确定本章的单一情感核心，例如背叛的伤痛胜利的狂喜离别的惆怅
-      步骤2_全要素校准: 故事线场景设计NPC行为环境描写全部必须与这个情感锚点产生共鸣或对比增强
-      步骤3_污染检测: 识别任何可能稀释核心基调的元素例如悲剧章节中插入无关的喜剧桥段，立即移除或延后
-    高维情感优先级:
-      排序规则: 当多个关系线同时存在时按情感电压排序，高压关系voltage大于等于8大于中压关系大于低压日常
-      铁律: 高压关系一旦触发必须占据本章绝对主导地位，中低压关系只能作为背景音或暂停
-    输出验证: design_notes.emotional_tone_strategy必须包含核心基调选定故事线污染元素清单及处理方式
-
   法则2_选择逻辑:
     优先: current_status为active且与playerNarrativeFocus高度相关的故事线
     次优: 接近关键阈值如midpoint的故事线
@@ -525,26 +479,8 @@ _createPrompt(context) {
     法则: 无条件执行，玩家的意志凌驾于所有数据之上包括关系图谱故事线节奏塔风格档案等
     冲突处理: 当玩家意见与任何其他数据冲突时始终以玩家意见为准，你必须想办法合理化玩家的要求而不是拒绝
 
-  第二梯队_高能张力:
-    源头: relationship_graph的Voltage和Gap
-    判据: 电压大于等于8或存在认知差
-    核心法则_霸权与延后:
-      法则A_S级霸权:
-        规则1: 一旦你决定在本章触发一个S级情感事件它必须占据本章至少50%的篇幅和权重
-        规则2: 所有其他的物理任务都必须沦为这个情感爆发的背景板
-      法则B_原子化延后:
-        规则1: 如果本章的物理环境实在无法承载这种高强度的情感爆发你必须且只能选择完全延后
-        绝对禁令: 严禁为了露个脸而安排不痛不痒的见面，这是对高压关系的亵渎
-        正确做法: 让角色根本不见面或者只给一个远处的信号作为钩子把真正的爆发留给下一章
-      场景相对论:
-        核心原理: 张力不是绝对值而是相对值，同样的对话在不同场景下产生的张力完全不同
-        环境放大器: 密闭空间或危险环境或时间压力等于张力乘以3，空旷或安全或充裕等于张力除以2
-        设计指令: 高压关系的爆发必须选择能放大张力的场景而不是消解张力的舒适区
-    决策检查:
-      问题1: 我设计的这个高压事件场景是否在放大张力还是在消解张力
-      问题2: 如果场景不匹配要么改场景要么延后事件
 
-  第三梯队_好感度逻辑底座:
+  第二梯队_好感度逻辑底座:
     源头: staticMatrices.characters中的affinity数值及对应阶段
     关键指令_零度校准加双层动机论:
       说明: 在设计角色行动前执行双层检验
@@ -563,13 +499,13 @@ _createPrompt(context) {
           错误示例: 傲娇角色在高好感度下完全不关心对方冷漠旁观，这违反了生物底座
         步骤3_动机分层验证: 在design_notes.affinity_logic_audit中必须分别说明生物层动机基于好感度的本能驱动和性格层表达如何用人设包装这个动机
 
-  第四梯队_环境与节奏:
+  第三梯队_环境与节奏:
     源头: narrative_rhythm_clock和storyline_progress
     法则: 确保当前的氛围压抑或轻松与主线进度匹配
 
   输出验证: 在design_notes.event_priority_report中必须依据此梯队逻辑分配S级A级B级事件
 
-第一章_反机械降神铁律_V13.1:
+第一章_反机械降神铁律:
 
   定义: 禁止凭空引入不合理的冲突巧合或事件
 
@@ -631,7 +567,7 @@ _createPrompt(context) {
       禁止: 在温馨重逢的基调中突然插入压抑不安的氛围导致情感体验不纯粹，要么全糖要么全刀禁止夹生
 
 
-第一章B_高光时刻增幅协议_V9.0:
+第一章B_高光时刻增幅协议:
 
   触发条件: 当你决定将某个节拍标记为高光节拍is_highlight为true时
 
@@ -707,10 +643,6 @@ ${(() => {
         return `      数据: <storylines>\n${JSON.stringify(mergedStorylines, null, 2)}\n</storylines>\n      执行指令:\n        指令1: 优先推进active状态且与焦点契合的故事线\n        指令2_玩家补充最高优先级: 若某条故事线包含player_supplement字段非空该字段内容为玩家的绝对优先级指令\n          细则1: 你必须无条件执行该指令将其融入本章剧情并兑现\n          细则2: 当player_supplement与故事线原始设定冲突时始终以player_supplement为准\n          细则3: 在design_notes.player_intent_execution中说明你是如何执行这些玩家指令的`;
     })()}
 
-  数据2_本章正文（重roll参考）:
-${rerollChapterTranscript ? `    内容:\n${rerollChapterTranscript}` : "    内容: 无"}
-    说明: 仅正文对话，不包含建筑师笔记。用于保持剧情连贯与语气一致，不要原文复刻
-
   数据2_全局摘要: ${longTermStorySummary}
 
   数据3_上章锚点正文:
@@ -749,19 +681,6 @@ ${(() => {
     return guidelines;
 })()}
 
-  基于张力引擎的编排指令_强制执行:
-    说明: 你必须同时参考好感度行为准则和张力引擎来设计剧情
-    指令A_电压检测:
-      规则: 检查narrative_voltage或emotional_weight若大于等于8且角色在本章同场这段关系必须成为本章的核心冲突或高光时刻绝不能写成平淡的流水账
-    指令B_认知差执行_核心:
-      规则1: 检查cognitive_gap字段如果存在信息不对等或误解
-      规则2: 指令你必须利用戏剧反讽Dramatic_Irony描写A基于错误的认知做出的反应以及B因此受到的莫名伤害或困惑
-      示例: 如果A误以为B背叛了A的每一句客气话在B听来都应该是像刀子一样的疏离请务必写出这种明明在对话心却隔着深渊的潜台词
-    指令C_冲突与化学反应:
-      规则1: 利用conflict_source设置本章的物理阻碍或立场对立他们为什么不能好好坐下来谈
-      规则2: 利用personality_chemistry决定对话风格是在此刻互怼冷战还是展现出不合时宜的默契
-    指令D_状态检查:
-      规则: 若reunion_pending为true本章必须包含重逢场景并依据上述张力引擎来决定重逢是感人还是修罗场
 
   数据7_实体数据访问说明:
 ${isEntityRecallEnabled ? `    模式: 上下文预取模式
