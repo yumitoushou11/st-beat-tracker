@@ -394,6 +394,9 @@ _createPrompt(context) {
 
     // 【默认流程】使用系统默认提示词（带动态数据注入）
     const { chapter, firstMessageContent, leaderMessageContent } = context;
+        const rerollChapterTranscript = typeof context?.rerollChapterTranscript === 'string'
+            ? context.rerollChapterTranscript.trim()
+            : '';
             const currentWorldState = deepmerge(
             chapter.staticMatrices,
             chapter.dynamicState
@@ -405,7 +408,9 @@ _createPrompt(context) {
         const leaderCount = Array.isArray(appContext?.chat)
             ? appContext.chat.filter(piece => piece && piece.leader).length
             : null;
-        const chapterNumberFromLeaders = Number.isFinite(leaderCount) ? leaderCount + 1 : null;
+        const chapterNumberFromLeaders = Number.isFinite(leaderCount) && leaderCount > 0
+            ? leaderCount
+            : null;
         const chapterNumber = Number.isFinite(chapterNumberFromLeaders) && chapterNumberFromLeaders > 0
             ? chapterNumberFromLeaders
             : (Number.isFinite(chapterNumberParsed) && chapterNumberParsed > 0 ? chapterNumberParsed : 1);
@@ -701,6 +706,10 @@ ${(() => {
 
         return `      数据: <storylines>\n${JSON.stringify(mergedStorylines, null, 2)}\n</storylines>\n      执行指令:\n        指令1: 优先推进active状态且与焦点契合的故事线\n        指令2_玩家补充最高优先级: 若某条故事线包含player_supplement字段非空该字段内容为玩家的绝对优先级指令\n          细则1: 你必须无条件执行该指令将其融入本章剧情并兑现\n          细则2: 当player_supplement与故事线原始设定冲突时始终以player_supplement为准\n          细则3: 在design_notes.player_intent_execution中说明你是如何执行这些玩家指令的`;
     })()}
+
+  数据2_本章正文（重roll参考）:
+${rerollChapterTranscript ? `    内容:\n${rerollChapterTranscript}` : "    内容: 无"}
+    说明: 仅正文对话，不包含建筑师笔记。用于保持剧情连贯与语气一致，不要原文复刻
 
   数据2_全局摘要: ${longTermStorySummary}
 

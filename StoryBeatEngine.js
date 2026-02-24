@@ -1969,7 +1969,12 @@ async rerollChapterBlueprint() {
 
     let focusPopupResult;
     try {
-        focusPopupResult = await showNarrativeFocusPopup(previousFocus);
+        focusPopupResult = await showNarrativeFocusPopup(previousFocus, {
+            includeTranscriptToggle: true,
+            includeTranscriptLabel: '重roll时附带上一章正文',
+            includeTranscriptHint: '仅发送正文对话，不包含建筑师笔记',
+            includeTranscriptDefault: false
+        });
     } catch (error) {
         this.warn("焦点弹窗异常:", error);
         this.toastr.warning('焦点输入界面出错，操作已取消', '重roll中止');
@@ -1987,6 +1992,8 @@ async rerollChapterBlueprint() {
     let newFocus = focusPopupResult.value?.trim() || "由AI自主创新。";
     const isFreeRoam = !!(focusPopupResult.freeRoam || focusPopupResult.isFreeRoam);
     const isABC = !!(focusPopupResult.abc || focusPopupResult.isABC);
+    const includeTranscript = !!focusPopupResult.includeTranscript;
+    let rerollChapterTranscript = null;
 
     // Free-roam selection: skip architect reroll.
     if (isFreeRoam) {
@@ -2059,6 +2066,25 @@ async rerollChapterBlueprint() {
         this.currentTaskAbortController = new AbortController();
         const abortSignal = this.currentTaskAbortController.signal;
 
+        // 可选：整理本章正文（不含建筑师笔记）
+        if (includeTranscript) {
+            const chat = this.USER.getContext()?.chat || [];
+            const { index: lastLeaderIndex } = this.USER.findLastMessageWithLeader();
+            const startIndex = Number.isInteger(lastLeaderIndex) ? lastLeaderIndex + 1 : 0;
+            const transcriptPieces = [];
+            for (let i = startIndex; i < chat.length; i++) {
+                const msg = chat[i];
+                if (!msg || msg.is_system || msg.is_SBT_script || msg.is_SBT_chapter_script) continue;
+                const content = typeof msg.mes === 'string' ? msg.mes.trim() : '';
+                if (!content) continue;
+                transcriptPieces.push(`[${msg.is_user ? "{{user}}" : "{{char}}"}]:\n${content}`);
+            }
+            rerollChapterTranscript = transcriptPieces.length > 0
+                ? transcriptPieces.join('\n\n---\n\n')
+                : "【本章无正文对话】";
+            this.info(`[重roll] 已附带正文消息数: ${transcriptPieces.length}`);
+        }
+
         // 保存当前章节的上下文
         const contextForArchitect = {
             system_confidence: 0.5,
@@ -2068,7 +2094,8 @@ async rerollChapterBlueprint() {
             leaderMessageContent: (() => {
                 const { piece: lastLeaderPiece } = this.USER.findLastMessageWithLeader();
                 return lastLeaderPiece?.mes || null;
-            })()
+            })(),
+            rerollChapterTranscript: rerollChapterTranscript || null
         };
 
         this.info("📦 [重roll流程] 准备传递给建筑师的上下文:");

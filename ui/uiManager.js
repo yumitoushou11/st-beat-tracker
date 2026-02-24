@@ -1652,6 +1652,9 @@ $('#extensions-settings-button').after(html);
     if (localStorage.getItem('sbt-conductor-summary-enabled') === null) {
         localStorage.setItem('sbt-conductor-summary-enabled', 'false');
     }
+    if (localStorage.getItem('sbt-design-notes-enabled') === null) {
+        localStorage.setItem('sbt-design-notes-enabled', 'false');
+    }
 
     // -- V3.1: 流式显示回合裁判 --
     const updateMonitorLayout = () => {
@@ -1663,6 +1666,7 @@ $('#extensions-settings-button').after(html);
 
     const isConductorStreamEnabled = () => localStorage.getItem('sbt-conductor-stream-enabled') === 'true';
     const isConductorSummaryEnabled = () => localStorage.getItem('sbt-conductor-summary-enabled') === 'true';
+    const isDesignNotesEnabled = () => localStorage.getItem('sbt-design-notes-enabled') !== 'false';
     $('#sbt-conductor-stream-panel').hide();
 
     const refreshConductorSummaryPanel = () => {
@@ -1689,6 +1693,30 @@ $('#extensions-settings-button').after(html);
         refreshConductorSummaryPanel();
         deps.toastr.info(
             `回合执导摘要已${isChecked ? '开启' : '关闭'}`,
+            '设置已更新'
+        );
+    });
+
+    const refreshDesignNotesPanel = () => {
+        const $category = $('#sbt-design-notes-category');
+        if (isDesignNotesEnabled()) {
+            $category.show();
+        } else {
+            $category.hide();
+            $('#sbt-design-notes-content').empty();
+        }
+    };
+
+    const $designNotesToggle = $('#sbt-design-notes-toggle');
+    $designNotesToggle.prop('checked', isDesignNotesEnabled());
+    refreshDesignNotesPanel();
+
+    $wrapper.on('change', '#sbt-design-notes-toggle', function() {
+        const isChecked = $(this).is(':checked');
+        localStorage.setItem('sbt-design-notes-enabled', isChecked);
+        refreshDesignNotesPanel();
+        deps.toastr.info(
+            `建筑师设计笔记已${isChecked ? '开启' : '关闭'}`,
             '设置已更新'
         );
     });

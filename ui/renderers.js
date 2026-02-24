@@ -1322,7 +1322,11 @@ export function updateDashboard(chapterState) {
 
     // --- 3. 【革新】渲染全新的"自省式"设计笔记 ---
     const notesContainer = $('#sbt-design-notes-content');
+    const isDesignNotesEnabled = () => localStorage.getItem('sbt-design-notes-enabled') !== 'false';
     if (isMonitorVisible && notesContainer.length > 0) {
+        if (!isDesignNotesEnabled()) {
+            notesContainer.empty();
+        } else {
         const notes = chapterState.activeChapterDesignNotes;
         if (notes && typeof notes === 'object') {
             // 通用渲染函数（保持原有风格）
@@ -1523,6 +1527,7 @@ export function updateDashboard(chapterState) {
 
         } else {
             notesContainer.html('<p class="sbt-instructions">当前章节没有可用的设计笔记。</p>');
+        }
         }
     }
 

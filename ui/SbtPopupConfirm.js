@@ -27,7 +27,8 @@ export class SbtPopupConfirm {
 _createDOMElements(options) {
     const {
         title, message, placeholder = '', initialValue = '',
-        okText = '确认', cancelText = '取消', abcText = null, freeRoamText = null
+        okText = '确认', cancelText = '取消', abcText = null, freeRoamText = null,
+        checkboxLabel = null, checkboxDefault = false, checkboxHint = ''
     } = options;
 
     this.overlayElement = document.createElement('div');
@@ -58,6 +59,13 @@ _createDOMElements(options) {
         </div>
         
         <textarea class="sbt-popup-textarea" style="width: 100%; height: 140px; resize: vertical; background: var(--sbt-bg-darker, #1c1f26); border: 1px solid var(--sbt-border-color, #444); color: inherit; border-radius: 6px; padding: 15px; font-size: 1em; box-sizing: border-box;"></textarea>
+        ${checkboxLabel ? `
+        <label style="display: flex; align-items: center; gap: 10px; font-size: 0.95em; color: var(--sbt-text-medium, #c5c5c5);">
+            <input type="checkbox" class="sbt-popup-checkbox-input" ${checkboxDefault ? 'checked' : ''} />
+            <span>${checkboxLabel}</span>
+        </label>
+        ${checkboxHint ? `<div style="font-size: 0.85em; color: var(--sbt-text-dim, #9aa1aa); margin-top: -10px;">${checkboxHint}</div>` : ''}
+        ` : ''}
         
         <!-- 【布局核心】
              - 按钮容器依然是水平居中 (justify-content: center)。
@@ -73,6 +81,7 @@ _createDOMElements(options) {
     
 
     this.textareaElement = this.popupElement.querySelector('.sbt-popup-textarea');
+    this.checkboxElement = this.popupElement.querySelector('.sbt-popup-checkbox-input');
     this.okButton = this.popupElement.querySelector('.sbt-popup-ok');
     this.cancelButton = this.popupElement.querySelector('.sbt-popup-cancel');
     this.freeRoamButton = this.popupElement.querySelector('.sbt-popup-freeroam');
@@ -96,17 +105,20 @@ _createDOMElements(options) {
         // 常规按钮
         this.okButton.onclick = () => {
             const value = this.textareaElement.value.trim();
-            this._resolveAndClose({ confirmed: true, value: value, freeRoam: false, abc: false });
+            const includeTranscript = this.checkboxElement ? this.checkboxElement.checked : false;
+            this._resolveAndClose({ confirmed: true, value: value, freeRoam: false, abc: false, includeTranscript });
         };
         this.cancelButton.onclick = () => {
-            this._resolveAndClose({ confirmed: false, value: 'ai_decides', freeRoam: false, abc: false });
+            const includeTranscript = this.checkboxElement ? this.checkboxElement.checked : false;
+            this._resolveAndClose({ confirmed: false, value: 'ai_decides', freeRoam: false, abc: false, includeTranscript });
         };
 
         // 自由章按钮
         if (this.freeRoamButton) {
             this.freeRoamButton.onclick = () => {
                 const value = this.textareaElement.value.trim();
-                this._resolveAndClose({ confirmed: true, value: value, freeRoam: true, abc: false });
+                const includeTranscript = this.checkboxElement ? this.checkboxElement.checked : false;
+                this._resolveAndClose({ confirmed: true, value: value, freeRoam: true, abc: false, includeTranscript });
             };
         }
 
@@ -114,7 +126,8 @@ _createDOMElements(options) {
         if (this.abcButton) {
             this.abcButton.onclick = () => {
                 const value = this.textareaElement.value.trim();
-                this._resolveAndClose({ confirmed: true, value: value, freeRoam: false, abc: true });
+                const includeTranscript = this.checkboxElement ? this.checkboxElement.checked : false;
+                this._resolveAndClose({ confirmed: true, value: value, freeRoam: false, abc: true, includeTranscript });
             };
         }
 
@@ -123,7 +136,8 @@ _createDOMElements(options) {
 
     _handleEscapeKey(event) {
         if (event.key === 'Escape') {
-            this._resolveAndClose({ confirmed: false, value: 'ai_decides', freeRoam: false, abc: false });
+            const includeTranscript = this.checkboxElement ? this.checkboxElement.checked : false;
+            this._resolveAndClose({ confirmed: false, value: 'ai_decides', freeRoam: false, abc: false, includeTranscript });
         }
     }
         _resolveAndClose(result) {

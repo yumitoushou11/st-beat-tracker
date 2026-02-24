@@ -8,9 +8,16 @@ import { SbtPopupConfirm } from '../SbtPopupConfirm.js';
  * @param {string} previousFocus - 之前的焦点内容
  * @returns {Promise<Object>} 包含 confirmed 和 value 的结果对象
  */
-export async function showNarrativeFocusPopup(previousFocus = '') {
+export async function showNarrativeFocusPopup(previousFocus = '', options = {}) {
     const defaultChoice = "由AI自主创新。";
     const popup = new SbtPopupConfirm();
+
+    const {
+        includeTranscriptToggle = false,
+        includeTranscriptLabel = '重roll时附带上一章正文',
+        includeTranscriptHint = '仅发送正文对话，不包含建筑师笔记',
+        includeTranscriptDefault = false
+    } = options || {};
 
     const result = await popup.show({
         title: '导演，请指示',
@@ -19,7 +26,10 @@ export async function showNarrativeFocusPopup(previousFocus = '') {
         initialValue: previousFocus === defaultChoice ? '' : previousFocus,
         okText: '以此为焦点，开始规划',
         cancelText: '跳过 (由AI决定)',
-        freeRoamText: '🎲 自由章模式'
+        freeRoamText: '🎲 自由章模式',
+        checkboxLabel: includeTranscriptToggle ? includeTranscriptLabel : null,
+        checkboxHint: includeTranscriptToggle ? includeTranscriptHint : '',
+        checkboxDefault: includeTranscriptToggle ? includeTranscriptDefault : false
     });
 
     return result;

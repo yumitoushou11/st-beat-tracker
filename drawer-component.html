@@ -97,7 +97,7 @@
                         </div>
 
                         <!-- 建筑师的设计笔记 -->
-                        <div class="sbt-library-category">
+                        <div class="sbt-library-category" id="sbt-design-notes-category">
                             <h5 class="sbt-category-header collapsed">
                                 <i class="fa-solid fa-feather-pointed fa-fw"></i> 建筑师的设计笔记
                             </h5>
@@ -485,6 +485,20 @@
                                 </div>
                                 <div class="sbt-toggle-switch">
                                     <input type="checkbox" id="sbt-conductor-summary-toggle">
+                                    <span class="sbt-slider"></span>
+                                </div>
+                            </label>
+                        </div>
+
+                        <!-- 建筑师设计笔记展示开关 -->
+                        <div class="sbt-control-card">
+                            <label for="sbt-design-notes-toggle" class="sbt-toggle-switch-container">
+                                <div class="sbt-toggle-label">
+                                    <span class="sbt-toggle-text">显示建筑师设计笔记</span>
+                                    <i class="fa-solid fa-circle-info fa-fw" title="开启后，创作工坊侧栏会渲染建筑师的设计笔记。关闭可减少前端渲染压力。默认开启。"></i>
+                                </div>
+                                <div class="sbt-toggle-switch">
+                                    <input type="checkbox" id="sbt-design-notes-toggle">
                                     <span class="sbt-slider"></span>
                                 </div>
                             </label>
