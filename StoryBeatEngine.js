@@ -55,6 +55,9 @@ export class StoryBeatEngine {
         this.uiSyncRetryTimer = null; // 用于重试的计时器ID
         this.uiSyncRetryCount = 0; // 记录重试次数
         this._hasCleanedChat = false; // 🔧 标记是否已清理过chat消息
+        this._lastMaintenanceChatId = null;
+        this._lastMaintenanceCharId = null;
+        this._entryMaintenanceToken = 0;
 
         this._earlyFocusPromise = null; // 追踪“提前规划”弹窗状态，避免并发弹出
         this._transitionStopRequested = false; // 标记当前章节转换是否被手动停止
@@ -220,18 +223,6 @@ export class StoryBeatEngine {
         eventSource.on(event_types.MESSAGE_SWIPED, this.onStateChange);
         
         $(document).on('sbt-api-settings-saved', () => this._initializeCoreServices());
-
-        // 🔧 自动清理污染数据：为所有玩家修复静态数据库
-        try {
-            this.info("正在检查静态数据库完整性...");
-            const cleanReport = staticDataManager.autoCleanStaticDatabase();
-            if (cleanReport.cleanedCharacters > 0) {
-                this.info(`✅ 数据库修复完成：清理了 ${cleanReport.cleanedCharacters} 个角色的污染数据`);
-                this.diagnose("清理详情:", cleanReport.removedFields);
-            }
-        } catch (error) {
-            this.diagnose("自动清理失败（不影响使用）:", error);
-        }
 
         this.onStateChange();
 
@@ -1174,6 +1165,26 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         this.syncDebounceTimer = setTimeout(() => {
         this.info("[SBE Engine] 状态变更事件触发，启动智能UI同步流程...");
 
+          // 进入角色对话界面时：检查静态数据库并自动迁移基线（多次重试，等待酒馆数据加载）
+          try {
+              const context = this.USER.getContext ? this.USER.getContext() : null;
+              const activeCharId = context?.characterId;
+              const activeCharName = context?.name2 || '';
+              const chatId = context?.chatId || '';
+              const maintenanceKey = chatId || (activeCharId !== undefined && activeCharId !== null && activeCharId !== '' ? `char:${activeCharId}` : '');
+              const shouldRunMaintenance = !!activeCharId && maintenanceKey
+                  && (maintenanceKey !== this._lastMaintenanceChatId || activeCharId !== this._lastMaintenanceCharId);
+
+              if (shouldRunMaintenance) {
+                  this._lastMaintenanceChatId = maintenanceKey;
+                  this._lastMaintenanceCharId = activeCharId;
+                  this.info("进入角色对话界面，启动静态数据库检查与迁移（最长约2秒）...");
+                  this._scheduleEntryMaintenance(activeCharId, activeCharName);
+              }
+          } catch (error) {
+              this.diagnose("进入角色对话界面时的静态数据库检查失败（不影响使用）:", error);
+          }
+
           // 🔧 自动清理chat消息中的污染leader数据（首次运行）
           if (!this._hasCleanedChat) {
               try {
@@ -1217,6 +1228,116 @@ _applyBlueprintMask(blueprint, currentBeatIdx) {
         this._syncUiWithRetry();
 
         }, 150);
+    }
+
+    _scheduleEntryMaintenance(activeCharId, activeCharName) {
+        if (activeCharId === undefined || activeCharId === null || activeCharId === '') return;
+        const token = ++this._entryMaintenanceToken;
+        const maxDurationMs = 2000;
+        const intervalMs = 350;
+        const maxAttempts = Math.ceil(maxDurationMs / intervalMs);
+        const startTime = Date.now();
+        let baselineConfirmAsked = false;
+        let baselineConfirmApproved = false;
+        let dbChanged = false;
+
+        const hasMeaningfulStatic = (staticData) => {
+            if (!staticData || typeof staticData !== 'object') return false;
+            const count = Object.keys(staticData.characters || {}).length;
+            return count > 0;
+        };
+
+        const resolveProtagonistName = (cached) => {
+            const chars = cached?.characters || {};
+            for (const [id, data] of Object.entries(chars)) {
+                if (data?.core?.isProtagonist || data?.isProtagonist) {
+                    return data?.core?.name || data?.name || id;
+                }
+            }
+            return null;
+        };
+
+        const attempt = (attemptIndex) => {
+            if (token !== this._entryMaintenanceToken) return;
+            const context = this.USER.getContext ? this.USER.getContext() : null;
+            const currentCharId = context?.characterId;
+            if (!currentCharId || currentCharId !== activeCharId) return;
+
+            try {
+                if (attemptIndex === 0) {
+                    const cleanReport = staticDataManager.autoCleanStaticDatabase();
+                    if (cleanReport.cleanedCharacters > 0) {
+                        this.info(`✅ 数据库修复完成：清理了 ${cleanReport.cleanedCharacters} 个角色的污染数据`);
+                        this.diagnose("清理详情:", cleanReport.removedFields);
+                    }
+                }
+
+                const { piece } = this.USER.findLastMessageWithLeader();
+                const leaderSnapshot = (piece && Chapter.isValidStructure(piece.leader)) ? piece.leader : null;
+                const leaderMatches = leaderSnapshot && String(leaderSnapshot.characterId) === String(activeCharId);
+                const leaderStatic = leaderMatches ? leaderSnapshot.staticMatrices : null;
+                const leaderReady = hasMeaningfulStatic(leaderStatic);
+
+                if (leaderReady) {
+                    const baseline = staticDataManager.loadStaticBaseline(activeCharId);
+                    const cached = staticDataManager.loadStaticData(activeCharId);
+                    const baselineReady = hasMeaningfulStatic(baseline);
+                    const cachedReady = hasMeaningfulStatic(cached);
+                    const leaderName = resolveProtagonistName(leaderStatic);
+                    const baselineName = resolveProtagonistName(baseline);
+                    const baselineMismatch = baselineReady && leaderName && baselineName && leaderName !== baselineName;
+                    const baselineMissing = !baselineReady;
+
+                    if ((baselineMissing || baselineMismatch) && !baselineConfirmAsked) {
+                        baselineConfirmAsked = true;
+                        const reasonText = baselineMissing
+                            ? '检测到基线缺失'
+                            : '检测到基线与当前对话不一致';
+                        const confirmText = `${reasonText}。\n\n是否使用“当前对话”的状态生成/覆盖基线，并同步重置静态数据库？\n- 仅使用当前对话，不合并其他聊天\n- 仅保存静态矩阵（动态锚点仍保留在当前对话）\n- 静态数据库将被当前对话覆盖\n\n此操作不可逆，请确认。`;
+                        baselineConfirmApproved = !!window.confirm(confirmText);
+                        if (!baselineConfirmApproved) {
+                            this.warn('用户取消基线覆盖/创建。');
+                        }
+                    }
+
+                    if (baselineConfirmApproved && (baselineMissing || baselineMismatch)) {
+                        const overwrite = baselineMismatch;
+                        const saved = staticDataManager.saveStaticBaseline(activeCharId, leaderStatic, { overwrite });
+                        if (saved) {
+                            this.info(`✅ 基线已更新（来源：当前对话，覆盖=${overwrite})`);
+                            this.toastr?.info?.('已更新静态基线', `角色 ${activeCharId}`);
+                            dbChanged = true;
+                        }
+                        staticDataManager.saveStaticData(activeCharId, leaderStatic);
+                        this.info(`✅ 静态数据库已重置为当前对话：${activeCharId}`);
+                        dbChanged = true;
+                    }
+
+                    if (!cachedReady && !(baselineConfirmApproved && (baselineMissing || baselineMismatch))) {
+                        staticDataManager.saveStaticData(activeCharId, leaderStatic);
+                        this.info(`✅ 已使用当前对话回填静态数据库：${activeCharId}`);
+                        dbChanged = true;
+                    }
+
+                    if (dbChanged && this.eventBus?.emit) {
+                        this.eventBus.emit('SBT_STATIC_DB_CHANGED', { characterId: activeCharId });
+                        dbChanged = false;
+                    }
+
+                    return;
+                }
+            } catch (error) {
+                this.diagnose("进入角色对话界面时的静态数据库检查失败（不影响使用）:", error);
+                return;
+            }
+
+            const elapsed = Date.now() - startTime;
+            if (attemptIndex + 1 < maxAttempts && elapsed + intervalMs <= maxDurationMs) {
+                setTimeout(() => attempt(attemptIndex + 1), intervalMs);
+            }
+        };
+
+        attempt(0);
     }
     onCommitState = async (messageIndex) => {
      try {

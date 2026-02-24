@@ -149,6 +149,88 @@ export function ensureStaticBaseline(characterId, staticData) {
     return saveStaticBaseline(characterId, staticData, { overwrite: false });
 }
 
+function hasMeaningfulStaticCache(staticData) {
+    if (!staticData || typeof staticData !== 'object') return false;
+    const charactersCount = Object.keys(staticData.characters || {}).length;
+    return charactersCount > 0;
+}
+
+function resolveProtagonistName(staticData) {
+    const chars = staticData?.characters || {};
+    for (const [id, data] of Object.entries(chars)) {
+        if (data?.core?.isProtagonist || data?.isProtagonist) {
+            return data?.core?.name || data?.name || id;
+        }
+    }
+    return null;
+}
+
+/**
+ * Auto-migrate baseline from cached static data when missing.
+ * @param {string|number} characterId
+ * @param {object} [options]
+ * @param {string} [options.expectedName]
+ * @returns {{migrated:boolean, reason:string, protagonistName:string|null}}
+ */
+export function autoMigrateBaselineIfMissing(characterId, options = {}) {
+    const expectedName = options?.expectedName || '';
+    if (characterId === undefined || characterId === null || characterId === '') {
+        return { migrated: false, reason: 'invalid_character', protagonistName: null };
+    }
+
+    const baseline = loadStaticBaseline(characterId);
+    const baselineCount = Object.keys(baseline?.characters || {}).length;
+    if (baseline && baselineCount > 0) {
+        return { migrated: false, reason: 'baseline_exists', protagonistName: resolveProtagonistName(baseline) };
+    }
+
+    const cached = loadStaticData(characterId);
+    if (!hasMeaningfulStaticCache(cached)) {
+        return { migrated: false, reason: 'cached_empty', protagonistName: null };
+    }
+
+    const protagonistName = resolveProtagonistName(cached);
+    if (expectedName && protagonistName && protagonistName !== expectedName) {
+        return { migrated: false, reason: 'name_mismatch', protagonistName };
+    }
+
+    const shouldOverwrite = !!baseline && baselineCount === 0;
+    const migrated = saveStaticBaseline(characterId, cached, { overwrite: shouldOverwrite });
+    return { migrated, reason: migrated ? 'migrated' : 'baseline_exists', protagonistName };
+}
+
+/**
+ * Auto-backfill static database from baseline when missing.
+ * @param {string|number} characterId
+ * @param {object} [options]
+ * @param {string} [options.expectedName]
+ * @returns {{backfilled:boolean, reason:string, protagonistName:string|null}}
+ */
+export function autoBackfillStaticDataFromBaselineIfMissing(characterId, options = {}) {
+    const expectedName = options?.expectedName || '';
+    if (characterId === undefined || characterId === null || characterId === '') {
+        return { backfilled: false, reason: 'invalid_character', protagonistName: null };
+    }
+
+    const cached = loadStaticData(characterId);
+    if (hasMeaningfulStaticCache(cached)) {
+        return { backfilled: false, reason: 'static_exists', protagonistName: resolveProtagonistName(cached) };
+    }
+
+    const baseline = loadStaticBaseline(characterId);
+    if (!hasMeaningfulStaticCache(baseline)) {
+        return { backfilled: false, reason: 'baseline_empty', protagonistName: null };
+    }
+
+    const protagonistName = resolveProtagonistName(baseline);
+    if (expectedName && protagonistName && protagonistName !== expectedName) {
+        return { backfilled: false, reason: 'name_mismatch', protagonistName };
+    }
+
+    saveStaticData(characterId, baseline);
+    return { backfilled: true, reason: 'backfilled', protagonistName };
+}
+
 
 /**
  * 导出指定角色的静态数据

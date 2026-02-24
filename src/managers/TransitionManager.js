@@ -714,25 +714,33 @@ export class TransitionManager {
                     return null;
                 };
 
-                const isValidStaticCacheForCharacter = (cached, expectedName) => {
+                const shouldEnforceNameMatch = (expectedNameValue, activeId) => {
+                    const normalized = String(expectedNameValue || '').trim();
+                    if (!normalized) return false;
+                    if (/^\d+$/.test(normalized)) return false;
+                    if (String(activeId) === normalized) return false;
+                    return true;
+                };
+
+                const isValidStaticCacheForCharacter = (cached, expectedName, activeId) => {
                     if (!cached || typeof cached !== 'object') return false;
                     const charactersCount = Object.keys(cached.characters || {}).length;
                     if (charactersCount === 0) return false;
-                    if (!expectedName) return true;
+                    if (!shouldEnforceNameMatch(expectedName, activeId)) return true;
                     const protagonistName = resolveProtagonistName(cached);
                     if (!protagonistName) return false;
                     return protagonistName === expectedName;
                 };
 
+                const expectedName = context?.name2 || this.USER.getContext()?.name2 || window?.name2 || '';
                 const baselineCount = Object.keys(baselineDb?.characters || {}).length;
                 const cachedCount = Object.keys(cachedDb?.characters || {}).length;
-                const expectedName = context?.name2 || this.USER.getContext()?.name2 || window?.name2 || '';
-                const baselineValid = isValidStaticCacheForCharacter(baselineDb, expectedName);
-                const cachedValid = isValidStaticCacheForCharacter(cachedDb, expectedName);
+                const baselineValid = isValidStaticCacheForCharacter(baselineDb, expectedName, activeCharId);
+                const cachedValid = isValidStaticCacheForCharacter(cachedDb, expectedName, activeCharId);
                 const memoryMatrices = this.currentChapter?.staticMatrices || null;
                 const memoryCount = Object.keys(memoryMatrices?.characters || {}).length;
                 const memoryProtagonist = resolveProtagonistName(memoryMatrices);
-                const memoryValid = isValidStaticCacheForCharacter(memoryMatrices, expectedName);
+                const memoryValid = isValidStaticCacheForCharacter(memoryMatrices, expectedName, activeCharId);
                 const memorySource = this.currentChapter?.__source || this.currentChapter?.uid || 'unknown';
                 const isStaticPreview = this.currentChapter?.__source === 'static_cache'
                     || (typeof this.currentChapter?.uid === 'string' && (

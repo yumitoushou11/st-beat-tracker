@@ -349,7 +349,11 @@ $('#extensions-settings-button').after(html);
 
             const selectedData = hasBaseline ? baselineData : cachedData;
             const protagonistName = resolveProtagonistName(selectedData);
-            if (activeCharName && protagonistName && activeCharName !== protagonistName) {
+            const normalizedActiveName = String(activeCharName || '').trim();
+            const shouldEnforceNameMatch = normalizedActiveName
+                && !/^\d+$/.test(normalizedActiveName)
+                && String(activeCharId) !== normalizedActiveName;
+            if (shouldEnforceNameMatch && activeCharName && protagonistName && activeCharName !== protagonistName) {
                 resetStaleStaticView(
                     `Static cache mismatch: ${protagonistName} != ${activeCharName}`,
                     activeCharId
@@ -2449,7 +2453,7 @@ $('#extensions-settings-button').after(html);
     bindPromptManagerHandlers($wrapper, deps);
 
     // -- 数据库管理: 绑定数据库管理相关处理器 --
-    bindDatabaseManagementHandlers($wrapper, deps, loadAndDisplayCachedStaticData);
+    bindDatabaseManagementHandlers($wrapper, deps, loadAndDisplayCachedStaticData, getEffectiveChapterState);
 
     deps.info("[UIManager] 所有UI事件已成功绑定。");
 
@@ -2469,7 +2473,7 @@ $('#extensions-settings-button').after(html);
 /**
  * 绑定数据库管理相关的事件处理器
  */
-function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
+function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged, getEffectiveChapterStateFn = null) {
     // 刷新数据库列表
     function refreshDatabaseList() {
         const $list = $wrapper.find('#sbt-static-db-list');
@@ -2505,6 +2509,9 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
                             <span class="sbt-db-item-name">${charId}</span>
                             <span class="sbt-db-item-stats">共 ${totalCount} 个实体</span>
                         </div>
+                        <button class="sbt-db-item-export sbt-icon-btn" title="导出该角色数据">
+                            <i class="fa-solid fa-download"></i>
+                        </button>
                         <button class="sbt-db-item-delete sbt-icon-btn" title="\u5220\u9664\u6b64\u89d2\u8272\u52a8\u9759\u6001\u6570\u636e">
                             <i class="fa-solid fa-trash"></i>
                         </button>
@@ -2619,6 +2626,24 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
         $list.html(html);
     }
 
+    let dbRefreshTimer = null;
+    const scheduleDbRefresh = () => {
+        if (dbRefreshTimer) {
+            clearTimeout(dbRefreshTimer);
+        }
+        dbRefreshTimer = setTimeout(() => {
+            refreshDatabaseList();
+            if (typeof onStaticDbChanged === 'function') {
+                onStaticDbChanged();
+            }
+        }, 200);
+    };
+
+    if (deps.eventBus?.on) {
+        deps.eventBus.on('CHAPTER_UPDATED', scheduleDbRefresh);
+        deps.eventBus.on('SBT_STATIC_DB_CHANGED', scheduleDbRefresh);
+    }
+
     const downloadJsonFile = (obj, filename) => {
         const json = JSON.stringify(obj, null, 2);
         const blob = new Blob([json], { type: 'application/json;charset=utf-8' });
@@ -2630,6 +2655,60 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
         link.click();
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
+    };
+
+    const exportCharacterSnapshot = async (characterId, options = {}) => {
+        const includeCurrentAnchors = options.includeCurrentAnchors === true;
+        if (characterId === undefined || characterId === null || characterId === '') {
+            deps.toastr.warning('请先打开角色聊天界面', '无法导出');
+            return;
+        }
+
+        let staticMatrices = staticDataManager.exportStaticData(characterId);
+        if (!staticMatrices && typeof staticDataManager.autoBackfillStaticDataFromBaselineIfMissing === 'function') {
+            const context = applicationFunctionManager.getContext ? applicationFunctionManager.getContext() : null;
+            const expectedName = context?.name2 || '';
+            const backfillResult = staticDataManager.autoBackfillStaticDataFromBaselineIfMissing(characterId, { expectedName });
+            if (backfillResult?.backfilled) {
+                deps.toastr.info('已回填静态数据', `角色 ${characterId}`);
+                staticMatrices = staticDataManager.exportStaticData(characterId);
+            }
+        }
+        if (!staticMatrices) {
+            const db = staticDataManager.getFullDatabase();
+            const availableIds = Object.keys(db);
+            deps.warn?.('[UIManager] Export failed: no static data for character.', {
+                characterId,
+                availableIds,
+            });
+            if (availableIds.length > 0 && !availableIds.includes(String(characterId))) {
+                deps.toastr.info('当前角色不在数据库中，请在列表里点击导出按钮', '提示');
+            }
+            deps.toastr.warning('未找到该角色的静态数据', '无法导出');
+            return;
+        }
+
+        const payload = {
+            schemaVersion: 2,
+            exportedAt: new Date().toISOString(),
+            characterId: String(characterId),
+            staticMatrices,
+        };
+
+        if (includeCurrentAnchors && typeof deps.getLeaderAnchorsForCurrentChat === 'function') {
+            payload.leaderAnchors = deps.getLeaderAnchorsForCurrentChat();
+        }
+
+        if (typeof deps.getLeaderAnchorsByChatForCharacter === 'function') {
+            try {
+                payload.leaderAnchorsByChat = await deps.getLeaderAnchorsByChatForCharacter(characterId);
+            } catch (error) {
+                deps.warn?.('[UIManager] Failed to export leader anchors by chat:', error);
+            }
+        }
+
+        downloadJsonFile(payload, `sbt-${characterId}-snapshot.json`);
+        deps.toastr.success('已导出角色数据', '导出成功');
     };
 
     const uploadJsonFile = () => new Promise((resolve, reject) => {
@@ -2659,7 +2738,31 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
 
     const getActiveCharacterId = () => {
         const context = applicationFunctionManager.getContext ? applicationFunctionManager.getContext() : null;
-        return context?.characterId;
+        const contextId = context?.characterId;
+
+        const resolveFromState = () => {
+            if (typeof getEffectiveChapterStateFn !== 'function') return null;
+            const effectiveState = getEffectiveChapterStateFn();
+            const stateId = resolveStaticCharacterId(effectiveState);
+            return (stateId !== undefined && stateId !== null && stateId !== '') ? stateId : null;
+        };
+
+        if (contextId !== undefined && contextId !== null && contextId !== '') {
+            try {
+                const db = staticDataManager.getFullDatabase();
+                const contextKey = String(contextId);
+                if (db && Object.prototype.hasOwnProperty.call(db, contextKey)) {
+                    return contextId;
+                }
+            } catch (error) {
+                deps.warn?.('[UIManager] Failed to read static database for active character fallback:', error);
+            }
+
+            const fallbackId = resolveFromState();
+            return fallbackId || contextId;
+        }
+
+        return resolveFromState();
     };
 
     
@@ -2726,7 +2829,7 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
 
     // Expand/collapse database item
     $wrapper.find('#sbt-static-db-list').on('click', '.sbt-db-item-header', function(e) {
-        if ($(e.target).closest('.sbt-db-item-delete').length) return;
+        if ($(e.target).closest('.sbt-db-item-delete, .sbt-db-item-export').length) return;
         const $item = $(this).closest('.sbt-db-item');
         const $details = $item.find('.sbt-db-item-details');
         const $icon = $item.find('.sbt-db-expand-icon');
@@ -2746,6 +2849,15 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
         }
     });
 
+    $wrapper.find('#sbt-static-db-list').on('click', '.sbt-db-item-export', async function(e) {
+        e.stopPropagation();
+        const $item = $(this).closest('.sbt-db-item');
+        const charId = $item.data('char-id');
+        const activeCharId = getActiveCharacterId();
+        const includeAnchors = activeCharId !== undefined && activeCharId !== null && String(activeCharId) === String(charId);
+        await exportCharacterSnapshot(charId, { includeCurrentAnchors: includeAnchors });
+    });
+
     // Refresh database list
     $wrapper.find('#sbt-refresh-db-btn').on('click', () => {
         refreshDatabaseList();
@@ -2755,31 +2867,7 @@ function bindDatabaseManagementHandlers($wrapper, deps, onStaticDbChanged) {
     // Export current character (static + dynamic anchors)
     $wrapper.find('#sbt-export-current-role-btn').on('click', () => {
         const characterId = getActiveCharacterId();
-        if (characterId === undefined || characterId === null || characterId === '') {
-            deps.toastr.warning('\u8bf7\u5148\u6253\u5f00\u89d2\u8272\u804a\u5929\u754c\u9762', '\u65e0\u6cd5\u5bfc\u51fa');
-            return;
-        }
-
-        const staticMatrices = staticDataManager.exportStaticData(characterId);
-        if (!staticMatrices) {
-            deps.toastr.warning('\u672a\u627e\u5230\u8be5\u89d2\u8272\u7684\u9759\u6001\u6570\u636e', '\u65e0\u6cd5\u5bfc\u51fa');
-            return;
-        }
-
-        const leaderAnchors = typeof deps.getLeaderAnchorsForCurrentChat === 'function'
-            ? deps.getLeaderAnchorsForCurrentChat()
-            : [];
-
-        const payload = {
-            schemaVersion: 2,
-            exportedAt: new Date().toISOString(),
-            characterId: String(characterId),
-            staticMatrices,
-            leaderAnchors
-        };
-
-        downloadJsonFile(payload, `sbt-${characterId}-snapshot.json`);
-        deps.toastr.success('\u5df2\u5bfc\u51fa\u5f53\u524d\u89d2\u8272\u6570\u636e', '\u5bfc\u51fa\u6210\u529f');
+        exportCharacterSnapshot(characterId, { includeCurrentAnchors: true });
     });
 
     // Import current character (static + dynamic anchors)
