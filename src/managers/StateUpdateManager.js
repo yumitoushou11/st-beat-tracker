@@ -18,6 +18,51 @@ import { TextSanitizer } from '../utils/TextSanitizer.js';
 import { deepmerge } from '../../utils/deepmerge.js';
 import { StorylineValidator } from '../../utils/storylineValidator.js';
 
+const normalizeSummaryLines = (text) => {
+    if (!text) return [];
+    const rawLines = String(text)
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+
+    const lines = [];
+    for (let i = 0; i < rawLines.length; i++) {
+        const line = rawLines[i];
+        if (line === '故事梗概') continue;
+        if (/^\d+[\.\、)]?$/.test(line)) {
+            const nextLine = rawLines[i + 1];
+            if (nextLine && !/^\d+[\.\、)]?$/.test(nextLine)) {
+                lines.push(nextLine.replace(/^\d+[\.\、)]\s*/, '').trim());
+                i += 1;
+            }
+            continue;
+        }
+        lines.push(line.replace(/^\d+[\.\、)]\s*/, '').trim());
+    }
+    return lines.filter(Boolean);
+};
+
+const mergeLongTermSummary = (previous, incoming) => {
+    const prevLines = normalizeSummaryLines(previous);
+    const nextLines = normalizeSummaryLines(incoming);
+
+    if (nextLines.length === 0) return prevLines.join('\n');
+    if (prevLines.length === 0) return nextLines.join('\n');
+
+    const seen = new Set();
+    const merged = [];
+    const addLine = (line) => {
+        const key = line.replace(/\s+/g, '');
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+        merged.push(line);
+    };
+
+    prevLines.forEach(addLine);
+    nextLines.forEach(addLine);
+    return merged.join('\n');
+};
+
 /**
  * 状态更新管理器
  * 负责将史官返回的Delta应用到Chapter对象
@@ -647,7 +692,10 @@ export class StateUpdateManager {
         // 步骤三：更新元数据
         if (delta.new_long_term_summary) {
             this.info(" -> 正在更新长篇故事摘要...");
-            workingChapter.meta.longTermStorySummary = delta.new_long_term_summary; // 已经在顶部清理过
+            workingChapter.meta.longTermStorySummary = mergeLongTermSummary(
+                workingChapter.meta?.longTermStorySummary || '',
+                delta.new_long_term_summary
+            ); // 已经在顶部清理过
         }
 
         // V6.0 步骤三B：更新年表时间
