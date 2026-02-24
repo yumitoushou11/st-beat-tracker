@@ -363,7 +363,7 @@ _createPrompt(context) {
     logger.debug(`[建筑师] 实体召回模式: ${isEntityRecallEnabled ? '启用' : '关闭（默认）'}`);
 
     // 【默认流程】使用系统默认提示词（带动态数据注入）
-    const { chapter, firstMessageContent, leaderMessageContent } = context;
+    const { chapter, firstMessageContent, leaderMessageContent, rerollChapterBlueprint } = context;
             const currentWorldState = deepmerge(
             chapter.staticMatrices,
             chapter.dynamicState
@@ -647,6 +647,9 @@ ${(() => {
 
   数据3_上章锚点正文:
 ${safeLeaderMessageContent ? `    内容:\n${safeLeaderMessageContent}` : "    内容: （未找到锚点正文）"}
+
+  数据4_重roll参考剧本:
+${rerollChapterBlueprint ? `    内容:\n<chapter_blueprint>\n${rerollChapterBlueprint}\n</chapter_blueprint>\n    指令: 这是重roll前的本章剧本，仅用于对照与改写。必须保持核心逻辑连续，但允许调整节拍结构与表现方式。` : "    内容: （未附带）"}
 
   数据5_环境与状态:
     World_Snapshot: 见current_world_state标签

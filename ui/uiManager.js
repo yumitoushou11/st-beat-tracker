@@ -12,6 +12,7 @@ import * as staticDataManager from '../src/StaticDataManager.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('UIManager');
+let lastChapterStateForUi = null;
 
 const deps = {
     onReanalyzeWorldbook: () => logger.warn("onReanalyzeWorldbook not injected"),
@@ -94,6 +95,7 @@ export function initializeUIManager(dependencies) {
         deps.eventBus.on('CHAPTER_UPDATED', (chapterState) => {
             deps.info("[UIManager] 接收到 'CHAPTER_UPDATED' 事件，正在刷新仪表盘...");
             if (chapterState) {
+                lastChapterStateForUi = chapterState;
                 updateDashboard(chapterState);
             }
         });
@@ -418,6 +420,10 @@ $('#extensions-settings-button').after(html);
 
                 // 【新增】加载并显示静态数据缓存（如果存在）
                 loadAndDisplayCachedStaticData();
+                if (lastChapterStateForUi) {
+                    updateDashboard(lastChapterStateForUi);
+                }
+                $wrapper.find('#sbt-refresh-db-btn').trigger('click');
             }
     });
 
