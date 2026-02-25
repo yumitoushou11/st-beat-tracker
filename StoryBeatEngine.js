@@ -27,6 +27,7 @@ import { UserInteractionHandler } from './src/handlers/UserInteractionHandler.js
 import { CleanupHandler } from './src/handlers/CleanupHandler.js';
 import { showNarrativeFocusPopup } from './ui/popups/proposalPopup.js';
 import { sbtConsole } from './utils/sbtConsole.js';
+import { DatabaseAdapter } from './DatabaseAdapter.js';
 
 export class StoryBeatEngine {
     constructor(dependencies) {
@@ -400,6 +401,12 @@ const spoilerBlockPlaceholder = {
         this.eventBus.emit('CHAPTER_UPDATED', this.currentChapter);
         this.info("状态已从leader消息恢复，UI已刷新");
 
+        const isDbAdapterEnabled = DatabaseAdapter.isEnabled();
+        let externalDbContexts = null;
+        if (isDbAdapterEnabled) {
+            externalDbContexts = await DatabaseAdapter.buildExternalContexts({ recentLimit: 6 });
+        }
+
         // 【自由章模式】跳过回合指挥
         const isFreeRoamMode = this.currentChapter?.meta?.freeRoamMode || false;
         if (isFreeRoamMode) {
@@ -509,7 +516,8 @@ const spoilerBlockPlaceholder = {
                 currentBeat: currentBeatForConductor,
                 nextBeat: nextBeatForConductor,
                 currentBeatIdx: clampedStoredBeatIdx,
-                userLastMessage: lastUserMessage
+                userLastMessage: lastUserMessage,
+                ...(externalDbContexts || {})
             };
             this.logger.log('✓ chapter 实例已传递（包含 staticMatrices 和 stylistic_archive）');
 
@@ -792,8 +800,24 @@ if (this.currentChapter.chapter_blueprint) {
             recallContent.push(allWorldviewContext);
             this.info('✓ [全量注入] 所有世界实体已一次性注入');
         } else {
-            recallContent.push(`📋 当前世界无实体数据。`);
-        }
+        recallContent.push(`📋 当前世界无实体数据。`);
+    }
+}
+
+    if (isDbAdapterEnabled && externalDbContexts) {
+        recallContent.push('');
+        recallContent.push('---');
+        recallContent.push('');
+        recallContent.push('## 【数据库适配输入】');
+        recallContent.push('');
+        recallContent.push('### 世界书内容');
+        recallContent.push(externalDbContexts.externalWorldbookContext || '未找到/无数据');
+        recallContent.push('');
+        recallContent.push('### 大纲 + 总结表');
+        recallContent.push(externalDbContexts.externalDatabaseContext || '未找到/无数据');
+        recallContent.push('');
+        recallContent.push('### 前文上下文（仅AI）');
+        recallContent.push(externalDbContexts.externalRecentContext || '未找到/无数据');
     }
 
     recallPlaceholder.content = recallContent.join('\n');

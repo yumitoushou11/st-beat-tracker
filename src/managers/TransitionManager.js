@@ -14,6 +14,7 @@ import { DebugLogger } from '../utils/DebugLogger.js';
 import { sbtConsole } from '../../utils/sbtConsole.js';
 import * as stateManager from '../../stateManager.js';
 import { simpleHash } from '../../utils/textUtils.js';
+import { DatabaseAdapter } from '../../DatabaseAdapter.js';
 
 /**
  * 章节转换管理器类
@@ -182,10 +183,12 @@ export class TransitionManager {
                 throw new Error(`无法找到索引 ${endIndex} 处的目标消息！`);
             }
     
+            const isDbAdapterEnabled = DatabaseAdapter.isEnabled();
+
             // 2. V7.2 增强：检查是否有未完成的过渡（支持分阶段断点恢复）
             let reviewDelta = null;
             let finalNarrativeFocus = "由AI自主创新。";
-            let skipHistorian = false;
+            let skipHistorian = isDbAdapterEnabled;
 
             if (this.LEADER.pendingTransition) {
                 // 验证pendingTransition是否属于当前转换
@@ -226,10 +229,32 @@ export class TransitionManager {
                     this.warn(`检测到过期的pendingTransition（属于索引${this.LEADER.pendingTransition.endIndex}，当前索引${endIndex}），已清理。`);
                     this.LEADER.pendingTransition = null;
                     this.USER.saveChat();
-                    skipHistorian = false;
+                    skipHistorian = isDbAdapterEnabled;
                 }
             } else {
-                skipHistorian = false;
+                skipHistorian = isDbAdapterEnabled;
+            }
+
+            if (isDbAdapterEnabled) {
+                if (!this.LEADER.pendingTransition) {
+                    this.LEADER.pendingTransition = {
+                        endIndex: endIndex,
+                        historianReviewDelta: null,
+                        playerNarrativeFocus: workingChapter?.playerNarrativeFocus || "由AI自主创新。",
+                        freeRoamMode: false,
+                        status: 'db_skip_historian'
+                    };
+                    this.USER.saveChat();
+                }
+                reviewDelta = this.LEADER.pendingTransition.historianReviewDelta || null;
+                finalNarrativeFocus = this.LEADER.pendingTransition.playerNarrativeFocus
+                    || workingChapter?.playerNarrativeFocus
+                    || "由AI自主创新。";
+                skipHistorian = true;
+                this.info("[DB适配] 已启用数据库适配模式，跳过史官复盘。");
+                if (!reviewDelta || typeof reviewDelta !== 'object') {
+                    reviewDelta = {};
+                }
             }
     
             if (!skipHistorian) {
@@ -374,7 +399,11 @@ export class TransitionManager {
             delete newChapterData.uid;
             delete newChapterData.checksum;
             const newChapter = new Chapter(newChapterData);
-    
+
+            if (!reviewDelta || typeof reviewDelta !== 'object') {
+                reviewDelta = {};
+            }
+
             let updatedNewChapter = this.engine.stateUpdateManager.applyStateUpdates(newChapter, reviewDelta);
 
             if (!updatedNewChapter.meta) {
@@ -679,6 +708,7 @@ export class TransitionManager {
                 const context = this.deps.applicationFunctionManager.getContext();
                 const activeCharId = context?.characterId;
                 if (!activeCharId) throw new Error("无法获取 activeCharId，创世纪中止。");
+                const isDbAdapterEnabled = DatabaseAdapter.isEnabled();
     
                 // ========================= [修复逻辑：三级数据源探查] =========================
                 // 【修复】优先级调整：静态数据库优先，确保用户在预编辑模式的修改能被使用
@@ -792,6 +822,11 @@ export class TransitionManager {
                     sourceLabel = "内存fallback";
                 }
                 // --- 阶段三：降级执行AI分析 (实时生成) ---
+                else if (isDbAdapterEnabled) {
+                    this.info("GENESIS: 数据库适配模式已启用，跳过情报官世界书分析。");
+                    finalStaticMatrices = this.currentChapter.staticMatrices;
+                    sourceLabel = "DB模式-空矩阵";
+                }
                 else {
                     this.info("GENESIS: 未找到有效缓存，正在实时分析世界书...");
                     loadingToast.find('.toast-message').html(`
@@ -987,12 +1022,17 @@ export class TransitionManager {
         const chapterContext = chapterForPlanning || this.currentChapter;
         const { piece: lastLeaderPiece } = this.USER.findLastMessageWithLeader();
         const leaderMessageContent = lastLeaderPiece?.mes || null;
+        const isDbAdapterEnabled = DatabaseAdapter.isEnabled();
+        const externalDbContexts = isDbAdapterEnabled
+            ? await DatabaseAdapter.buildExternalContexts({ recentLimit: 6 })
+            : null;
         const contextForArchitect = {
             system_confidence: isGenesis ? 0.1 : 0.5,
             player_profile: { description: "暂无画像。" },
             chapter: chapterContext,
             firstMessageContent: firstMessageContent,
-            leaderMessageContent: leaderMessageContent
+            leaderMessageContent: leaderMessageContent,
+            ...(externalDbContexts || {})
         };
     
         this.logger.group(`BRIDGE-PROBE [PLAN-CHAPTER]`);

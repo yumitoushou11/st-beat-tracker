@@ -232,7 +232,18 @@ _createPrompt(context) {
     }
 
     // 极简模式：只提取必要数据
-    const { lastExchange, chapterBlueprint, staticMatrices, currentBeat, nextBeat, currentBeatIdx, userLastMessage } = context;
+    const {
+        lastExchange,
+        chapterBlueprint,
+        staticMatrices,
+        currentBeat,
+        nextBeat,
+        currentBeatIdx,
+        userLastMessage,
+        externalDatabaseContext,
+        externalWorldbookContext,
+        externalRecentContext
+    } = context;
     const beats = chapterBlueprint?.plot_beats || [];
 
     // 【实体召回开关检测】默认关闭
@@ -268,6 +279,20 @@ _createPrompt(context) {
 - 如有冲突，请写入 logic_safety_warning。
 ` : '';
 
+    const externalBlocks = [];
+    if (externalWorldbookContext) {
+        externalBlocks.push(`【世界书补充】\n${externalWorldbookContext}`);
+    }
+    if (externalDatabaseContext) {
+        externalBlocks.push(`【数据库大纲+总结】\n${externalDatabaseContext}`);
+    }
+    if (externalRecentContext) {
+        externalBlocks.push(`【前文上下文（仅AI）】\n${externalRecentContext}`);
+    }
+    const externalContextBlock = externalBlocks.length
+        ? `\n外部上下文:\n${externalBlocks.join('\n\n')}\n`
+        : '';
+
 
 // V10.0 Prompt：GPS定位 + 基调纠正 + 严格顺序
     return BACKEND_SAFE_PASS_PROMPT + `
@@ -287,6 +312,7 @@ ${JSON.stringify(beats.map((b, i) => ({
 最新对话:
 ${lastExchange}
 
+${externalContextBlock}
 定位规则_严格顺序:
   禁止跳跃: 节拍推进必须逐级进行，从0开始逐个验证
 

@@ -1731,6 +1731,47 @@ $('#extensions-settings-button').after(html);
         );
     });
 
+    // -- 数据库适配模式开关 --
+    const $dbAdapterToggle = $('#sbt-db-adapter-toggle');
+    const $dbAdapterStatus = $('#sbt-db-adapter-status');
+
+    if (localStorage.getItem('sbt-db-adapter-enabled') === null) {
+        localStorage.setItem('sbt-db-adapter-enabled', 'false');
+    }
+
+    const isDbAdapterEnabled = () => localStorage.getItem('sbt-db-adapter-enabled') === 'true';
+
+    const isDbApiAvailable = () => {
+        const root = (typeof window !== 'undefined' && window.parent) ? window.parent : window;
+        return !!(root?.AutoCardUpdaterAPI && typeof root.AutoCardUpdaterAPI.exportTableAsJson === 'function');
+    };
+
+    const updateDbAdapterStatus = (enabled, reason = '') => {
+        if (!$dbAdapterStatus.length) return;
+        const baseText = enabled ? '数据库适配模式：已启用（测试中）' : '数据库适配模式：未启用（测试中）';
+        $dbAdapterStatus.text(reason ? `${baseText}（${reason}）` : baseText);
+    };
+
+    $dbAdapterToggle.prop('checked', isDbAdapterEnabled());
+    updateDbAdapterStatus(isDbAdapterEnabled());
+
+    $wrapper.on('change', '#sbt-db-adapter-toggle', function() {
+        const isChecked = $(this).is(':checked');
+        if (isChecked && !isDbApiAvailable()) {
+            localStorage.setItem('sbt-db-adapter-enabled', 'false');
+            $(this).prop('checked', false);
+            updateDbAdapterStatus(false, '未检测到数据库插件');
+            deps.toastr.error('未检测到数据库插件（AutoCardUpdaterAPI不可用），已取消启用。', '数据库适配');
+            return;
+        }
+        localStorage.setItem('sbt-db-adapter-enabled', isChecked);
+        updateDbAdapterStatus(isChecked);
+        deps.toastr.info(
+            `数据库适配模式已${isChecked ? '开启' : '关闭'}`,
+            '设置已更新'
+        );
+    });
+
     // -- 实体召回开关（测试功能） --
     const $entityRecallToggle = $('#sbt-enable-entity-recall-toggle');
     const isEntityRecallEnabled = localStorage.getItem('sbt-entity-recall-enabled') === 'true'; // 默认关闭

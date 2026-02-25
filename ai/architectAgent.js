@@ -155,23 +155,8 @@ export class ArchitectAgent extends Agent {
             throw new Error(`${baseError}：plot_beats 不存在或为空。`);
         }
 
-        if (!blueprint.chapter_core_and_highlight || !blueprint.chapter_core_and_highlight.highlight_design_logic) {
-            throw new Error(`${baseError}：缺少 chapter_core_and_highlight.highlight_design_logic。`);
-        }
-
-        const designNotes = result.design_notes;
-        if (!designNotes || typeof designNotes !== 'object') {
-            throw new Error(`${baseError}：design_notes 缺失。`);
-        }
-
-        const mandatoryNoteKeys = ['player_focus_execution', 'event_priority_report', 'emotional_tone_strategy'];
-        const missingKeys = mandatoryNoteKeys.filter((key) => !designNotes[key]);
-        if (missingKeys.length) {
-            throw new Error(`${baseError}：design_notes 缺少字段 ${missingKeys.join(', ')}。`);
-        }
-
-        if (!designNotes.event_priority_report?.beat_allocation) {
-            throw new Error(`${baseError}：event_priority_report.beat_allocation 缺失。`);
+        if (!result.design_notes || typeof result.design_notes !== 'object') {
+            result.design_notes = {};
         }
     }
 
@@ -363,7 +348,15 @@ _createPrompt(context) {
     logger.debug(`[建筑师] 实体召回模式: ${isEntityRecallEnabled ? '启用' : '关闭（默认）'}`);
 
     // 【默认流程】使用系统默认提示词（带动态数据注入）
-    const { chapter, firstMessageContent, leaderMessageContent, rerollChapterBlueprint } = context;
+    const {
+        chapter,
+        firstMessageContent,
+        leaderMessageContent,
+        rerollChapterBlueprint,
+        externalDatabaseContext,
+        externalWorldbookContext,
+        externalRecentContext
+    } = context;
             const currentWorldState = deepmerge(
             chapter.staticMatrices,
             chapter.dynamicState
@@ -386,6 +379,15 @@ _createPrompt(context) {
         const beatCountRuleNote = beatCountSetting.isCustom
             ? `自定义区间规则: 本章节拍数量必须严格落在 ${beatCountRange}；自定义模式下不做额外上限或合并要求。`
             : `区间规则: 节拍数量必须严格落在 ${beatCountRange} 区间内，不得随意增减。`;
+        const safeExternalWorldbookContext = (typeof externalWorldbookContext === 'string' && externalWorldbookContext.trim())
+            ? externalWorldbookContext.trim()
+            : null;
+        const safeExternalDatabaseContext = (typeof externalDatabaseContext === 'string' && externalDatabaseContext.trim())
+            ? externalDatabaseContext.trim()
+            : null;
+        const safeExternalRecentContext = (typeof externalRecentContext === 'string' && externalRecentContext.trim())
+            ? externalRecentContext.trim()
+            : null;
         // V8.0: 提取故事线追踪数据和文体档案
         const staticStorylines = chapter?.staticMatrices?.storylines || {
             main_quests: {}, side_quests: {}, relationship_arcs: {}, personal_arcs: {}
@@ -691,6 +693,15 @@ ${isEntityRecallEnabled ? `    模式: 上下文预取模式
     原则: 宁滥勿缺包括current_world_state中已有的以及本章新引入的如NEW:char_xxx格式` : `    模式: 完整实体注入模式召回功能已关闭
     影响: 所有实体数据已在回合执导时完整注入你无需在蓝图中指定chapter_context_ids
     注意: 你仍然可以使用NEW:xxx格式引入新实体系统会自动处理`}
+
+  数据8_外部世界书:
+${safeExternalWorldbookContext ? `    内容:\n${safeExternalWorldbookContext}` : "    内容: （未提供）"}
+
+  数据9_外部数据库:
+${safeExternalDatabaseContext ? `    内容:\n${safeExternalDatabaseContext}` : "    内容: （未提供）"}
+
+  数据10_前文上下文:
+${safeExternalRecentContext ? `    内容:\n${safeExternalRecentContext}` : "    内容: （未提供）"}
 
 <current_world_state>
 ${JSON.stringify(currentWorldState, null, 2)}
